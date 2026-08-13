@@ -353,24 +353,26 @@
         </div>
       </div>
 
-
-    <div class="d-grid gap-2 d-md-flex justify-md-end my-4">
-      <button
-        type="button"
-        class="btn btn-success btn-lg shadow-sm d-flex align-items-center justify-content-center"
-        (click)="guardarCertificado()"
-        [disabled]="cargando"
+            <!-- Alerta de Bootstrap para Mensajes -->
+      <div
+        *ngIf="mensajeRespuesta"
+        class="alert alert-dismissible fade show mt-3 shadow-sm"
+        [ngClass]="esError ? 'alert-danger' : 'alert-success'"
+        role="alert"
       >
-        <!-- Spinner visible solo durante la carga -->
-        <span
-          *ngIf="cargando"
-          class="spinner-border spinner-border-sm me-2"
-          role="status"
-          aria-hidden="true"
-        ></span>
+        <strong>{{ esError ? '¡Atención!' : '¡Éxito!' }}</strong> {{ mensajeRespuesta }}
+        <button type="button" class="btn-close" (click)="mensajeRespuesta = null" aria-label="Close"></button>
+      </div>
 
-        <!-- Texto dinámico según el estado -->
-        <span>{{ cargando ? 'Guardando Certificado...' : 'Guardar Certificado' }}</span>
-      </button>
-    </div>
+      <!-- Botón de Guardado Directo -->
+      <div class="d-flex justify-content-end my-4">
+        <button
+          type="button"
+          class="btn btn-success btn-lg shadow-sm"
+          (click)="guardarCertificado()"
+        >
+          Guardar Certificado
+        </button>
+      </div>
+
 </div>

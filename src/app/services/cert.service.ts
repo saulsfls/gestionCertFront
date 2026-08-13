@@ -12,8 +12,8 @@ export class CertService {
   constructor(private http: HttpClient) {}
 
   // Crear un nuevo certificado
-  crearCertificado(certificado: Certificado): Observable<ApiResponse<Certificado>> {
-    return this.http.post<ApiResponse<Certificado>>(`${this.apiUrl}/nuevo`, certificado);
+  crearCertificado(certificado: Certificado): Observable<any> {
+    return this.http.post<any>(`${this.apiUrl}/nuevo`, certificado);
   }
   // Obtener todos los certificados
   obtenerCertificados(): Observable<ApiResponse<Certificado[]>> {

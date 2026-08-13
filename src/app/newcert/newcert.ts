@@ -1,6 +1,7 @@
 import {
   Component,
   OnInit,
+  ChangeDetectorRef
 } from '@angular/core';
 import { Certificado } from '../models/certificado.models';
 import { CommonModule } from '@angular/common';
@@ -17,7 +18,7 @@ export type TipoDato = 'number' | 'string';
   styleUrl: './newcert.css',
 })
 export class Newcert {
- // 1. Formulario del certificado
+// 1. Formulario del certificado
   certificado: Certificado = {
     equipment_id: '',
     name_equipment: '',
@@ -34,13 +35,15 @@ export class Newcert {
   tablasResultados: TablaResultado[] = [];
   direccionTab: DireccionTab = 'vertical';
 
-  // Control de interfaz
-  copiadoExitoso: boolean = false;
-  cargando: boolean = false;
+  // Control de alertas de la interfaz
   mensajeRespuesta: string | null = null;
   esError: boolean = false;
+  copiadoExitoso: boolean = false;
 
-  constructor(private certificadoService: CertService) {}
+  constructor(
+    private certificadoService: CertService,
+    private cdr: ChangeDetectorRef // <--- Inyectamos ChangeDetectorRef para forzar el renderizado
+  ) {}
 
   ngOnInit(): void {
     this.tablasResultados = [this.crearEstructuraTablaInicial()];
@@ -54,9 +57,13 @@ export class Newcert {
       ecuation_calibration: '',
       range: '',
       columnas: [
-        { key: 'key', label: 'etiqueta', unit: '', type: 'number' },
+        { key: 'valor_referencia', label: 'Valor de Referencia', unit: '', type: 'number' },
+        { key: 'resultado', label: 'Resultado', unit: '%', type: 'number' },
+        { key: 'valor_medido', label: 'Valor Medido', unit: '', type: 'number' },
+        { key: 'incertidumbre', label: 'Incertidumbre', unit: '', type: 'number' }
       ],
       filas: [
+        { valor_referencia: null, resultado: null, valor_medido: null, incertidumbre: null },
         { valor_referencia: null, resultado: null, valor_medido: null, incertidumbre: null }
       ]
     };
@@ -186,7 +193,12 @@ export class Newcert {
       });
 
       return {
-        ...tabla,
+        titulo: tabla.titulo || '',
+        mesurando: tabla.mesurando || '',
+        unit: tabla.unit || '',
+        ecuation_calibration: tabla.ecuation_calibration || '',
+        range: tabla.range || '',
+        columnas: tabla.columnas,
         filas: filasProcesadas
       };
     });
@@ -203,69 +215,46 @@ export class Newcert {
   copiarJson(): void {
     navigator.clipboard.writeText(this.obtenerJsonString()).then(() => {
       this.copiadoExitoso = true;
-      setTimeout(() => (this.copiadoExitoso = false), 2500);
+      setTimeout(() => {
+        this.copiadoExitoso = false;
+        this.cdr.detectChanges();
+      }, 2500);
     });
   }
 
   // --- Sistema de Validaciones ---
   validarFormulario(): boolean {
-    // 1. Validar Campos Principales del Certificado
     if (!this.certificado.equipment_id || !this.certificado.equipment_id.trim()) {
-      this.mostrarError('El "ID del Equipo" es un campo obligatorio.');
+      this.mostrarAlerta('El "ID del Equipo" es un campo obligatorio.', true);
       return false;
     }
 
     if (!this.certificado.name_equipment || !this.certificado.name_equipment.trim()) {
-      this.mostrarError('El "Nombre del Equipo" es obligatorio.');
+      this.mostrarAlerta('El "Nombre del Equipo" es un campo obligatorio.', true);
       return false;
     }
 
-    // 2. Validar Fechas (date_cc no puede ser previa a date_cal)
     if (this.certificado.date_cal && this.certificado.date_cc) {
       const fechaCal = new Date(this.certificado.date_cal);
       const fechaCc = new Date(this.certificado.date_cc);
 
       if (fechaCc < fechaCal) {
-        this.mostrarError('La "Fecha del Certificado" no puede ser anterior a la "Fecha de Calibración".');
+        this.mostrarAlerta('La "Fecha del Certificado" no puede ser anterior a la "Fecha de Calibración".', true);
         return false;
       }
     }
 
-    // 3. Validar Estructura de Tablas Dinámicas
     for (let i = 0; i < this.tablasResultados.length; i++) {
       const tabla = this.tablasResultados[i];
       const numTabla = i + 1;
 
       if (!tabla.titulo || !tabla.titulo.trim()) {
-        this.mostrarError(`El título de la Tabla #${numTabla} es obligatorio.`);
+        this.mostrarAlerta(`El título de la Tabla #${numTabla} es obligatorio.`, true);
         return false;
       }
 
       if (!tabla.mesurando || !tabla.mesurando.trim()) {
-        this.mostrarError(`El mesurando de la Tabla #${numTabla} es obligatorio.`);
-        return false;
-      }
-
-      // Validar Columnas (Etiquetas no vacías y sin duplicados)
-      const labels = tabla.columnas.map(col => col.label.trim().toLowerCase());
-      if (labels.some(label => !label)) {
-        this.mostrarError(`La Tabla #${numTabla} tiene columnas con títulos vacíos.`);
-        return false;
-      }
-
-      const tieneDuplicados = labels.some((label, idx) => labels.indexOf(label) !== idx);
-      if (tieneDuplicados) {
-        this.mostrarError(`La Tabla #${numTabla} contiene nombres de columnas duplicados.`);
-        return false;
-      }
-
-      // Validar Filas (Evitar tablas con todas las celdas nulas o vacías)
-      const tieneAlgunaCeldaConDatos = tabla.filas.some(fila =>
-        Object.values(fila).some(val => val !== null && val !== undefined && val !== '')
-      );
-
-      if (!tieneAlgunaCeldaConDatos) {
-        this.mostrarError(`La Tabla #${numTabla} no tiene ningún dato ingresado en sus filas.`);
+        this.mostrarAlerta(`El mesurando de la Tabla #${numTabla} es obligatorio.`, true);
         return false;
       }
     }
@@ -273,45 +262,44 @@ export class Newcert {
     return true;
   }
 
-  private mostrarError(mensaje: string): void {
-    this.esError = true;
+  mostrarAlerta(mensaje: string, esError: boolean): void {
     this.mensajeRespuesta = mensaje;
+    this.esError = esError;
+    this.cdr.detectChanges(); // Forzar actualización visual del DOM
+
+    setTimeout(() => {
+      this.mensajeRespuesta = null;
+      this.cdr.detectChanges();
+    }, 5000);
   }
 
-  // --- Comunicación con el Servicio para Crear Certificado ---
+  // --- Guardado Seguro con Forzado de Detección de Cambios ---
   guardarCertificado(): void {
-    this.mensajeRespuesta = null;
-    this.esError = false;
-
-    // Ejecutar validaciones antes de procesar o enviar
     if (!this.validarFormulario()) {
       return;
     }
 
-    this.cargando = true;
+    const payload: Certificado = {
+      ...this.certificado,
+      equipment_id: this.certificado.equipment_id.trim(),
+      name_equipment: this.certificado.name_equipment.trim(),
+      data: JSON.parse(JSON.stringify(this.obtenerJsonEstructurado()))
+    };
 
-    // Asignar el JSON construido dinámicamente al campo 'data'
-    this.certificado.data = this.obtenerJsonEstructurado();
-
-    this.certificadoService.crearCertificado(this.certificado).subscribe({
-      next: (res) => {
-        this.cargando = false;
-        if (res.ok) {
-          this.esError = false;
-          this.mensajeRespuesta = '¡Certificado guardado con éxito!';
-          console.log('Respuesta del Servidor:', res.data);
-          this.limpiarFormulario();
-        }
+    this.certificadoService.crearCertificado(payload).subscribe({
+      next: (res: any) => {
+        this.mostrarAlerta('¡Certificado guardado correctamente!', false);
+        this.limpiarFormulario();
       },
-      error: (err) => {
-        this.cargando = false;
-        this.mostrarError(err.error?.message || 'Error al conectar con el servidor.');
-        console.error('Error al guardar certificado:', err);
+      error: (err: any) => {
+        const msg = err.error?.message || 'Error al conectar con la API de PostgreSQL.';
+        this.mostrarAlerta(msg, true);
       }
     });
   }
 
-  private limpiarFormulario(): void {
+  limpiarFormulario(): void {
+    // Reasignamos nuevas referencias para romper cualquier binding previo en Angular
     this.certificado = {
       equipment_id: '',
       name_equipment: '',
@@ -324,5 +312,8 @@ export class Newcert {
       data: {}
     };
     this.tablasResultados = [this.crearEstructuraTablaInicial()];
+
+    // Forzamos la detección de cambios para actualizar el HTML inmediatamente
+    this.cdr.detectChanges();
   }
 }
