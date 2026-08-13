@@ -1,1 +1,322 @@
-<p>newcert works!</p>
+<!-- Formulario Principal del Certificado -->
+<div class="card mb-4 shadow-sm">
+  <div class="card-header bg-dark text-white">
+    <h5 class="m-0">Datos Generales del Certificado</h5>
+  </div>
+  <div class="card-body">
+    <div class="row g-3">
+
+      <!-- ID / Código del Equipo -->
+      <div class="col-md-4">
+        <label for="equipment_id" class="form-label fw-bold">ID del Equipo <span class="text-danger">*</span></label>
+        <input
+          type="text"
+          id="equipment_id"
+          class="form-control"
+          [(ngModel)]="certificado.equipment_id"
+          placeholder="Ej: EQ-2026-001"
+          required
+        >
+      </div>
+
+      <!-- Nombre del Equipo -->
+      <div class="col-md-5">
+        <label for="name_equipment" class="form-label fw-bold">Nombre del Equipo <span class="text-danger">*</span></label>
+        <input
+          type="text"
+          id="name_equipment"
+          class="form-control"
+          [(ngModel)]="certificado.name_equipment"
+          placeholder="Ej: Multímetro Digital / Calibrador"
+          required
+        >
+      </div>
+
+      <!-- Código / Folio del Certificado (CC) -->
+      <div class="col-md-3">
+        <label for="cc" class="form-label fw-bold">Folio / CC</label>
+        <input
+          type="text"
+          id="cc"
+          class="form-control"
+          [(ngModel)]="certificado.cc"
+          placeholder="Ej: CC-89421"
+        >
+      </div>
+
+      <!-- Fecha de Calibración -->
+      <div class="col-md-3">
+        <label for="date_cal" class="form-label fw-bold">Fecha de Calibración</label>
+        <input
+          type="date"
+          id="date_cal"
+          class="form-control"
+          [(ngModel)]="certificado.date_cal"
+        >
+      </div>
+
+      <!-- Fecha de Emisión/Certificado (date_cc) -->
+      <div class="col-md-3">
+        <label for="date_cc" class="form-label fw-bold">Fecha del Certificado</label>
+        <input
+          type="date"
+          id="date_cc"
+          class="form-control"
+          [(ngModel)]="certificado.date_cc"
+        >
+      </div>
+
+      <!-- Mesurando / Magnitud Principal -->
+      <div class="col-md-3">
+        <label for="mesureament" class="form-label fw-bold">Mesurando</label>
+        <input
+          type="text"
+          id="mesureament"
+          class="form-control"
+          [(ngModel)]="certificado.mesureament"
+          placeholder="Ej: Voltaje AC / Resistencia"
+        >
+      </div>
+
+      <!-- Rango de Medición -->
+      <div class="col-md-3">
+        <label for="range" class="form-label fw-bold">Rango</label>
+        <input
+          type="text"
+          id="range"
+          class="form-control"
+          [(ngModel)]="certificado.range"
+          placeholder="Ej: 0 V a 750 V"
+        >
+      </div>
+
+      <!-- Estatus Activo / Inactivo -->
+      <div class="col-12 mt-3">
+        <div class="form-check form-switch">
+          <input
+            class="form-check-input"
+            type="checkbox"
+            role="switch"
+            id="active"
+            [(ngModel)]="certificado.active"
+          >
+          <label class="form-check-label fw-bold" for="active">
+            Certificado Activo {{ certificado.active ? '(Habilitado)' : '(Inactivo)' }}
+          </label>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div class="container my-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h3 class="fw-bold m-0">Generador de "Tablas de resultados"</h3>
+
+    <div class="d-flex align-items-center gap-3">
+      <div class="d-flex align-items-center bg-light border rounded px-2 py-1">
+        <label class="form-label fw-semibold small text-secondary m-0 me-2">Navegación con Tab:</label>
+        <div class="btn-group btn-group-sm" role="group">
+          <input
+            type="radio"
+            class="btn-check"
+            name="direccionTab"
+            id="tabVertical"
+            value="vertical"
+            [(ngModel)]="direccionTab">
+          <label class="btn btn-outline-primary" for="tabVertical">Vertical ↓</label>
+
+          <input
+            type="radio"
+            class="btn-check"
+            name="direccionTab"
+            id="tabHorizontal"
+            value="horizontal"
+            [(ngModel)]="direccionTab">
+          <label class="btn btn-outline-primary" for="tabHorizontal">Horizontal →</label>
+        </div>
+      </div>
+
+      <button class="btn btn-success" type="button" (click)="agregarTabla()">
+        + Agregar Nueva Tabla
+      </button>
+    </div>
+  </div>
+
+  <!-- Bucle de Tablas -->
+  <ng-container *ngFor="let tabla of tablasResultados; let i = index">
+    <div class="card mb-4 border-primary shadow-sm">
+
+      <!-- Encabezado colapsable -->
+      <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+        <button
+          class="btn btn-link text-white text-decoration-none p-0 fw-bold d-flex align-items-center gap-2 shadow-none"
+          type="button"
+          data-bs-toggle="collapse"
+          [attr.data-bs-target]="'#collapseTabla' + i"
+          aria-expanded="true"
+          [attr.aria-controls]="'collapseTabla' + i">
+          <span>▼</span>
+          <span class="fs-5">Tabla #{{ i + 1 }} {{ tabla.titulo }}</span>
+        </button>
+
+        <button
+          *ngIf="tablasResultados.length > 1"
+          class="btn btn-danger btn-sm"
+          type="button"
+          (click)="eliminarTabla(i)">
+          Eliminar Tabla
+        </button>
+      </div>
+
+      <!-- Cuerpo colapsable de la Card -->
+      <div [id]="'collapseTabla' + i" class="collapse show">
+        <div class="card-body">
+
+          <!-- Propiedades de la Tabla -->
+          <div class="row g-3 p-3 mb-4 bg-light rounded border">
+            <h6 class="text-secondary fw-bold mb-0">Propiedades de la Tabla</h6>
+
+            <div class="col-md-6">
+              <label class="form-label fw-semibold small">titulo:</label>
+              <input
+                type="text"
+                class="form-control"
+                [(ngModel)]="tabla.titulo"
+                placeholder="Ej: Resultados de Medición de Tensión">
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label fw-semibold small">mesurando:</label>
+              <input
+                type="text"
+                class="form-control"
+                [(ngModel)]="tabla.mesurando"
+                placeholder="Ej: Tensión Impulso (LI)">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label fw-semibold small">unit:</label>
+              <input
+                type="text"
+                class="form-control"
+                [(ngModel)]="tabla.unit"
+                placeholder="Ej: kV">
+            </div>
+
+            <div class="col-md-5">
+              <label class="form-label fw-semibold small">ecuation_calibration:</label>
+              <input
+                type="text"
+                class="form-control"
+                [(ngModel)]="tabla.ecuation_calibration"
+                placeholder="Ej: Resultado = (kVmeas - kVref) / kVref * 100">
+            </div>
+          </div>
+
+          <!-- Estructura de Tabla -->
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h6 class="fw-bold m-0">Estructura y Resultados</h6>
+            <button class="btn btn-outline-primary btn-sm" type="button" (click)="agregarColumna(tabla)">
+              + Agregar Columna
+            </button>
+          </div>
+
+          <div class="table-responsive">
+            <table class="table table-bordered align-middle mb-2">
+              <thead class="table-secondary">
+                <tr>
+                  <th *ngFor="let col of tabla.columnas; let j = index" class="p-2" style="min-width: 170px;">
+                    <div class="d-flex flex-column gap-1">
+                      <div class="d-flex justify-content-between align-items-center">
+                        <span class="badge bg-dark">Col {{ j + 1 }}</span>
+                        <button
+                          *ngIf="tabla.columnas.length > 1"
+                          class="btn btn-outline-danger btn-sm p-0 px-1 border-0"
+                          type="button"
+                          (click)="eliminarColumna(tabla, j)">
+                          &times;
+                        </button>
+                      </div>
+
+                      <input
+                        type="text"
+                        class="form-control form-control-sm"
+                        [ngModel]="col.key"
+                        (ngModelChange)="actualizarKeyColumna(col, $event, tabla)"
+                        placeholder="key">
+
+                      <input
+                        type="text"
+                        class="form-control form-control-sm"
+                        [(ngModel)]="col.label"
+                        placeholder="label">
+
+                      <input
+                        type="text"
+                        class="form-control form-control-sm"
+                        [(ngModel)]="col.unit"
+                        placeholder="unit">
+
+                      <select
+                        class="form-select form-select-sm fw-bold text-primary"
+                        [(ngModel)]="col.type"
+                        (change)="cambiarTipoDato(col, tabla)">
+                        <option value="number">Number</option>
+                        <option value="string">String</option>
+                      </select>
+                    </div>
+                  </th>
+                  <th style="width: 50px;" class="text-center align-middle"></th>
+                </tr>
+              </thead>
+
+              <tbody>
+                <tr *ngFor="let fila of tabla.filas; let filaIndex = index">
+                  <td *ngFor="let col of tabla.columnas; let colIndex = index">
+                    <input
+                      [id]="'input-' + i + '-' + filaIndex + '-' + colIndex"
+                      [type]="col.type === 'number' ? 'number' : 'text'"
+                      class="form-control form-control-sm"
+                      [(ngModel)]="fila[col.key]"
+                      (keydown.tab)="onTabKeydown($event, i, filaIndex, colIndex)"
+                      placeholder="null">
+                  </td>
+
+                  <td class="text-center align-middle">
+                    <button
+                      *ngIf="tabla.filas.length > 1"
+                      class="btn btn-outline-danger btn-sm"
+                      type="button"
+                      (click)="eliminarFila(tabla, filaIndex)"
+                      title="Eliminar fila">
+                      &times;
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <button class="btn btn-secondary btn-sm" type="button" (click)="agregarFila(tabla)">
+            + Agregar Fila
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </ng-container>
+
+  <!-- Previsualizador de JSON -->
+  <div class="card bg-dark text-white shadow-sm">
+    <div class="card-header d-flex justify-content-between align-items-center border-secondary">
+      <h5 class="mb-0 font-monospace">"Tablas de resultados" JSON</h5>
+      <button class="btn btn-light btn-sm" type="button" (click)="copiarJson()">
+        {{ copiadoExitoso ? '¡Copiado!' : 'Copiar JSON' }}
+      </button>
+    </div>
+    <div class="card-body">
+      <pre class="m-0 text-success font-monospace" style="max-height: 400px; overflow-y: auto;"><code>{{ obtenerJsonString() }}</code></pre>
+    </div>
+  </div>
+</div>

@@ -30,7 +30,16 @@
             Inicio
           </a>
         </li>
-
+        <li class="nav-item">
+          <a
+            class="nav-link"
+            routerLink="/newcert"
+            routerLinkActive="active"
+            [routerLinkActiveOptions]="{exact: true}"
+            (click)="isCollapsed = true">
+            Crear Certificado
+          </a>
+        </li>
       </ul>
 
     </div>
