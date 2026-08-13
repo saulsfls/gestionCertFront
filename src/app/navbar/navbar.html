@@ -1,0 +1,38 @@
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm">
+  <div class="container">
+    <!-- Logotipo o Nombre de la App -->
+    <a class="navbar-brand d-flex align-items-center gap-2" routerLink="/">
+      <i class="bi bi-box-seam fs-4 text-primary"></i>
+      <span class="fw-bold">Gestion de certificados</span>
+    </a>
+
+    <!-- Botón Hamburguesa (Móviles) -->
+    <button
+      class="navbar-toggler"
+      type="button"
+      (click)="isCollapsed = !isCollapsed"
+      [attr.aria-expanded]="!isCollapsed"
+      aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+
+    <!-- Enlaces y Contenido del Navbar -->
+    <div class="collapse navbar-collapse" [class.show]="!isCollapsed">
+      <!-- Menú Principal -->
+      <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+        <li class="nav-item">
+          <a
+            class="nav-link"
+            routerLink="/inicio"
+            routerLinkActive="active"
+            [routerLinkActiveOptions]="{exact: true}"
+            (click)="isCollapsed = true">
+            Inicio
+          </a>
+        </li>
+
+      </ul>
+
+    </div>
+  </div>
+</nav>
