@@ -17,7 +17,7 @@ export type TipoDato = 'number' | 'string';
   styleUrl: './newcert.css',
 })
 export class Newcert {
-  // 1. Formulario del certificado
+ // 1. Formulario del certificado
   certificado: Certificado = {
     equipment_id: '',
     name_equipment: '',
@@ -25,7 +25,7 @@ export class Newcert {
     date_cal: '',
     date_cc: '',
     mesureament: '',
-    range: '',
+    comments: '',
     active: true,
     data: {}
   };
@@ -52,14 +52,11 @@ export class Newcert {
       mesurando: '',
       unit: '',
       ecuation_calibration: '',
+      range: '',
       columnas: [
-        { key: 'valor_referencia', label: 'Valor de Referencia', unit: '', type: 'number' },
-        { key: 'resultado', label: 'Resultado', unit: '%', type: 'number' },
-        { key: 'valor_medido', label: 'Valor Medido', unit: '', type: 'number' },
-        { key: 'incertidumbre', label: 'Incertidumbre', unit: '', type: 'number' }
+        { key: 'key', label: 'etiqueta', unit: '', type: 'number' },
       ],
       filas: [
-        { valor_referencia: null, resultado: null, valor_medido: null, incertidumbre: null },
         { valor_referencia: null, resultado: null, valor_medido: null, incertidumbre: null }
       ]
     };
@@ -210,17 +207,88 @@ export class Newcert {
     });
   }
 
+  // --- Sistema de Validaciones ---
+  validarFormulario(): boolean {
+    // 1. Validar Campos Principales del Certificado
+    if (!this.certificado.equipment_id || !this.certificado.equipment_id.trim()) {
+      this.mostrarError('El "ID del Equipo" es un campo obligatorio.');
+      return false;
+    }
+
+    if (!this.certificado.name_equipment || !this.certificado.name_equipment.trim()) {
+      this.mostrarError('El "Nombre del Equipo" es obligatorio.');
+      return false;
+    }
+
+    // 2. Validar Fechas (date_cc no puede ser previa a date_cal)
+    if (this.certificado.date_cal && this.certificado.date_cc) {
+      const fechaCal = new Date(this.certificado.date_cal);
+      const fechaCc = new Date(this.certificado.date_cc);
+
+      if (fechaCc < fechaCal) {
+        this.mostrarError('La "Fecha del Certificado" no puede ser anterior a la "Fecha de Calibración".');
+        return false;
+      }
+    }
+
+    // 3. Validar Estructura de Tablas Dinámicas
+    for (let i = 0; i < this.tablasResultados.length; i++) {
+      const tabla = this.tablasResultados[i];
+      const numTabla = i + 1;
+
+      if (!tabla.titulo || !tabla.titulo.trim()) {
+        this.mostrarError(`El título de la Tabla #${numTabla} es obligatorio.`);
+        return false;
+      }
+
+      if (!tabla.mesurando || !tabla.mesurando.trim()) {
+        this.mostrarError(`El mesurando de la Tabla #${numTabla} es obligatorio.`);
+        return false;
+      }
+
+      // Validar Columnas (Etiquetas no vacías y sin duplicados)
+      const labels = tabla.columnas.map(col => col.label.trim().toLowerCase());
+      if (labels.some(label => !label)) {
+        this.mostrarError(`La Tabla #${numTabla} tiene columnas con títulos vacíos.`);
+        return false;
+      }
+
+      const tieneDuplicados = labels.some((label, idx) => labels.indexOf(label) !== idx);
+      if (tieneDuplicados) {
+        this.mostrarError(`La Tabla #${numTabla} contiene nombres de columnas duplicados.`);
+        return false;
+      }
+
+      // Validar Filas (Evitar tablas con todas las celdas nulas o vacías)
+      const tieneAlgunaCeldaConDatos = tabla.filas.some(fila =>
+        Object.values(fila).some(val => val !== null && val !== undefined && val !== '')
+      );
+
+      if (!tieneAlgunaCeldaConDatos) {
+        this.mostrarError(`La Tabla #${numTabla} no tiene ningún dato ingresado en sus filas.`);
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  private mostrarError(mensaje: string): void {
+    this.esError = true;
+    this.mensajeRespuesta = mensaje;
+  }
+
   // --- Comunicación con el Servicio para Crear Certificado ---
   guardarCertificado(): void {
-    if (!this.certificado.equipment_id.trim() || !this.certificado.name_equipment.trim()) {
-      this.esError = true;
-      this.mensajeRespuesta = 'El ID del Equipo y el Nombre son obligatorios.';
+    this.mensajeRespuesta = null;
+    this.esError = false;
+
+    // Ejecutar validaciones antes de procesar o enviar
+    if (!this.validarFormulario()) {
       return;
     }
 
     this.cargando = true;
-    this.mensajeRespuesta = null;
-    this.esError = false;
 
     // Asignar el JSON construido dinámicamente al campo 'data'
     this.certificado.data = this.obtenerJsonEstructurado();
@@ -237,8 +305,7 @@ export class Newcert {
       },
       error: (err) => {
         this.cargando = false;
-        this.esError = true;
-        this.mensajeRespuesta = err.error?.message || 'Error al conectar con el servidor';
+        this.mostrarError(err.error?.message || 'Error al conectar con el servidor.');
         console.error('Error al guardar certificado:', err);
       }
     });
@@ -252,7 +319,7 @@ export class Newcert {
       date_cal: '',
       date_cc: '',
       mesureament: '',
-      range: '',
+      comments: '',
       active: true,
       data: {}
     };

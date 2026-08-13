@@ -1,3 +1,8 @@
+
+
+  <div *ngIf="mensajeRespuesta" class="alert alert-info mt-3" role="alert">
+    {{ mensajeRespuesta }}
+  </div>
 <!-- Formulario Principal del Certificado -->
 <div class="card mb-4 shadow-sm">
   <div class="card-header bg-dark text-white">
@@ -80,12 +85,12 @@
 
       <!-- Rango de Medición -->
       <div class="col-md-3">
-        <label for="range" class="form-label fw-bold">Rango</label>
+        <label for="comments" class="form-label fw-bold">Comentarios</label>
         <input
           type="text"
-          id="range"
+          id="comments"
           class="form-control"
-          [(ngModel)]="certificado.range"
+          [(ngModel)]="certificado.comments"
           placeholder="Ej: 0 V a 750 V"
         >
       </div>
@@ -112,7 +117,7 @@
 
 <div class="container my-4">
   <div class="d-flex justify-content-between align-items-center mb-4">
-    <h3 class="fw-bold m-0">Generador de "Tablas de resultados"</h3>
+    <h3 class="fw-bold m-0">Resultados de la calibracion</h3>
 
     <div class="d-flex align-items-center gap-3">
       <div class="d-flex align-items-center bg-light border rounded px-2 py-1">
@@ -176,10 +181,10 @@
 
           <!-- Propiedades de la Tabla -->
           <div class="row g-3 p-3 mb-4 bg-light rounded border">
-            <h6 class="text-secondary fw-bold mb-0">Propiedades de la Tabla</h6>
+            <h6 class="text-secondary fw-bold mb-0">Propiedades el ensayo</h6>
 
             <div class="col-md-6">
-              <label class="form-label fw-semibold small">titulo:</label>
+              <label class="form-label fw-semibold small">Titulo:</label>
               <input
                 type="text"
                 class="form-control"
@@ -188,7 +193,7 @@
             </div>
 
             <div class="col-md-6">
-              <label class="form-label fw-semibold small">mesurando:</label>
+              <label class="form-label fw-semibold small">Mesurando:</label>
               <input
                 type="text"
                 class="form-control"
@@ -196,7 +201,7 @@
                 placeholder="Ej: Tensión Impulso (LI)">
             </div>
             <div class="col-md-3">
-              <label class="form-label fw-semibold small">unit:</label>
+              <label class="form-label fw-semibold small">Unidad:</label>
               <input
                 type="text"
                 class="form-control"
@@ -204,15 +209,26 @@
                 placeholder="Ej: kV">
             </div>
 
-            <div class="col-md-5">
-              <label class="form-label fw-semibold small">ecuation_calibration:</label>
+            <div class="col-md-4">
+              <label class="form-label fw-semibold small">Ecuacion de calibracion</label>
               <input
                 type="text"
                 class="form-control"
                 [(ngModel)]="tabla.ecuation_calibration"
-                placeholder="Ej: Resultado = (kVmeas - kVref) / kVref * 100">
+                placeholder="Ej: V=I*R">
             </div>
+
+            <div class="col-md-4">
+              <label class="form-label fw-semibold small">Rango:</label>
+              <input
+                type="text"
+                class="form-control"
+                [(ngModel)]="tabla.range"
+                placeholder="Ej: 0v - 100v">
+            </div>
+
           </div>
+
 
           <!-- Estructura de Tabla -->
           <div class="d-flex justify-content-between align-items-center mb-2">
@@ -308,15 +324,53 @@
   </ng-container>
 
   <!-- Previsualizador de JSON -->
-  <div class="card bg-dark text-white shadow-sm">
-    <div class="card-header d-flex justify-content-between align-items-center border-secondary">
-      <h5 class="mb-0 font-monospace">"Tablas de resultados" JSON</h5>
-      <button class="btn btn-light btn-sm" type="button" (click)="copiarJson()">
-        {{ copiadoExitoso ? '¡Copiado!' : 'Copiar JSON' }}
+      <div class="card bg-dark text-white shadow-sm mb-4">
+        <!-- Encabezado con botón de despliegue -->
+        <div class="card-header d-flex justify-content-between align-items-center border-secondary p-2">
+          <button
+            class="btn btn-link text-white text-decoration-none fw-bold p-0 d-flex align-items-center gap-2"
+            type="button"
+            data-bs-toggle="collapse"
+            data-bs-target="#collapseJsonArea"
+            aria-expanded="false"
+            aria-controls="collapseJsonArea"
+          >
+            <i class="bi bi-chevron-down"></i>
+            <span class="font-monospace">"Tablas de resultados" JSON</span>
+          </button>
+
+          <!-- Botón de copiar fuera del collapse para usarlo rápido -->
+          <button class="btn btn-outline-light btn-sm" type="button" (click)="copiarJson()">
+            {{ copiadoExitoso ? '¡Copiado!' : 'Copiar JSON' }}
+          </button>
+        </div>
+
+        <!-- Contenido colapsable (Inicia colapsado por defecto) -->
+        <div class="collapse" id="collapseJsonArea">
+          <div class="card-body p-3 border-top border-secondary">
+            <pre class="m-0 text-success font-monospace" style="max-height: 400px; overflow-y: auto;"><code>{{ obtenerJsonString() }}</code></pre>
+          </div>
+        </div>
+      </div>
+
+
+    <div class="d-grid gap-2 d-md-flex justify-md-end my-4">
+      <button
+        type="button"
+        class="btn btn-success btn-lg shadow-sm d-flex align-items-center justify-content-center"
+        (click)="guardarCertificado()"
+        [disabled]="cargando"
+      >
+        <!-- Spinner visible solo durante la carga -->
+        <span
+          *ngIf="cargando"
+          class="spinner-border spinner-border-sm me-2"
+          role="status"
+          aria-hidden="true"
+        ></span>
+
+        <!-- Texto dinámico según el estado -->
+        <span>{{ cargando ? 'Guardando Certificado...' : 'Guardar Certificado' }}</span>
       </button>
     </div>
-    <div class="card-body">
-      <pre class="m-0 text-success font-monospace" style="max-height: 400px; overflow-y: auto;"><code>{{ obtenerJsonString() }}</code></pre>
-    </div>
-  </div>
 </div>

@@ -7,7 +7,7 @@ export interface Certificado {
   date_cal?: string;
   date_cc?: string;
   mesureament?: string;
-  range?: string;
+  comments?: string;
   active?: boolean;
   data?: CertificadoData | Record<string, any>;
 }
@@ -36,6 +36,7 @@ export interface TablaResultado {
   mesurando: string;
   ecuation_calibration: string;
   unit: string;
+  range: string,
   columnas: Columna[];
   filas: Record<string, any>[];
 }
