@@ -1,1 +1,176 @@
-<p>viewcert works!</p>
+<div class="container-fluid py-4">
+
+  <!-- Panel de Búsqueda y Filtros -->
+  <div class="card shadow-sm mb-4">
+    <div class="card-body">
+      <div class="row g-3 align-items-center">
+        <!-- Input de Búsqueda de Certificados -->
+        <div class="col-md-8">
+          <label class="form-label fw-bold small text-secondary">Buscar Certificado</label>
+          <input
+            type="text"
+            class="form-control"
+            placeholder="Buscar por Equipment ID, Folio (CC), Nombre de equipo o ID de BD..."
+            [(ngModel)]="textoBusqueda"
+          />
+        </div>
+
+        <!-- Selector de Estado -->
+        <div class="col-md-4">
+          <label class="form-label fw-bold small text-secondary">Filtrar por Estado</label>
+          <select class="form-select" [(ngModel)]="filtroEstado">
+            <option value="todos">Todos los certificados</option>
+            <option value="activos">Solo Activos</option>
+            <option value="inactivos">Solo Inactivos</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Alertas de Notificación -->
+  <div *ngIf="mensajeError" class="alert alert-danger alert-dismissible fade show shadow-sm">
+    {{ mensajeError }}
+    <button type="button" class="btn-close" (click)="mensajeError = null"></button>
+  </div>
+  <div *ngIf="mensajeExito" class="alert alert-success alert-dismissible fade show shadow-sm">
+    {{ mensajeExito }}
+    <button type="button" class="btn-close" (click)="mensajeExito = null"></button>
+  </div>
+
+  <!-- Indicador de Carga -->
+  <div *ngIf="cargando" class="text-center py-5">
+    <div class="spinner-border text-primary" role="status">
+      <span class="visually-hidden">Cargando...</span>
+    </div>
+  </div>
+
+  <!-- Tabla Principal de Certificados -->
+  <div *ngIf="!cargando" class="card shadow-sm">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-dark">
+          <tr>
+            <th>Estado</th>
+            <th>ID BD</th>
+            <th>Equipment ID</th>
+            <th>Folio / CC</th>
+            <th>Nombre del Equipo</th>
+            <th>F. Calibración</th>
+            <th>F. Certificado</th>
+            <th class="text-center">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          <ng-container *ngFor="let cert of certificadosFiltrados">
+            <!-- Fila Principal del Registro -->
+            <tr>
+              <td>
+                <span class="badge" [ngClass]="cert.active ? 'bg-success' : 'bg-danger'">
+                  {{ cert.active ? 'Activo' : 'Inactivo' }}
+                </span>
+              </td>
+              <td>{{ cert.id }}</td>
+              <td class="fw-bold text-primary">{{ cert.equipment_id }}</td>
+              <td><span class="badge bg-light text-dark border">{{ cert.cc || 'N/A' }}</span></td>
+              <td>{{ cert.name_equipment }}</td>
+              <td>{{ cert.date_cal | date:'dd/MM/yyyy' }}</td>
+              <td>{{ cert.date_cc | date:'dd/MM/yyyy' }}</td>
+              <td class="text-center">
+                <div class="btn-group btn-group-sm">
+                  <!-- Desplegar Tablas del JSON -->
+                  <button
+                    class="btn"
+                    [ngClass]="idExpandido === cert.id ? 'btn-secondary' : 'btn-outline-primary'"
+                    (click)="toggleDetalle(cert.id)"
+                  >
+                    {{ idExpandido === cert.id ? 'Ocultar Tablas' : 'Ver Tablas' }}
+                  </button>
+
+                  <!-- Botón Desactivar con Alerta Confirmación -->
+                  <button
+                    class="btn btn-outline-danger"
+                    [disabled]="!cert.active"
+                    (click)="desactivarCertificado(cert)"
+                    title="Desactivar Certificado"
+                  >
+                    Desactivar
+                  </button>
+                </div>
+              </td>
+            </tr>
+
+            <!-- Fila Inferior Desplegable: Muestra las 'TablaResultado' provenientes del JSONB 'data' -->
+            <tr *ngIf="idExpandido === cert.id" class="table-light">
+              <td colspan="8" class="p-4">
+                <div class="card border-secondary shadow-sm">
+                  <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                    <span class="fw-bold font-monospace text-warning">
+                      Tablas de Resultados — Equipment ID: {{ cert.equipment_id }}
+                    </span>
+                    <button class="btn btn-sm btn-outline-light" (click)="abrirModalEdicion(cert)">
+                      Editar JSON
+                    </button>
+                  </div>
+                  <div class="card-body">
+
+                    <!-- Renderizado dinámico de Tablas de Resultados -->
+                    <ng-container *ngIf="obtenerTablasResultado(cert.data).length > 0; else vistaJsonRaw">
+                      <div *ngFor="let tabla of obtenerTablasResultado(cert.data); let idx = index" class="mb-4">
+                        <h6 class="fw-bold text-primary mb-1">
+                          Tabla #{{ idx + 1 }}: {{ tabla.titulo || 'Sin Título' }}
+                        </h6>
+                        <div class="row g-2 mb-2 small text-muted">
+                          <div class="col-md-3"><strong>Mesurando:</strong> {{ tabla.mesurando || 'N/A' }}</div>
+                          <div class="col-md-3"><strong>Unidad:</strong> {{ tabla.unit || 'N/A' }}</div>
+                          <div class="col-md-3"><strong>Rango:</strong> {{ tabla.range || 'N/A' }}</div>
+                          <div class="col-md-3"><strong>Ecuación:</strong> {{ tabla.ecuation_calibration || 'N/A' }}</div>
+                        </div>
+
+                        <!-- Renderizado de Columnas y Filas -->
+                        <div class="table-responsive">
+                          <table class="table table-bordered table-striped table-sm mb-0">
+                            <thead class="table-secondary">
+                              <tr>
+                                <th *ngFor="let col of tabla.columnas">
+                                  {{ col.label }} <span *ngIf="col.unit">({{ col.unit }})</span>
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              <tr *ngFor="let fila of tabla.filas">
+                                <td *ngFor="let col of tabla.columnas">
+                                  {{ fila[col.key] !== null && fila[col.key] !== undefined ? fila[col.key] : '-' }}
+                                </td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </ng-container>
+
+                    <!-- Vista de Respaldo JSON Raw -->
+                    <ng-template #vistaJsonRaw>
+                      <div class="p-2">
+                        <span class="text-muted small d-block mb-2">JSON almacenado en la columna 'data':</span>
+                        <pre class="bg-dark text-success p-3 rounded font-monospace m-0" style="max-height: 250px; overflow-y: auto;"><code>{{ obtenerJsonString(cert.data) }}</code></pre>
+                      </div>
+                    </ng-template>
+
+                  </div>
+                </div>
+              </td>
+            </tr>
+          </ng-container>
+
+          <!-- Sin resultados -->
+          <tr *ngIf="certificadosFiltrados.length === 0">
+            <td colspan="8" class="text-center py-4 text-muted">
+              No se encontraron certificados con los criterios seleccionados.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
