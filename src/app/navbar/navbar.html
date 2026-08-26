@@ -50,6 +50,27 @@
             Ver certificados
           </a>
         </li>
+        <li class="nav-item">
+          <a
+            class="nav-link"
+            routerLink="/pimage"
+            routerLinkActive="active"
+            [routerLinkActiveOptions]="{exact: true}"
+            (click)="isCollapsed = true">
+            Procesar imagen
+          </a>
+        </li>
+        <!--Se desactivo ya que para acceder este componente se tienen que enviar paramentros, se accede a el desde vista cert-->
+         <!--<li class="nav-item">
+          <a
+            class="nav-link"
+            routerLink="/editcert"
+            routerLinkActive="active"
+            [routerLinkActiveOptions]="{exact: true}"
+            (click)="isCollapsed = true">
+            Editar certificado
+          </a>
+        </li>-->
       </ul>
 
     </div>

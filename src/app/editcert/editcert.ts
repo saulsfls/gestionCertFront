@@ -1,12 +1,13 @@
 import {
   Component,
   OnInit,
+  Input,
   ChangeDetectorRef
 } from '@angular/core';
-import { Certificado } from '../models/certificado.models';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { TablaResultado, Columna } from '../models/certificado.models';
+import { ActivatedRoute, Router } from '@angular/router';
+import { Certificado, TablaResultado, Columna } from '../models/certificado.models';
 import { CertService } from '../services/cert.service';
 
 export type DireccionTab = 'horizontal' | 'vertical';
@@ -14,12 +15,15 @@ export type JsonPrimitiveType = 'string' | 'number' | 'boolean';
 export type TipoDato = 'number' | 'string';
 
 @Component({
-  selector: 'app-newcert',
+  selector: 'app-editcert',
+  standalone: true,
   imports: [FormsModule, CommonModule],
-  templateUrl: './newcert.html',
-  styleUrl: './newcert.css',
+  templateUrl: './editcert.html',
+  styleUrl: './editcert.css',
 })
-export class Newcert implements OnInit {
+export class Editcert implements OnInit {
+  @Input() id!: string | number;
+
   // 1. Formulario del certificado
   certificado: Certificado = {
     equipment_id: '',
@@ -34,26 +38,73 @@ export class Newcert implements OnInit {
     data: {}
   };
 
-  // 2. Control de Tablas Dinámicas
+  // 2. Control de Tablas Dinámicas y Vista
   tablasResultados: TablaResultado[] = [];
   direccionTab: DireccionTab = 'vertical';
+  cargando: boolean = false;
 
   // Control del JSON bidireccional
   jsonInputText: string = '';
 
-  // Control de alertas de la interfaz
+  // Control de alertas Bootstrap
   mensajeRespuesta: string | null = null;
   esError: boolean = false;
+  guardandoExitoso: boolean = false;
   copiadoExitoso: boolean = false;
 
   constructor(
     private certificadoService: CertService,
+    private route: ActivatedRoute,
+    private router: Router,
     private cdr: ChangeDetectorRef
   ) {}
 
   ngOnInit(): void {
-    this.tablasResultados = [this.crearEstructuraTablaInicial()];
-    this.sincronizarJsonTexto();
+    const certId = this.id || this.route.snapshot.paramMap.get('id');
+
+    if (certId) {
+      this.cargarCertificadoPorId(certId);
+    } else {
+      this.mostrarAlerta('No se proporcionó un ID de certificado válido.', true);
+    }
+  }
+
+  cargarCertificadoPorId(id: string | number): void {
+    this.cargando = true;
+    this.certificadoService.obtenerCertificadoPorId(id).subscribe({
+      next: (res: any) => {
+        const certData: Certificado = res.data || res;
+
+        this.certificado = {
+          ...certData,
+          date_cal: certData.date_cal ? this.formatearFechaISO(certData.date_cal) : '',
+          date_cc: certData.date_cc ? this.formatearFechaISO(certData.date_cc) : ''
+        };
+
+        if (certData.data && certData.data['Tablas de resultados']) {
+          this.tablasResultados = certData.data['Tablas de resultados'];
+        } else {
+          this.tablasResultados = [this.crearEstructuraTablaInicial()];
+        }
+
+        this.sincronizarJsonTexto();
+        this.cargando = false;
+        this.cdr.detectChanges();
+      },
+      error: (err: any) => {
+        console.error('Error al obtener certificado:', err);
+        const msg = err.error?.message || 'Error al obtener la información del certificado.';
+        this.mostrarAlerta(msg, true);
+        this.cargando = false;
+        this.cdr.detectChanges();
+      }
+    });
+  }
+
+  private formatearFechaISO(fechaStr: string): string {
+    if (!fechaStr) return '';
+    const date = new Date(fechaStr);
+    return date.toISOString().split('T')[0];
   }
 
   private crearEstructuraTablaInicial(): TablaResultado {
@@ -323,10 +374,12 @@ export class Newcert implements OnInit {
     this.esError = esError;
     this.cdr.detectChanges();
 
-    setTimeout(() => {
-      this.mensajeRespuesta = null;
-      this.cdr.detectChanges();
-    }, 5000);
+    if (esError) {
+      setTimeout(() => {
+        this.mensajeRespuesta = null;
+        this.cdr.detectChanges();
+      }, 5000);
+    }
   }
 
   guardarCertificado(): void {
@@ -341,33 +394,34 @@ export class Newcert implements OnInit {
       data: JSON.parse(this.jsonInputText)
     };
 
-    this.certificadoService.crearCertificado(payload).subscribe({
-      next: (res: any) => {
-        this.mostrarAlerta('¡Certificado guardado correctamente!', false);
-        this.limpiarFormulario();
+    const certId = this.certificado.id || this.id;
+
+    if (!certId) {
+      this.mostrarAlerta('No se pudo determinar el ID del certificado a actualizar.', true);
+      return;
+    }
+
+    this.cargando = true;
+    this.certificadoService.actualizarCertificado(certId, payload).subscribe({
+      next: () => {
+        this.cargando = false;
+        this.guardandoExitoso = true;
+        this.mostrarAlerta('¡Certificado actualizado correctamente! Redirigiendo en 3 segundos...', false);
+
+        // Espera exactamente 3000 ms antes de navegar al componente anterior/listado
+        setTimeout(() => {
+          this.router.navigate(['/viewcert']);
+        }, 3000);
       },
       error: (err: any) => {
-        const msg = err.error?.message || 'Error al conectar con la API de PostgreSQL.';
+        this.cargando = false;
+        const msg = err.error?.message || 'Error al actualizar el certificado en la base de datos.';
         this.mostrarAlerta(msg, true);
       }
     });
   }
 
-  limpiarFormulario(): void {
-    this.certificado = {
-      equipment_id: '',
-      name_equipment: '',
-      cc: '',
-      date_cal: '',
-      date_cc: '',
-      entity: '',
-      cert_type: '',
-      comments: '',
-      active: true,
-      data: {}
-    };
-    this.tablasResultados = [this.crearEstructuraTablaInicial()];
-    this.sincronizarJsonTexto();
-    this.cdr.detectChanges();
+  cancelar(): void {
+    this.router.navigate(['/viewcert']);
   }
 }

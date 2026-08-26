@@ -1,15 +1,16 @@
 // Representa el modelo principal del Certificado según la tabla de PostgreSQL
 export interface Certificado {
-  id?: number;
-  cc?: string;
-  equipment_id: string;
-  name_equipment: string;
-  date_cal?: string;
-  date_cc?: string;
-  mesureament?: string;
-  comments?: string;
-  active?: boolean;
-  data?: CertificadoData | Record<string, any>;
+  id?: number;//id del certificado
+  cc?: string;//folio del certificado
+  equipment_id: string;//id del equipo al que esta asociado el certificado
+  name_equipment: string;//nombre del equipo
+  date_cal?: string;//Fecha de calibracion
+  date_cc?: string;//Fecha de emision del certificado
+  entity?: string;//Que se mide en el certificado, para que se calibro
+  cert_type?: string;//Tipo de certificado , ya sea certificado o datos del fabricante
+  comments?: string;//Comentarios de la certificacion
+  active?: boolean;//El certificado esta vigente
+  data?: CertificadoData | Record<string, any>;// informacion en formato de tablas JSON
 }
 
 // Estructura del JSON almacenado dentro de la columna 'data' (JSONB)
@@ -40,7 +41,6 @@ export interface TablaResultado {
   columnas: Columna[];
   filas: Record<string, any>[];
 }
-
 // Respuesta estándar de la API Express
 export interface ApiResponse<T> {
   ok: boolean;

@@ -26,7 +26,7 @@ export class CertService {
   }
 
   // Modificar certificado
-  modificarCertificado(id: number, certificado: Certificado): Observable<ApiResponse<Certificado>> {
+  actualizarCertificado(id: number | string, certificado: Certificado): Observable<ApiResponse<Certificado>> {
     return this.http.put<ApiResponse<Certificado>>(`${this.apiUrl}/certificados/${id}/save`, certificado);
   }
 
@@ -38,5 +38,10 @@ export class CertService {
   // Desactivar certificado
   desactivarCertificado(id: number): Observable<ApiResponse<Certificado>> {
     return this.http.put<ApiResponse<Certificado>>(`${this.apiUrl}/certificados/${id}/desactivar`, {});
+  }
+
+  //Procesamiento de la imagen
+  procesarTabla(imageBase64: string): Observable<ApiResponse<any>> {
+    return this.http.post<ApiResponse<any>>(`${this.apiUrl}/procesar-tabla`, { imageBase64 });
   }
 }

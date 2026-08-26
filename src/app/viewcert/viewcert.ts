@@ -1,6 +1,7 @@
 import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router'; // 1. Importar el Router
 import { CertService } from '../services/cert.service';
 import {
   Certificado,
@@ -8,15 +9,17 @@ import {
   TablaResultado,
   ApiResponse,
 } from '../models/certificado.models';
+
 export type FiltroEstado = 'todos' | 'activos' | 'inactivos';
 
 @Component({
   selector: 'app-viewcert',
+  standalone: true,
   imports: [FormsModule, CommonModule],
   templateUrl: './viewcert.html',
   styleUrl: './viewcert.css',
 })
-export class Viewcert {
+export class Viewcert implements OnInit {
   // Lista principal de certificados
   listaCertificados: Certificado[] = [];
 
@@ -38,11 +41,21 @@ export class Viewcert {
 
   constructor(
     private certService: CertService,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    private router: Router // 2. Inyectar Router
   ) {}
 
   ngOnInit(): void {
     this.obtenerCertificados();
+  }
+
+  /**
+   * Navega hacia el componente de edición pasando el ID del certificado como parámetro de ruta.
+   * Ajusta la ruta '/editar-certificado' según la URL definida en tu app.routes.ts
+   */
+  editarCertificado(id: number | string | undefined): void {
+    if (!id) return;
+    this.router.navigate(['/editcert', id]);
   }
 
   /**
@@ -74,7 +87,7 @@ export class Viewcert {
   }
 
   /**
-   * Obtener todos los certificados a través del método obtenerCertificados() del servicio
+   * Obtener todos los certificados a través del servicio
    */
   obtenerCertificados(): void {
     this.cargando = true;
@@ -86,7 +99,6 @@ export class Viewcert {
         if (res && res.ok && Array.isArray(res.data)) {
           this.listaCertificados = res.data;
         } else if (Array.isArray(res)) {
-          // Respaldo por si la API envía el array directo sin wrapper
           this.listaCertificados = res as unknown as Certificado[];
         } else {
           this.listaCertificados = [];
@@ -114,7 +126,7 @@ export class Viewcert {
   }
 
   /**
-   * Procesa de manera segura la columna 'data' (JSONB) para extraer 'Tablas de resultados'
+   * Procesa la columna 'data' (JSONB) para extraer 'Tablas de resultados'
    */
   obtenerTablasResultado(data?: CertificadoData | Record<string, any>): TablaResultado[] {
     if (!data) return [];
@@ -124,7 +136,7 @@ export class Viewcert {
   }
 
   /**
-   * Llama al método desactivarCertificado(id: number) de tu CertService
+   * Desactiva el certificado seleccionado
    */
   desactivarCertificado(cert: Certificado): void {
     if (!cert.active || !cert.id) return;
@@ -136,16 +148,14 @@ export class Viewcert {
 
     if (!confirmado) return;
 
-    // Cambio optimista en la UI
     cert.active = false;
 
     this.certService.desactivarCertificado(cert.id).subscribe({
-      next: (res: ApiResponse<Certificado>) => {
+      next: () => {
         this.mensajeExito = `El certificado ${identificador} ha sido desactivado con éxito.`;
         this.cdr.detectChanges();
       },
       error: (err: any) => {
-        // Revertir estado si ocurre un error en el servidor
         cert.active = true;
         this.mensajeError = err.error?.message || 'No se pudo desactivar el certificado en la base de datos.';
         this.cdr.detectChanges();
@@ -166,28 +176,5 @@ export class Viewcert {
   cerrarModalEdicion(): void {
     this.certificadoEdicion = null;
     this.jsonEdicionTexto = '';
-  }
-
-  guardarCambiosEdicion(): void {
-    if (!this.certificadoEdicion || !this.certificadoEdicion.id) return;
-
-    try {
-      this.certificadoEdicion.data = JSON.parse(this.jsonEdicionTexto);
-
-      // Opcional: Persistir cambios en backend
-      this.certService.modificarCertificado(this.certificadoEdicion.id, this.certificadoEdicion).subscribe({
-        next: () => {
-          this.mensajeExito = `Certificado #${this.certificadoEdicion?.id} actualizado correctamente.`;
-          this.obtenerCertificados(); // Recargar datos frescos
-          this.cerrarModalEdicion();
-        },
-        error: (err) => {
-          alert('Error al guardar los cambios en la base de datos.');
-          console.error(err);
-        }
-      });
-    } catch (e) {
-      alert('Sintaxis JSON no válida. Revisa las comillas o llaves ingresadas.');
-    }
   }
 }

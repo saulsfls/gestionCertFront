@@ -1,0 +1,70 @@
+<div class="card p-3 shadow-sm">
+  <h5 class="mb-3">Cargar Tabla de Certificado</h5>
+
+  <div *ngIf="mensajeError" class="alert alert-danger alert-dismissible fade show mb-3" role="alert">
+    <strong>¡Atención!</strong> {{ mensajeError }}
+    <button type="button" class="btn-close" (click)="mensajeError = ''" aria-label="Close"></button>
+  </div>
+
+  <div *ngIf="mensajeExito" class="alert alert-success alert-dismissible fade show mb-3" role="alert">
+    <strong>¡Éxito!</strong> {{ mensajeExito }}
+    <button type="button" class="btn-close" (click)="mensajeExito = ''" aria-label="Close"></button>
+  </div>
+
+  <!-- Área de Pegado -->
+  <div
+    class="paste-zone p-4 text-center border border-2 border-dashed rounded mb-3 bg-light"
+    (paste)="onPaste($event)"
+    tabindex="0"
+  >
+    <p class="mb-1 text-primary fw-bold">
+      📋 Haz clic aquí y presiona <kbd>Ctrl + V</kbd> para pegar la imagen
+    </p>
+    <small class="text-muted">O selecciona un archivo local:</small>
+    <input
+      type="file"
+      class="form-control form-control-sm mt-2"
+      (change)="fileChangeEvent($event)"
+      accept="image/*"
+    />
+  </div>
+
+  <!-- Recortador de Imagen (Protegido contra SSR) -->
+  @if (isBrowser) {
+    <div class="cropper-wrapper mb-3" *ngIf="imageChangedEvent || pasteImageFile">
+      <p class="small text-muted mb-1 p-2">Ajusta los bordes para seleccionar únicamente la tabla:</p>
+      <image-cropper
+        [imageChangedEvent]="imageChangedEvent"
+        [imageFile]="pasteImageFile"
+        [maintainAspectRatio]="false"
+        [resizeToWidth]="0"
+        [cropperStaticWidth]="0"
+        [cropperStaticHeight]="0"
+        [canvasRotation]="0"
+        format="png"
+        (imageCropped)="imageCropped($event)"
+        (imageLoaded)="imageLoaded($event)"
+        (cropperReady)="cropperReady()"
+        (loadImageFailed)="loadImageFailed()"
+      ></image-cropper>
+    </div>
+  }
+
+  <!-- Botón de Procesar -->
+  <div class="d-flex justify-content-end mb-3">
+    <button
+      class="btn btn-primary"
+      [disabled]="cargando"
+      (click)="enviarANode()"
+    >
+      <span *ngIf="cargando" class="spinner-border spinner-border-sm me-1"></span>
+      {{ cargando ? 'Procesando en Servidor...' : 'Extraer Tabla en JSON' }}
+    </button>
+  </div>
+
+  <!-- Resultado -->
+  <div *ngIf="tablaProcesada" class="p-3 border rounded bg-white">
+    <h6 class="text-success fw-bold">✓ Datos Extraídos:</h6>
+    <pre class="bg-dark text-light p-3 rounded"><code>{{ tablaProcesada | json }}</code></pre>
+  </div>
+</div>

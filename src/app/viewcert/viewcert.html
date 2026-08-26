@@ -87,6 +87,15 @@
                     {{ idExpandido === cert.id ? 'Ocultar Tablas' : 'Ver Tablas' }}
                   </button>
 
+                  <!-- Botón Editar Certificado -->
+                  <button
+                    class="btn btn-outline-warning"
+                    (click)="editarCertificado(cert.id)"
+                    title="Editar Certificado en nuevo componente"
+                  >
+                    Editar
+                  </button>
+
                   <!-- Botón Desactivar con Alerta Confirmación -->
                   <button
                     class="btn btn-outline-danger"
@@ -109,7 +118,7 @@
                       Tablas de Resultados — Equipment ID: {{ cert.equipment_id }}
                     </span>
                     <button class="btn btn-sm btn-outline-light" (click)="abrirModalEdicion(cert)">
-                      Editar JSON
+                      Editar JSON Raw
                     </button>
                   </div>
                   <div class="card-body">
