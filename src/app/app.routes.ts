@@ -4,6 +4,7 @@ import { Newcert } from './components/newcert/newcert';
 import { Viewcert } from './components/viewcert/viewcert';
 import { Pimage } from './components/pimage/pimage';
 import { Editcert } from './components/editcert/editcert';
+import { admincert } from './components/admincert/admincert';
 
 export const routes: Routes = [
   {path: '',redirectTo: 'inicio', pathMatch: 'full'},
@@ -12,5 +13,6 @@ export const routes: Routes = [
   {path: 'viewcert', component: Viewcert},
   {path: 'pimage', component: Pimage },
   {path: 'editcert', component: Editcert},
-  {path: 'editcert/:id', component: Editcert}
+  {path: 'editcert/:id', component: Editcert},
+  {path: 'admincert', component: admincert},
 ];

@@ -27,6 +27,15 @@
       </div>
     </div>
   </div>
+  <!-- Botón de Administración de Certificados -->
+  <div class="d-flex justify-content-end mb-5">
+    <button
+      type="button"
+      class="btn btn-outline-secondary shadow-sm px-3"
+      (click)="administrarCertificado()">
+      Administrar Certificados
+    </button>
+  </div>
 
   <!-- Alertas de Notificación -->
   <div *ngIf="mensajeError" class="alert alert-danger alert-dismissible fade show shadow-sm">
@@ -117,9 +126,7 @@
                     <span class="fw-bold font-monospace text-warning">
                       Tablas de Resultados — Equipment ID del Certificado: {{ cert.equipment_id }}
                     </span>
-                    <button class="btn btn-sm btn-outline-light" (click)="abrirModalEdicion(cert)">
-                      Editar JSON Raw
-                    </button>
+
                   </div>
                   <div class="card-body">
 

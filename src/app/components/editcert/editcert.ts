@@ -491,11 +491,11 @@ export class Editcert implements OnInit {
       next: () => {
         this.cargando = false;
         this.guardandoExitoso = true;
-        this.mostrarAlerta('¡Certificado actualizado correctamente! Redirigiendo en 3 segundos...', false);
+        this.mostrarAlerta('¡Certificado actualizado correctamente! Redirigiendo ...', false);
 
         setTimeout(() => {
           this.router.navigate(['/viewcert']);
-        }, 3000);
+        }, 2000);
       },
       error: (err: any) => {
         this.cargando = false;

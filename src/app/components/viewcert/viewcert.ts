@@ -59,6 +59,10 @@ export class Viewcert implements OnInit {
     if (!id) return;
     this.router.navigate(['/editcert', id]);
   }
+  //Navega hacia el componente de administración de certificados
+  administrarCertificado(){
+    this.router.navigate(['/admincert']);
+  }
 
   /**
    * Getter reactivo que filtra por equipo, ID, folio (cc) o nombre,

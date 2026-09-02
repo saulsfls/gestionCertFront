@@ -44,4 +44,8 @@ export class CertService {
   procesarTabla(imageBase64: string): Observable<ApiResponse<any>> {
     return this.http.post<ApiResponse<any>>(`${this.apiUrl}/procesar-tabla`, { imageBase64 });
   }
+
+  eliminarCertificado(id: number | string): Observable<ApiResponse<Certificado>> {
+    return this.http.delete<ApiResponse<Certificado>>(`${this.apiUrl}/certificados/${id}/eliminar`);
+  }
 }
