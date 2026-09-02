@@ -1,7 +1,7 @@
 import { Component, ChangeDetectorRef, inject, PLATFORM_ID } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { ImageCropperComponent, ImageCroppedEvent, LoadedImage } from 'ngx-image-cropper';
-import { CertService } from '../services/cert.service';
+import { CertService } from '../../services/cert.service';
 
 @Component({
   selector: 'app-pimage',

@@ -2,13 +2,13 @@ import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router'; // 1. Importar el Router
-import { CertService } from '../services/cert.service';
+import { CertService } from '../../services/cert.service';
 import {
   Certificado,
   CertificadoData,
   TablaResultado,
   ApiResponse,
-} from '../models/certificado.models';
+} from '../../models/certificado.models';
 
 export type FiltroEstado = 'todos' | 'activos' | 'inactivos';
 

@@ -1,7 +1,7 @@
 import { Component, signal } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
-import { Navbar } from "./navbar/navbar";
-import { Inicio } from './inicio/inicio';
+import { Navbar } from "./components/navbar/navbar";
+import { Inicio } from './components/inicio/inicio';
 
 @Component({
   selector: 'app-root',
@@ -10,5 +10,5 @@ import { Inicio } from './inicio/inicio';
   styleUrl: './app.css'
 })
 export class App {
-  protected readonly title = signal('GestionCertFront');
+  protected readonly title = signal('Gestion de Certificados');
 }
