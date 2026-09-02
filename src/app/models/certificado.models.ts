@@ -34,6 +34,7 @@ export interface Columna {
 
 export interface TablaResultado {
   titulo: string;
+  equipment_id: string;
   mesurando: string;
   ecuation_calibration: string;
   unit: string;

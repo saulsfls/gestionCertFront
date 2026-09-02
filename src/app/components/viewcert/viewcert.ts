@@ -1,7 +1,7 @@
 import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router'; // 1. Importar el Router
+import { Router } from '@angular/router';
 import { CertService } from '../../services/cert.service';
 import {
   Certificado,
@@ -35,6 +35,9 @@ export class Viewcert implements OnInit {
   // Control de expansión de fila para mostrar tablas/JSON
   idExpandido: number | string | null = null;
 
+  // Certificado seleccionado para expandir
+  certificadoSeleccionado: Certificado | null = null;
+
   // Modal de edición rápida
   certificadoEdicion: Certificado | null = null;
   jsonEdicionTexto: string = '';
@@ -42,7 +45,7 @@ export class Viewcert implements OnInit {
   constructor(
     private certService: CertService,
     private cdr: ChangeDetectorRef,
-    private router: Router // 2. Inyectar Router
+    private router: Router
   ) {}
 
   ngOnInit(): void {
@@ -51,7 +54,6 @@ export class Viewcert implements OnInit {
 
   /**
    * Navega hacia el componente de edición pasando el ID del certificado como parámetro de ruta.
-   * Ajusta la ruta '/editar-certificado' según la URL definida en tu app.routes.ts
    */
   editarCertificado(id: number | string | undefined): void {
     if (!id) return;
@@ -64,15 +66,12 @@ export class Viewcert implements OnInit {
    */
   get certificadosFiltrados(): Certificado[] {
     return this.listaCertificados.filter((cert) => {
-      // 1. Filtrar por Estado
       if (this.filtroEstado === 'activos' && !cert.active) return false;
       if (this.filtroEstado === 'inactivos' && cert.active) return false;
 
-      // 2. Filtrar por texto de Búsqueda
       if (!this.textoBusqueda.trim()) return true;
 
       const termino = this.textoBusqueda.toLowerCase().trim();
-
       const matchEquipmentId = cert.equipment_id
         ? cert.equipment_id.toLowerCase().includes(termino)
         : false;
@@ -103,7 +102,6 @@ export class Viewcert implements OnInit {
         } else {
           this.listaCertificados = [];
         }
-
         this.cargando = false;
         this.cdr.detectChanges();
       },
@@ -118,21 +116,51 @@ export class Viewcert implements OnInit {
 
   /**
    * Desplegar / Ocultar la sección inferior con las tablas dinámicas
+   * y almacena el certificado seleccionado.
    */
-  toggleDetalle(id: number | string | undefined): void {
+  toggleDetalle(id: number | string | undefined, cert: Certificado): void {
     if (!id) return;
-    this.idExpandido = this.idExpandido === id ? null : id;
+    if (this.idExpandido === id) {
+      this.idExpandido = null;
+      this.certificadoSeleccionado = null;
+    } else {
+      this.idExpandido = id;
+      this.certificadoSeleccionado = cert;
+      // Asegurar que las tablas tengan equipment_id (se hace en obtenerTablasResultado)
+    }
     this.cdr.detectChanges();
   }
 
   /**
    * Procesa la columna 'data' (JSONB) para extraer 'Tablas de resultados'
+   * y asigna el equipment_id del certificado a cada tabla si no lo tienen.
    */
-  obtenerTablasResultado(data?: CertificadoData | Record<string, any>): TablaResultado[] {
+  obtenerTablasResultado(
+    data?: CertificadoData | Record<string, any>,
+    certEquipmentId?: string
+  ): TablaResultado[] {
     if (!data) return [];
 
     const certData = data as CertificadoData;
-    return certData['Tablas de resultados'] || certData.tablas_resultados || [];
+    let tablas = certData['Tablas de resultados'] || certData.tablas_resultados || [];
+
+    // Si se proporciona un equipment_id del certificado, asignarlo a cada tabla si falta
+    if (certEquipmentId) {
+      tablas = tablas.map((tabla: any) => ({
+        ...tabla,
+        equipment_id: tabla.equipment_id || tabla.id_equipment || certEquipmentId,
+      }));
+    }
+
+    return tablas;
+  }
+
+  /**
+   * Obtiene el equipment_id de una tabla o, en su defecto, el del certificado seleccionado.
+   * Útil para mostrar en la vista cuando se itera sobre las tablas.
+   */
+  obtenerEquipmentIdDeTabla(tabla: TablaResultado): string {
+    return tabla.equipment_id || this.certificadoSeleccionado?.equipment_id || '';
   }
 
   /**
@@ -142,10 +170,7 @@ export class Viewcert implements OnInit {
     if (!cert.active || !cert.id) return;
 
     const identificador = cert.cc || cert.equipment_id;
-    const confirmado = window.confirm(
-      `¿Deseas desactivar el certificado ${identificador}?`
-    );
-
+    const confirmado = window.confirm(`¿Deseas desactivar el certificado ${identificador}?`);
     if (!confirmado) return;
 
     cert.active = false;

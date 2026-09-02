@@ -1,6 +1,6 @@
 <div *ngIf="mensajeRespuesta" class="alert alert-info mt-3" role="alert">
     {{ mensajeRespuesta }}
-  </div>
+</div>
 <!-- Formulario Principal del Certificado -->
 <div class="card mb-4 shadow-sm">
   <div class="card-header bg-dark text-white">
@@ -17,6 +17,8 @@
           id="equipment_id"
           class="form-control"
           [(ngModel)]="certificado.equipment_id"
+          maxlength="30"
+          (ngModelChange)="onTableChange()"
           placeholder="Ej: EQ-2026-001"
           required
         >
@@ -29,6 +31,7 @@
           type="text"
           id="name_equipment"
           class="form-control"
+          maxlength="30"
           [(ngModel)]="certificado.name_equipment"
           placeholder="Ej: Multímetro Digital / Calibrador"
           required
@@ -41,6 +44,7 @@
         <input
           type="text"
           id="cc"
+          maxlength="50"
           class="form-control"
           [(ngModel)]="certificado.cc"
           placeholder="Ej: CC-89421"
@@ -69,27 +73,29 @@
         >
       </div>
 
-      <!-- Mesurando / Magnitud Principal -->
+      <!-- Entidad emisora -->
       <div class="col-md-3">
         <label for="entity" class="form-label fw-bold">Entidad emisora</label>
         <input
           type="text"
           id="entity"
           class="form-control"
+          maxlength="30"
           [(ngModel)]="certificado.entity"
           placeholder="LECOE"
         >
       </div>
 
-      <!-- Rango de Medición -->
+      <!-- Comentarios -->
       <div class="col-md-3">
         <label for="comments" class="form-label fw-bold">Comentarios</label>
         <input
           type="text"
           id="comments"
           class="form-control"
+          maxlength="100"
           [(ngModel)]="certificado.comments"
-          placeholder="Ej: 0 V a 750 V"
+          placeholder="Comments"
         >
       </div>
 
@@ -128,7 +134,7 @@
 
 <div class="container my-4">
   <div class="d-flex justify-content-between align-items-center mb-4">
-    <h3 class="fw-bold m-0">Resultados de la calibracion</h3>
+    <h3 class="fw-bold m-0">Resultados del Certificado</h3>
 
     <div class="d-flex align-items-center gap-3">
       <div class="d-flex align-items-center bg-light border rounded px-2 py-1">
@@ -192,15 +198,33 @@
 
           <!-- Propiedades de la Tabla -->
           <div class="row g-3 p-3 mb-4 bg-light rounded border">
-            <h6 class="text-secondary fw-bold mb-0">Propiedades el ensayo</h6>
+            <h6 class="text-secondary fw-bold mb-0">Propiedades del ensayo</h6>
 
             <div class="col-md-6">
-              <label class="form-label fw-semibold small">Titulo:</label>
-              <input
-                type="text"
-                class="form-control"
-                [(ngModel)]="tabla.titulo"
-                placeholder="Ej: Resultados de Medición de Tensión">
+  <label class="form-label fw-semibold small">Título:</label>
+  <div class="d-flex gap-2 align-items-center">
+          <select
+                  class="form-select"
+                  [ngModel]="tabla.titulo"
+                  (ngModelChange)="tabla.titulo = $event; onTableChange()"
+                  style="flex:1;"
+                >
+                  <option *ngFor="let opcion of opcionesTitulo" [value]="opcion">
+                    {{ opcion }}
+                  </option>
+                </select>
+
+                <!-- Input para "Otro" (visible solo si el título no es predefinido) -->
+                <input
+                  *ngIf="!esTituloPredefinido(tabla.titulo)"
+                  type="text"
+                  class="form-control"
+                  [(ngModel)]="tabla.titulo"
+                  (ngModelChange)="onTableChange()"
+                  placeholder="Escriba título personalizado"
+                  style="flex:2;"
+                />
+              </div>
             </div>
 
             <div class="col-md-6">
@@ -209,6 +233,7 @@
                 type="text"
                 class="form-control"
                 [(ngModel)]="tabla.mesurando"
+                (ngModelChange)="onTableChange()"
                 placeholder="Ej: Tensión Impulso (LI)">
             </div>
             <div class="col-md-3">
@@ -217,15 +242,17 @@
                 type="text"
                 class="form-control"
                 [(ngModel)]="tabla.unit"
+                (ngModelChange)="onTableChange()"
                 placeholder="Ej: kV">
             </div>
 
             <div class="col-md-4">
-              <label class="form-label fw-semibold small">Ecuacion de calibracion</label>
+              <label class="form-label fw-semibold small">Ecuación de calibración</label>
               <input
                 type="text"
                 class="form-control"
                 [(ngModel)]="tabla.ecuation_calibration"
+                (ngModelChange)="onTableChange()"
                 placeholder="Ej: V=I*R">
             </div>
 
@@ -235,11 +262,11 @@
                 type="text"
                 class="form-control"
                 [(ngModel)]="tabla.range"
+                (ngModelChange)="onTableChange()"
                 placeholder="Ej: 0v - 100v">
             </div>
 
           </div>
-
 
           <!-- Estructura de Tabla -->
           <div class="d-flex justify-content-between align-items-center mb-2">
@@ -277,12 +304,14 @@
                         type="text"
                         class="form-control form-control-sm"
                         [(ngModel)]="col.label"
+                        (ngModelChange)="onTableChange()"
                         placeholder="label">
 
                       <input
                         type="text"
                         class="form-control form-control-sm"
                         [(ngModel)]="col.unit"
+                        (ngModelChange)="onTableChange()"
                         placeholder="unit">
 
                       <select
@@ -306,6 +335,7 @@
                       [type]="col.type === 'number' ? 'number' : 'text'"
                       class="form-control form-control-sm"
                       [(ngModel)]="fila[col.key]"
+                      (ngModelChange)="onTableChange()"
                       (keydown.tab)="onTabKeydown($event, i, filaIndex, colIndex)"
                       placeholder="null">
                   </td>
@@ -334,74 +364,63 @@
     </div>
   </ng-container>
 
-      <!-- Previsualizador y Editor de JSON -->
-      <div class="card bg-dark text-white shadow-sm mb-4">
-        <!-- Encabezado con botón de despliegue y acciones rápidas -->
-        <div class="card-header d-flex justify-content-between align-items-center border-secondary p-2">
-          <button
-            class="btn btn-link text-white text-decoration-none fw-bold p-0 d-flex align-items-center gap-2"
-            type="button"
-            data-bs-toggle="collapse"
-            data-bs-target="#collapseJsonArea"
-            aria-expanded="false"
-            aria-controls="collapseJsonArea"
-          >
-            <i class="bi bi-chevron-down"></i>
-            <span class="font-monospace">"Tablas de resultados" JSON (Editable)</span>
-          </button>
+  <!-- Previsualizador y Editor de JSON (sin botón de actualizar) -->
+  <div class="card bg-dark text-white shadow-sm mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center border-secondary p-2">
+      <button
+        class="btn btn-link text-white text-decoration-none fw-bold p-0 d-flex align-items-center gap-2"
+        type="button"
+        data-bs-toggle="collapse"
+        data-bs-target="#collapseJsonArea"
+        aria-expanded="false"
+        aria-controls="collapseJsonArea">
+        <i class="bi bi-chevron-down"></i>
+        <span class="font-monospace">JSON del Certificado</span>
+        <span class="badge bg-secondary">{{ jsonInputText.length }} caracteres</span>
+        <span class="badge bg-secondary">{{ jsonInputText.split('\n').length }} líneas</span>
+        <span class="badge bg-primary">Editable</span>
+      </button>
 
-          <div class="d-flex gap-2">
-            <!-- Botón para aplicar los cambios ingresados manualmente en el JSON -->
-            <button
-              class="btn btn-primary btn-sm"
-              type="button"
-              (click)="actualizarFormularioDesdeJson()"
-              title="Cargar la estructura del JSON en las tablas superiores"
-            >
-              <i class="bi bi-arrow-repeat me-1"></i> Actualizar desde JSON
-            </button>
-
-            <!-- Botón de copiar -->
-            <button class="btn btn-outline-light btn-sm" type="button" (click)="copiarJson()">
-              {{ copiadoExitoso ? '¡Copiado!' : 'Copiar JSON' }}
-            </button>
-          </div>
-        </div>
-
-        <!-- Contenido colapsable -->
-        <div class="collapse" id="collapseJsonArea">
-          <div class="card-body p-3 border-top border-secondary">
-            <textarea
-              id="jsonAreaInput"
-              class="form-control bg-dark text-success font-monospace border-secondary"
-              rows="12"
-              [(ngModel)]="jsonInputText"
-              placeholder="Pega o edita la estructura JSON aquí..."
-              style="resize: vertical; font-size: 0.9rem;"
-            ></textarea>
-          </div>
-        </div>
-      </div>
-            <!-- Alerta de Bootstrap para Mensajes -->
-      <div
-        *ngIf="mensajeRespuesta"
-        class="alert alert-dismissible fade show mt-3 shadow-sm"
-        [ngClass]="esError ? 'alert-danger' : 'alert-success'"
-        role="alert"
-      >
-        <strong>{{ esError ? '¡Atención!' : '¡Éxito!' }}</strong> {{ mensajeRespuesta }}
-        <button type="button" class="btn-close" (click)="mensajeRespuesta = null" aria-label="Close"></button>
-      </div>
-
-      <!-- Botón de Guardado Directo -->
-      <div class="d-flex justify-content-end my-4">
-        <button
-          type="button"
-          class="btn btn-success btn-lg shadow-sm"
-          (click)="guardarCertificado()"
-        >
-          Guardar Certificado
+      <div class="d-flex gap-2">
+        <!-- Botón de copiar -->
+        <button class="btn btn-outline-light btn-sm" type="button" (click)="copiarJson()">
+          {{ copiadoExitoso ? 'Copiado' : 'Copiar JSON' }}
         </button>
       </div>
+    </div>
+
+    <div class="collapse" id="collapseJsonArea">
+      <div class="card-body p-3 border-top border-secondary">
+        <textarea
+          id="jsonAreaInput"
+          class="form-control bg-dark text-success font-monospace border-secondary"
+          rows="12"
+          [(ngModel)]="jsonInputText"
+          placeholder="El JSON se actualiza automáticamente al modificar la tabla..."
+          style="resize: vertical; font-size: 0.9rem;"
+        ></textarea>
+      </div>
+    </div>
+  </div>
+
+  <!-- Alerta de Bootstrap para Mensajes -->
+  <div
+    *ngIf="mensajeRespuesta"
+    class="alert alert-dismissible fade show mt-3 shadow-sm"
+    [ngClass]="esError ? 'alert-danger' : 'alert-success'"
+    role="alert">
+    <strong>{{ esError ? '¡Atención!' : '¡Éxito!' }}</strong> {{ mensajeRespuesta }}
+    <button type="button" class="btn-close" (click)="mensajeRespuesta = null" aria-label="Close"></button>
+  </div>
+
+  <!-- Botón de Guardado Directo -->
+  <div class="d-flex justify-content-end my-4">
+    <button
+      type="button"
+      class="btn btn-success btn-lg shadow-sm"
+      (click)="guardarCertificado()">
+      Guardar Certificado
+    </button>
+  </div>
 
 </div>

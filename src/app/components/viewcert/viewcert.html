@@ -82,7 +82,7 @@
                   <button
                     class="btn"
                     [ngClass]="idExpandido === cert.id ? 'btn-secondary' : 'btn-outline-primary'"
-                    (click)="toggleDetalle(cert.id)"
+                    (click)="toggleDetalle(cert.id, cert)"
                   >
                     {{ idExpandido === cert.id ? 'Ocultar Tablas' : 'Ver Tablas' }}
                   </button>
@@ -115,7 +115,7 @@
                 <div class="card border-secondary shadow-sm">
                   <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
                     <span class="fw-bold font-monospace text-warning">
-                      Tablas de Resultados — Equipment ID: {{ cert.equipment_id }}
+                      Tablas de Resultados — Equipment ID del Certificado: {{ cert.equipment_id }}
                     </span>
                     <button class="btn btn-sm btn-outline-light" (click)="abrirModalEdicion(cert)">
                       Editar JSON Raw
@@ -124,11 +124,14 @@
                   <div class="card-body">
 
                     <!-- Renderizado dinámico de Tablas de Resultados -->
-                    <ng-container *ngIf="obtenerTablasResultado(cert.data).length > 0; else vistaJsonRaw">
-                      <div *ngFor="let tabla of obtenerTablasResultado(cert.data); let idx = index" class="mb-4">
-                        <h6 class="fw-bold text-primary mb-1">
-                          Tabla #{{ idx + 1 }}: {{ tabla.titulo || 'Sin Título' }}
-                        </h6>
+                    <ng-container *ngIf="obtenerTablasResultado(cert.data, cert.equipment_id).length > 0; else vistaJsonRaw">
+                      <div *ngFor="let tabla of obtenerTablasResultado(cert.data, cert.equipment_id); let idx = index" class="mb-4">
+                        <div class="d-flex justify-content-between align-items-center">
+                          <h6 class="fw-bold text-primary mb-1">
+                            Tabla #{{ idx + 1 }}: {{ tabla.titulo || 'Sin Título' }}
+                          </h6>
+                          <span class="badge bg-secondary">Equipment ID: {{ tabla.equipment_id || cert.equipment_id }}</span>
+                        </div>
                         <div class="row g-2 mb-2 small text-muted">
                           <div class="col-md-3"><strong>Mesurando:</strong> {{ tabla.mesurando || 'N/A' }}</div>
                           <div class="col-md-3"><strong>Unidad:</strong> {{ tabla.unit || 'N/A' }}</div>
