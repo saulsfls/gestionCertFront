@@ -34,6 +34,22 @@ export class Newcert implements OnInit {
     'Otro'
   ];
 
+  // Mapa de opciones de mesurando por título
+  private opcionesMesurandoPorTitulo: Record<string, string[]> = {
+    'Tensión DC': ['Voltaje'],
+    'Tensión AC': ['Voltaje RMS', 'Voltaje PP (pico a pico)'],
+    'Corriente DC': ['Corriente'],
+    'Corriente AC': ['Corriente RMS', 'Corriente PP (pico a pico)'],
+    'Resistencia': ['Resistencia'],
+    'Resistencia 4 hilos': ['Resistencia 4 hilos'],
+    'Tensión de impulsos (LI)(Tipo rayo)':
+      ['Tensión de impulso LI' , 'Determinación del factor de escala y medida de Ut','Medida del tiempo de frente T1' ,'Medida del tiempo hasta valor mitad T2','Ensayo de Linealidad de Polaridad'],
+    'Tensión de impulsos (SI)(Tipo maniobra)':
+      ['Tensión de impulso LI' , 'Determinación del factor de escala y medida de Ut','Medida del tiempo de frente T1' ,'Medida del tiempo hasta valor mitad T2','Ensayo de Linealidad de Polaridad'],
+    'Frecuencia': ['Frecuencia'],
+    'Otro': []
+  };
+
   certificado: Certificado = {
     equipment_id: '',
     name_equipment: '',
@@ -68,10 +84,11 @@ export class Newcert implements OnInit {
     return {
       titulo: 'Tensión DC',
       equipment_id: this.certificado.equipment_id || '',
-      mesurando: '',
+      mesurando: this.obtenerOpcionesMesurando('Tensión DC')[0] || '', // "Voltaje"
       unit: '',
       ecuation_calibration: '',
       range: '',
+      coments: '', // nuevo campo
       columnas: [
         { key: 'key', label: 'Etiqueta', unit: 'Unidades', type: 'number' },
       ],
@@ -101,6 +118,28 @@ export class Newcert implements OnInit {
   esTituloPredefinido(titulo: string): boolean {
     const predefinidos = this.opcionesTitulo.slice(0, -1);
     return predefinidos.includes(titulo);
+  }
+
+  /**
+   * Devuelve las opciones de mesurando para un título dado
+   */
+  obtenerOpcionesMesurando(titulo: string): string[] {
+    return this.opcionesMesurandoPorTitulo[titulo] || [];
+  }
+
+  /**
+   * Actualiza el mesurando según el título seleccionado.
+   * Si el título es predefinido y el mesurando actual no está en la lista,
+   * se asigna el primer valor de la lista.
+   */
+  actualizarMesurandoSegunTitulo(tabla: TablaResultado): void {
+    const opciones = this.obtenerOpcionesMesurando(tabla.titulo);
+    if (opciones.length > 0 && !opciones.includes(tabla.mesurando)) {
+      tabla.mesurando = opciones[0];
+    } else if (opciones.length === 0) {
+      // Si es "Otro" o no hay opciones, dejamos el valor actual (puede estar vacío)
+      // pero no forzamos nada.
+    }
   }
 
   /**
@@ -152,6 +191,7 @@ export class Newcert implements OnInit {
           unit: t.unit || '',
           ecuation_calibration: t.ecuation_calibration || '',
           range: t.range || '',
+          coments: t.comentarios || '', // nuevo campo
           columnas: t.columnas,
           filas: t.filas
         };
@@ -279,7 +319,7 @@ export class Newcert implements OnInit {
     }
   }
 
-  // --- Construcción del JSON Limpio (incluye equipment_id) ---
+  // --- Construcción del JSON Limpio (incluye equipment_id y comentarios) ---
   obtenerJsonEstructurado(): object {
     const tablasProcesadas = this.tablasResultados.map(tabla => {
       const tiposPorKey: Record<string, TipoDato> = {};
@@ -313,6 +353,7 @@ export class Newcert implements OnInit {
         unit: tabla.unit || '',
         ecuation_calibration: tabla.ecuation_calibration || '',
         range: tabla.range || '',
+        coments: tabla.coments || '', // nuevo campo
         columnas: tabla.columnas,
         filas: filasProcesadas
       };

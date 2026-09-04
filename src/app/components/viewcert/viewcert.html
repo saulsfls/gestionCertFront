@@ -27,6 +27,7 @@
       </div>
     </div>
   </div>
+
   <!-- Botón de Administración de Certificados -->
   <div class="d-flex justify-content-end mb-5">
     <button
@@ -126,7 +127,6 @@
                     <span class="fw-bold font-monospace text-warning">
                       Tablas de Resultados — Equipment ID del Certificado: {{ cert.equipment_id }}
                     </span>
-
                   </div>
                   <div class="card-body">
 
@@ -144,6 +144,11 @@
                           <div class="col-md-3"><strong>Unidad:</strong> {{ tabla.unit || 'N/A' }}</div>
                           <div class="col-md-3"><strong>Rango:</strong> {{ tabla.range || 'N/A' }}</div>
                           <div class="col-md-3"><strong>Ecuación:</strong> {{ tabla.ecuation_calibration || 'N/A' }}</div>
+                        </div>
+
+                        <!-- Mostrar coments de la tabla (si existen) -->
+                        <div *ngIf="tabla.coments" class="mb-2 small text-secondary">
+                          <strong>coments:</strong> {{ tabla.coments }}
                         </div>
 
                         <!-- Renderizado de Columnas y Filas -->

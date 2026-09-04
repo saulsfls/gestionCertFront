@@ -59,8 +59,9 @@ export class Viewcert implements OnInit {
     if (!id) return;
     this.router.navigate(['/editcert', id]);
   }
-  //Navega hacia el componente de administración de certificados
-  administrarCertificado(){
+
+  // Navega hacia el componente de administración de certificados
+  administrarCertificado() {
     this.router.navigate(['/admincert']);
   }
 
@@ -130,7 +131,6 @@ export class Viewcert implements OnInit {
     } else {
       this.idExpandido = id;
       this.certificadoSeleccionado = cert;
-      // Asegurar que las tablas tengan equipment_id (se hace en obtenerTablasResultado)
     }
     this.cdr.detectChanges();
   }
@@ -153,6 +153,8 @@ export class Viewcert implements OnInit {
       tablas = tablas.map((tabla: any) => ({
         ...tabla,
         equipment_id: tabla.equipment_id || tabla.id_equipment || certEquipmentId,
+        // Aseguramos que el campo coments exista (si no, se inicializa como cadena vacía)
+        coments: tabla.coments || '',
       }));
     }
 

@@ -21,6 +21,7 @@ export interface CertificadoData {
     mesurando?: string;
     unidades?: string;
     rango?: string;
+    coments?: string;
     estado_ajuste?: string;
   };
 }
@@ -39,6 +40,7 @@ export interface TablaResultado {
   ecuation_calibration: string;
   unit: string;
   range: string,
+  coments: string;
   columnas: Columna[];
   filas: Record<string, any>[];
 }
