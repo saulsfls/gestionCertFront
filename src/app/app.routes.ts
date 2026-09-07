@@ -5,14 +5,15 @@ import { Viewcert } from './components/viewcert/viewcert';
 import { Pimage } from './components/pimage/pimage';
 import { Editcert } from './components/editcert/editcert';
 import { admincert } from './components/admincert/admincert';
+import { Listcert } from './components/listcert/listcert';
 
 export const routes: Routes = [
   {path: '',redirectTo: 'inicio', pathMatch: 'full'},
   {path: 'inicio', component: Inicio},
   {path: 'newcert', component: Newcert},
-  {path: 'viewcert', component: Viewcert},
   {path: 'pimage', component: Pimage },
-  {path: 'editcert', component: Editcert},
-  {path: 'editcert/:id', component: Editcert},
+  {path: 'editcert/:id', component: Editcert},//Solo se puede acceder a la ruta con un id de certificado
   {path: 'admincert', component: admincert},
+  {path: 'listcert', component: Listcert},
+  {path: 'viewcert/:id', component: Viewcert},//Solo se puede acceder a la ruta con un id de certificado
 ];

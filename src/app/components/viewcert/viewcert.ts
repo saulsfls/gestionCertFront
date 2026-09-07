@@ -1,14 +1,14 @@
-import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { CertService } from '../../services/cert.service';
+import { FormsModule } from '@angular/forms';
+import * as XLSX from 'xlsx';
 import {
   Certificado,
-  CertificadoData,
   TablaResultado,
-  ApiResponse,
 } from '../../models/certificado.models';
+import { finalize } from 'rxjs/operators';
 
 export type FiltroEstado = 'todos' | 'activos' | 'inactivos';
 
@@ -20,192 +20,171 @@ export type FiltroEstado = 'todos' | 'activos' | 'inactivos';
   styleUrl: './viewcert.css',
 })
 export class Viewcert implements OnInit {
-  // Lista principal de certificados
-  listaCertificados: Certificado[] = [];
-
-  // Estado de la vista
-  cargando: boolean = false;
-  mensajeError: string | null = null;
-  mensajeExito: string | null = null;
-
-  // Filtros de Búsqueda
-  textoBusqueda: string = '';
-  filtroEstado: FiltroEstado = 'todos';
-
-  // Control de expansión de fila para mostrar tablas/JSON
-  idExpandido: number | string | null = null;
-
-  // Certificado seleccionado para expandir
-  certificadoSeleccionado: Certificado | null = null;
-
-  // Modal de edición rápida
-  certificadoEdicion: Certificado | null = null;
-  jsonEdicionTexto: string = '';
+  certificado: Certificado | null = null;
+  tablas: TablaResultado[] = [];
+  cargando = false;
+  errorMsg: string | null = null;
 
   constructor(
+    private route: ActivatedRoute,
+    private router: Router,
     private certService: CertService,
-    private cdr: ChangeDetectorRef,
-    private router: Router
+    private cdr: ChangeDetectorRef
   ) {}
 
   ngOnInit(): void {
-    this.obtenerCertificados();
-  }
-
-  /**
-   * Navega hacia el componente de edición pasando el ID del certificado como parámetro de ruta.
-   */
-  editarCertificado(id: number | string | undefined): void {
-    if (!id) return;
-    this.router.navigate(['/editcert', id]);
-  }
-
-  // Navega hacia el componente de administración de certificados
-  administrarCertificado() {
-    this.router.navigate(['/admincert']);
-  }
-
-  /**
-   * Getter reactivo que filtra por equipo, ID, folio (cc) o nombre,
-   * además del estado Activo / Inactivo.
-   */
-  get certificadosFiltrados(): Certificado[] {
-    return this.listaCertificados.filter((cert) => {
-      if (this.filtroEstado === 'activos' && !cert.active) return false;
-      if (this.filtroEstado === 'inactivos' && cert.active) return false;
-
-      if (!this.textoBusqueda.trim()) return true;
-
-      const termino = this.textoBusqueda.toLowerCase().trim();
-      const matchEquipmentId = cert.equipment_id
-        ? cert.equipment_id.toLowerCase().includes(termino)
-        : false;
-      const matchId = cert.id ? String(cert.id).toLowerCase().includes(termino) : false;
-      const matchCc = cert.cc ? cert.cc.toLowerCase().includes(termino) : false;
-      const matchName = cert.name_equipment
-        ? cert.name_equipment.toLowerCase().includes(termino)
-        : false;
-
-      return matchEquipmentId || matchId || matchCc || matchName;
-    });
-  }
-
-  /**
-   * Obtener todos los certificados a través del servicio
-   */
-  obtenerCertificados(): void {
-    this.cargando = true;
-    this.mensajeError = null;
-    this.mensajeExito = null;
-
-    this.certService.obtenerCertificados().subscribe({
-      next: (res: ApiResponse<Certificado[]>) => {
-        if (res && res.ok && Array.isArray(res.data)) {
-          this.listaCertificados = res.data;
-        } else if (Array.isArray(res)) {
-          this.listaCertificados = res as unknown as Certificado[];
-        } else {
-          this.listaCertificados = [];
-        }
-        this.cargando = false;
-        this.cdr.detectChanges();
-      },
-      error: (err: any) => {
-        console.error('Error al obtener certificados:', err);
-        this.mensajeError = err.error?.message || 'Error al conectar con la base de datos.';
-        this.cargando = false;
-        this.cdr.detectChanges();
-      },
-    });
-  }
-
-  /**
-   * Desplegar / Ocultar la sección inferior con las tablas dinámicas
-   * y almacena el certificado seleccionado.
-   */
-  toggleDetalle(id: number | string | undefined, cert: Certificado): void {
-    if (!id) return;
-    if (this.idExpandido === id) {
-      this.idExpandido = null;
-      this.certificadoSeleccionado = null;
+    const id = this.route.snapshot.paramMap.get('id');
+    if (id) {
+      this.cargarDetalle(id);
     } else {
-      this.idExpandido = id;
-      this.certificadoSeleccionado = cert;
+      this.errorMsg = 'No se proporcionó ID de certificado.';
     }
-    this.cdr.detectChanges();
   }
 
-  /**
-   * Procesa la columna 'data' (JSONB) para extraer 'Tablas de resultados'
-   * y asigna el equipment_id del certificado a cada tabla si no lo tienen.
-   */
-  obtenerTablasResultado(
-    data?: CertificadoData | Record<string, any>,
-    certEquipmentId?: string
-  ): TablaResultado[] {
-    if (!data) return [];
+  cargarDetalle(id: string | number): void {
+    this.cargando = true;
+    this.errorMsg = null;
+    this.certificado = null;
+    this.tablas = [];
 
-    const certData = data as CertificadoData;
-    let tablas = certData['Tablas de resultados'] || certData.tablas_resultados || [];
+    this.certService
+      .obtenerCertificadoPorId(id)
+      .pipe(
+        finalize(() => {
+          this.cargando = false;
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe({
+        next: (res: any) => {
+          const data: Certificado = res.data || res;
+          if (!data) {
+            this.errorMsg = 'No se recibieron datos del certificado.';
+            return;
+          }
+          this.certificado = data;
 
-    // Si se proporciona un equipment_id del certificado, asignarlo a cada tabla si falta
-    if (certEquipmentId) {
-      tablas = tablas.map((tabla: any) => ({
-        ...tabla,
-        equipment_id: tabla.equipment_id || tabla.id_equipment || certEquipmentId,
-        // Aseguramos que el campo coments exista (si no, se inicializa como cadena vacía)
-        coments: tabla.coments || '',
-      }));
+          if (data.data && data.data['Tablas de resultados']) {
+            this.tablas = data.data['Tablas de resultados'].map((t: any) => ({
+              ...t,
+              comentarios: t.comentarios || '',
+              coments: t.coments || t.comentarios || '',
+            }));
+          } else {
+            this.tablas = [];
+          }
+          this.errorMsg = null;
+        },
+        error: (err) => {
+          this.errorMsg = err.error?.message || 'Error al cargar el certificado.';
+        }
+      });
+  }
+
+  volver(): void {
+    this.router.navigate(['/listcert']);
+  }
+
+  exportarExcel(): void {
+    if (!this.certificado) {
+      alert('No hay datos del certificado para exportar.');
+      return;
     }
 
-    return tablas;
-  }
+    const wb = XLSX.utils.book_new();
 
-  /**
-   * Obtiene el equipment_id de una tabla o, en su defecto, el del certificado seleccionado.
-   * Útil para mostrar en la vista cuando se itera sobre las tablas.
-   */
-  obtenerEquipmentIdDeTabla(tabla: TablaResultado): string {
-    return tabla.equipment_id || this.certificadoSeleccionado?.equipment_id || '';
-  }
+    // Construir la hoja única con todo el contenido
+    const hojaData: any[][] = [];
 
-  /**
-   * Desactiva el certificado seleccionado
-   */
-  desactivarCertificado(cert: Certificado): void {
-    if (!cert.active || !cert.id) return;
+    // --- Sección: Resumen del Certificado ---
+    hojaData.push(['RESUMEN DEL CERTIFICADO']);
+    hojaData.push([]); // fila en blanco
 
-    const identificador = cert.cc || cert.equipment_id;
-    const confirmado = window.confirm(`¿Deseas desactivar el certificado ${identificador}?`);
-    if (!confirmado) return;
+    // Datos del certificado en pares clave-valor
+    const resumenCampos = [
+      ['ID', this.certificado.id || ''],
+      ['Equipment ID', this.certificado.equipment_id || ''],
+      ['Nombre Equipo', this.certificado.name_equipment || ''],
+      ['Folio/CC', this.certificado.cc || ''],
+      ['Fecha Calibración', this.certificado.date_cal || ''],
+      ['Fecha Certificado', this.certificado.date_cc || ''],
+      ['Entidad', this.certificado.entity || ''],
+      ['Tipo', this.certificado.cert_type || ''],
+      ['Comentarios', this.certificado.comments || ''],
+      ['Activo', this.certificado.active ? 'Sí' : 'No']
+    ];
 
-    cert.active = false;
-
-    this.certService.desactivarCertificado(cert.id).subscribe({
-      next: () => {
-        this.mensajeExito = `El certificado ${identificador} ha sido desactivado con éxito.`;
-        this.cdr.detectChanges();
-      },
-      error: (err: any) => {
-        cert.active = true;
-        this.mensajeError = err.error?.message || 'No se pudo desactivar el certificado en la base de datos.';
-        this.cdr.detectChanges();
-      },
+    resumenCampos.forEach(([clave, valor]) => {
+      hojaData.push([clave, valor]);
     });
-  }
 
-  // --- Helpers de Formateo y Edición Modal ---
-  obtenerJsonString(data: any): string {
-    return typeof data === 'string' ? data : JSON.stringify(data, null, 2);
-  }
+    // Si hay tablas, agregamos separación y las tablas
+    if (this.tablas.length > 0) {
+      hojaData.push([]); // fila en blanco
+      hojaData.push(['TABLAS DE RESULTADOS']);
+      hojaData.push([]); // fila en blanco
 
-  abrirModalEdicion(cert: Certificado): void {
-    this.certificadoEdicion = { ...cert };
-    this.jsonEdicionTexto = cert.data ? JSON.stringify(cert.data, null, 2) : '{}';
-  }
+      this.tablas.forEach((tabla, idx) => {
+        // Título de la tabla
+        const titulo = tabla.titulo || `Tabla ${idx + 1}`;
+        hojaData.push([`${titulo}`]);
+        hojaData.push([]); // fila en blanco
 
-  cerrarModalEdicion(): void {
-    this.certificadoEdicion = null;
-    this.jsonEdicionTexto = '';
+        // Metadatos en pares clave-valor
+        const metadatos = [
+          ['Mesurando', tabla.mesurando || ''],
+          ['Unidad', tabla.unit || ''],
+          ['Rango', tabla.range || ''],
+          ['Ecuación', tabla.ecuation_calibration || ''],
+          ['Comentarios', tabla.coments || '']
+        ];
+        metadatos.forEach(([clave, valor]) => {
+          hojaData.push([clave, valor]);
+        });
+
+        hojaData.push([]); // fila en blanco antes de encabezados
+
+        // Encabezados de columnas
+        const encabezados = tabla.columnas.map(col => col.label + (col.unit ? ` (${col.unit})` : ''));
+        hojaData.push(encabezados);
+
+        // Filas de datos
+        if (tabla.filas.length > 0) {
+          tabla.filas.forEach(fila => {
+            const filaData = tabla.columnas.map(col => {
+              const val = fila[col.key];
+              return val !== undefined && val !== null ? val : '';
+            });
+            hojaData.push(filaData);
+          });
+        } else {
+          hojaData.push(['Sin registros']);
+        }
+
+        // Fila en blanco entre tablas (excepto después de la última)
+        if (idx < this.tablas.length - 1) {
+          hojaData.push([]);
+          hojaData.push([]); // doble espacio para separar
+        }
+      });
+    } else {
+      hojaData.push([]);
+      hojaData.push(['No hay tablas de resultados asociadas.']);
+    }
+
+    // Crear la hoja a partir de las filas
+    const ws = XLSX.utils.aoa_to_sheet(hojaData);
+
+    // Ajustar el ancho de las columnas (opcional)
+    const maxCols = Math.max(...hojaData.map(row => row.length), 0);
+    const colWidths = Array(maxCols).fill({ wch: 25 });
+    ws['!cols'] = colWidths;
+
+    // Agregar la hoja al libro
+    XLSX.utils.book_append_sheet(wb, ws, 'Certificado');
+
+    // Guardar archivo
+    const nombreArchivo = `Certificado_${this.certificado.equipment_id || 'detalle'}.xlsx`;
+    XLSX.writeFile(wb, nombreArchivo);
   }
 }

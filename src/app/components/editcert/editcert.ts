@@ -537,7 +537,7 @@ export class Editcert implements OnInit {
         this.mostrarAlerta('¡Certificado actualizado correctamente! Redirigiendo ...', false);
 
         setTimeout(() => {
-          this.router.navigate(['/viewcert']);
+          this.router.navigate(['/listcert']);
         }, 2000);
       },
       error: (err: any) => {
@@ -549,6 +549,6 @@ export class Editcert implements OnInit {
   }
 
   cancelar(): void {
-    this.router.navigate(['/viewcert']);
+    this.router.navigate(['/listcert']);
   }
 }

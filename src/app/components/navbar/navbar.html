@@ -5,7 +5,6 @@
       <i class="bi bi-box-seam fs-4 text-primary"></i>
       <span class="fw-bold">Gestion de certificados</span>
     </a>
-
     <!-- Botón Hamburguesa (Móviles) -->
     <button
       class="navbar-toggler"
@@ -15,7 +14,6 @@
       aria-label="Toggle navigation">
       <span class="navbar-toggler-icon"></span>
     </button>
-
     <!-- Enlaces y Contenido del Navbar -->
     <div class="collapse navbar-collapse" [class.show]="!isCollapsed">
       <!-- Menú Principal -->
@@ -43,16 +41,6 @@
         <li class="nav-item">
           <a
             class="nav-link"
-            routerLink="/viewcert"
-            routerLinkActive="active"
-            [routerLinkActiveOptions]="{exact: true}"
-            (click)="isCollapsed = true">
-            Ver certificados
-          </a>
-        </li>
-        <li class="nav-item">
-          <a
-            class="nav-link"
             routerLink="/pimage"
             routerLinkActive="active"
             [routerLinkActiveOptions]="{exact: true}"
@@ -60,19 +48,17 @@
             Procesar imagen
           </a>
         </li>
-        <!--Se desactivo ya que para acceder este componente se tienen que enviar paramentros, se accede a el desde vista cert-->
-         <!--<li class="nav-item">
+        <li class="nav-item">
           <a
             class="nav-link"
-            routerLink="/editcert"
+            routerLink="/listcert"
             routerLinkActive="active"
             [routerLinkActiveOptions]="{exact: true}"
             (click)="isCollapsed = true">
-            Editar certificado
+            Lista de Certificados
           </a>
-        </li>-->
+        </li>
       </ul>
-
     </div>
   </div>
 </nav>
