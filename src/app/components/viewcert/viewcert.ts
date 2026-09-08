@@ -6,7 +6,7 @@ import { FormsModule } from '@angular/forms';
 import * as XLSX from 'xlsx';
 import {
   Certificado,
-  TablaResultado,
+  ResultTable,
 } from '../../models/certificado.models';
 import { finalize } from 'rxjs/operators';
 
@@ -21,8 +21,8 @@ export type FiltroEstado = 'todos' | 'activos' | 'inactivos';
 })
 export class Viewcert implements OnInit {
   certificado: Certificado | null = null;
-  tablas: TablaResultado[] = [];
-  cargando = false;
+  resultTables: ResultTable[] = [];
+  loading = false;
   errorMsg: string | null = null;
 
   constructor(
@@ -35,23 +35,23 @@ export class Viewcert implements OnInit {
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id');
     if (id) {
-      this.cargarDetalle(id);
+      this.loadDetail(id);
     } else {
-      this.errorMsg = 'No se proporcionó ID de certificado.';
+      this.errorMsg = 'No certificate ID provided.';
     }
   }
 
-  cargarDetalle(id: string | number): void {
-    this.cargando = true;
+  loadDetail(id: string | number): void {
+    this.loading = true;
     this.errorMsg = null;
     this.certificado = null;
-    this.tablas = [];
+    this.resultTables = [];
 
     this.certService
       .obtenerCertificadoPorId(id)
       .pipe(
         finalize(() => {
-          this.cargando = false;
+          this.loading = false;
           this.cdr.detectChanges();
         })
       )
@@ -59,132 +59,140 @@ export class Viewcert implements OnInit {
         next: (res: any) => {
           const data: Certificado = res.data || res;
           if (!data) {
-            this.errorMsg = 'No se recibieron datos del certificado.';
+            this.errorMsg = 'No certificate data received.';
             return;
           }
           this.certificado = data;
 
-          if (data.data && data.data['Tablas de resultados']) {
-            this.tablas = data.data['Tablas de resultados'].map((t: any) => ({
-              ...t,
-              comentarios: t.comentarios || '',
-              coments: t.coments || t.comentarios || '',
+          // Look for "Result Tables" (English) or fallback to "Tablas de resultados"
+          const tablesData = data.data?.['Result Tables'] ||[];
+          if (tablesData && Array.isArray(tablesData)) {
+            this.resultTables = tablesData.map((t: any) => ({
+              title: t.title || '',
+              equipment_id: t.equipment_id || this.certificado?.equipment_id || '',
+              parameter: t.parameter || '',
+              unit: t.unit || '',
+              calibration_equation: t.calibration_equation || '',
+              range: t.range || '',
+              comments: t.comments || '',
+              columns: t.columns || [],
+              rows: t.rows || []
             }));
           } else {
-            this.tablas = [];
+            this.resultTables = [];
           }
           this.errorMsg = null;
         },
         error: (err) => {
-          this.errorMsg = err.error?.message || 'Error al cargar el certificado.';
+          this.errorMsg = err.error?.message || 'Error loading the certificate.';
         }
       });
   }
 
-  volver(): void {
+  goBack(): void {
     this.router.navigate(['/listcert']);
   }
 
-  exportarExcel(): void {
+  exportToExcel(): void {
     if (!this.certificado) {
-      alert('No hay datos del certificado para exportar.');
+      alert('No certificate data to export.');
       return;
     }
 
     const wb = XLSX.utils.book_new();
 
-    // Construir la hoja única con todo el contenido
-    const hojaData: any[][] = [];
+    // Build a single sheet with all content
+    const sheetData: any[][] = [];
 
-    // --- Sección: Resumen del Certificado ---
-    hojaData.push(['RESUMEN DEL CERTIFICADO']);
-    hojaData.push([]); // fila en blanco
+    // --- Section: Certificate Summary ---
+    sheetData.push(['CERTIFICATE SUMMARY']);
+    sheetData.push([]); // blank row
 
-    // Datos del certificado en pares clave-valor
-    const resumenCampos = [
+    // Certificate data as key-value pairs
+    const summaryFields = [
       ['ID', this.certificado.id || ''],
       ['Equipment ID', this.certificado.equipment_id || ''],
-      ['Nombre Equipo', this.certificado.name_equipment || ''],
-      ['Folio/CC', this.certificado.cc || ''],
-      ['Fecha Calibración', this.certificado.date_cal || ''],
-      ['Fecha Certificado', this.certificado.date_cc || ''],
-      ['Entidad', this.certificado.entity || ''],
-      ['Tipo', this.certificado.cert_type || ''],
-      ['Comentarios', this.certificado.comments || ''],
-      ['Activo', this.certificado.active ? 'Sí' : 'No']
+      ['Equipment Name', this.certificado.name_equipment || ''],
+      ['Folio / CC', this.certificado.cc || ''],
+      ['Calibration Date', this.certificado.date_cal || ''],
+      ['Certificate Date', this.certificado.date_cc || ''],
+      ['Issuing Entity', this.certificado.entity || ''],
+      ['Certificate Type', this.certificado.cert_type || ''],
+      ['Comments', this.certificado.comments || ''],
+      ['Active', this.certificado.active ? 'Yes' : 'No']
     ];
 
-    resumenCampos.forEach(([clave, valor]) => {
-      hojaData.push([clave, valor]);
+    summaryFields.forEach(([key, value]) => {
+      sheetData.push([key, value]);
     });
 
-    // Si hay tablas, agregamos separación y las tablas
-    if (this.tablas.length > 0) {
-      hojaData.push([]); // fila en blanco
-      hojaData.push(['TABLAS DE RESULTADOS']);
-      hojaData.push([]); // fila en blanco
+    // If there are result tables, add them
+    if (this.resultTables.length > 0) {
+      sheetData.push([]); // blank row
+      sheetData.push(['RESULT TABLES']);
+      sheetData.push([]); // blank row
 
-      this.tablas.forEach((tabla, idx) => {
-        // Título de la tabla
-        const titulo = tabla.titulo || `Tabla ${idx + 1}`;
-        hojaData.push([`${titulo}`]);
-        hojaData.push([]); // fila en blanco
+      this.resultTables.forEach((table, idx) => {
+        // Table title
+        const title = table.title || `Table ${idx + 1}`;
+        sheetData.push([`${title}`]);
+        sheetData.push([]); // blank row
 
-        // Metadatos en pares clave-valor
-        const metadatos = [
-          ['Mesurando', tabla.mesurando || ''],
-          ['Unidad', tabla.unit || ''],
-          ['Rango', tabla.range || ''],
-          ['Ecuación', tabla.ecuation_calibration || ''],
-          ['Comentarios', tabla.coments || '']
+        // Metadata as key-value pairs
+        const metadata = [
+          ['Parameter', table.parameter || ''],
+          ['Unit', table.unit || ''],
+          ['Range', table.range || ''],
+          ['Calibration Equation', table.calibration_equation || ''],
+          ['Comments', table.comments || '']
         ];
-        metadatos.forEach(([clave, valor]) => {
-          hojaData.push([clave, valor]);
+        metadata.forEach(([key, value]) => {
+          sheetData.push([key, value]);
         });
 
-        hojaData.push([]); // fila en blanco antes de encabezados
+        sheetData.push([]); // blank row before column headers
 
-        // Encabezados de columnas
-        const encabezados = tabla.columnas.map(col => col.label + (col.unit ? ` (${col.unit})` : ''));
-        hojaData.push(encabezados);
+        // Column headers
+        const headers = table.columns.map(col => col.label + (col.unit ? ` (${col.unit})` : ''));
+        sheetData.push(headers);
 
-        // Filas de datos
-        if (tabla.filas.length > 0) {
-          tabla.filas.forEach(fila => {
-            const filaData = tabla.columnas.map(col => {
-              const val = fila[col.key];
+        // Data rows
+        if (table.rows.length > 0) {
+          table.rows.forEach(row => {
+            const rowData = table.columns.map(col => {
+              const val = row[col.key];
               return val !== undefined && val !== null ? val : '';
             });
-            hojaData.push(filaData);
+            sheetData.push(rowData);
           });
         } else {
-          hojaData.push(['Sin registros']);
+          sheetData.push(['No records']);
         }
 
-        // Fila en blanco entre tablas (excepto después de la última)
-        if (idx < this.tablas.length - 1) {
-          hojaData.push([]);
-          hojaData.push([]); // doble espacio para separar
+        // Blank row between tables (except after the last one)
+        if (idx < this.resultTables.length - 1) {
+          sheetData.push([]);
+          sheetData.push([]); // double space for separation
         }
       });
     } else {
-      hojaData.push([]);
-      hojaData.push(['No hay tablas de resultados asociadas.']);
+      sheetData.push([]);
+      sheetData.push(['No result tables associated.']);
     }
 
-    // Crear la hoja a partir de las filas
-    const ws = XLSX.utils.aoa_to_sheet(hojaData);
+    // Create worksheet from the rows
+    const ws = XLSX.utils.aoa_to_sheet(sheetData);
 
-    // Ajustar el ancho de las columnas (opcional)
-    const maxCols = Math.max(...hojaData.map(row => row.length), 0);
+    // Adjust column widths (optional)
+    const maxCols = Math.max(...sheetData.map(row => row.length), 0);
     const colWidths = Array(maxCols).fill({ wch: 25 });
     ws['!cols'] = colWidths;
 
-    // Agregar la hoja al libro
-    XLSX.utils.book_append_sheet(wb, ws, 'Certificado');
+    // Append the sheet to the workbook
+    XLSX.utils.book_append_sheet(wb, ws, 'Certificate');
 
-    // Guardar archivo
-    const nombreArchivo = `Certificado_${this.certificado.equipment_id || 'detalle'}.xlsx`;
-    XLSX.writeFile(wb, nombreArchivo);
+    // Save file
+    const fileName = `Certificate_${this.certificado.equipment_id || 'detail'}.xlsx`;
+    XLSX.writeFile(wb, fileName);
   }
 }

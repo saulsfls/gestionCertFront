@@ -35,10 +35,6 @@
             ],
             "server": "src/main.server.ts",
             "outputMode": "server",
-            "security": {
-              "allowedHosts": [
-              ]
-            },
             "ssr": {
               "entry": "src/server.ts"
             }
@@ -69,6 +65,17 @@
         },
         "serve": {
           "builder": "@angular/build:dev-server",
+          "options": {
+            "host": "0.0.0.0",
+            "port": 4200,
+            "allowedHosts": [
+              "192.168.1.187",
+              "26.142.249.120",
+              "192.168.56.1",
+              "172.22.48.1",
+              "localhost"
+            ]
+          },
           "configurations": {
             "production": {
               "buildTarget": "GestionCertFront:build:production"

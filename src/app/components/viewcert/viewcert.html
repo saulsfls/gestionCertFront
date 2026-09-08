@@ -1,15 +1,15 @@
 <div class="container py-4">
   <div class="d-flex justify-content-between align-items-center mb-4">
-    <button class="btn btn-outline-secondary" (click)="volver()">
+    <button class="btn btn-outline-secondary" (click)="goBack()">
       ← Volver a lista
     </button>
-    <button class="btn btn-success" (click)="exportarExcel()" [disabled]="!certificado || tablas.length === 0">
+    <button class="btn btn-success" (click)="exportToExcel()" [disabled]="!certificado || resultTables.length === 0">
       <i class="bi bi-file-excel"></i> Exportar a Excel
     </button>
   </div>
 
   <!-- Spinner de carga -->
-  <div *ngIf="cargando" class="text-center my-5">
+  <div *ngIf="loading" class="text-center my-5">
     <div class="spinner-border text-primary" role="status">
       <span class="visually-hidden">Cargando...</span>
     </div>
@@ -22,7 +22,7 @@
   </div>
 
   <!-- Datos del certificado (se oculta mientras cargando) -->
-  <ng-container *ngIf="!cargando && certificado">
+  <ng-container *ngIf="!loading && certificado">
     <div class="card shadow-sm mb-4">
       <div class="card-header bg-dark text-white">
         <h5 class="mb-0">Información del Certificado</h5>
@@ -43,21 +43,21 @@
       </div>
     </div>
 
-    <!-- Tablas de resultados -->
-    <div *ngIf="tablas.length > 0; else sinTablas">
+    <!-- Tablas de resultados (usando resultTables y propiedades en inglés) -->
+    <div *ngIf="resultTables.length > 0; else sinTablas">
       <h4 class="fw-bold mb-3">Tablas de Resultados</h4>
-      <div *ngFor="let tabla of tablas; let i = index" class="card mb-4 shadow-sm">
+      <div *ngFor="let table of resultTables; let i = index" class="card mb-4 shadow-sm">
         <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-          <span class="fw-bold">Tabla #{{ i + 1 }}: {{ tabla.titulo || 'Sin título' }}</span>
-          <span class="badge bg-light text-dark">Equipment ID: {{ tabla.equipment_id }}</span>
+          <span class="fw-bold">Tabla #{{ i + 1 }}: {{ table.title || 'Sin título' }}</span>
+          <span class="badge bg-light text-dark">Equipment ID: {{ table.equipment_id }}</span>
         </div>
         <div class="card-body">
           <!-- Metadatos -->
           <div class="row g-3 mb-3">
-            <div class="col-md-3"><strong>Mesurando:</strong> {{ tabla.mesurando || 'N/A' }}</div>
-            <div class="col-md-2"><strong>Unidad:</strong> {{ tabla.unit || 'N/A' }}</div>
-            <div class="col-md-3"><strong>Rango:</strong> {{ tabla.range || 'N/A' }}</div>
-            <div class="col-md-4"><strong>Ecuación:</strong> {{ tabla.ecuation_calibration || 'N/A' }}</div>
+            <div class="col-md-3"><strong>Parámetro:</strong> {{ table.parameter || 'N/A' }}</div>
+            <div class="col-md-2"><strong>Unidad:</strong> {{ table.unit || 'N/A' }}</div>
+            <div class="col-md-3"><strong>Rango:</strong> {{ table.range || 'N/A' }}</div>
+            <div class="col-md-4"><strong>Ecuación:</strong> {{ table.calibration_equation || 'N/A' }}</div>
           </div>
 
           <!-- Tabla de datos -->
@@ -65,29 +65,29 @@
             <table class="table table-bordered table-striped table-hover">
               <thead class="table-secondary">
                 <tr>
-                  <th *ngFor="let col of tabla.columnas">
+                  <th *ngFor="let col of table.columns">
                     {{ col.label }} <span *ngIf="col.unit" class="text-muted">({{ col.unit }})</span>
                   </th>
                 </tr>
               </thead>
               <tbody>
-                <tr *ngFor="let fila of tabla.filas">
-                  <td *ngFor="let col of tabla.columnas">
-                    {{ fila[col.key] !== undefined && fila[col.key] !== null ? fila[col.key] : '-' }}
+                <tr *ngFor="let row of table.rows">
+                  <td *ngFor="let col of table.columns">
+                    {{ row[col.key] !== undefined && row[col.key] !== null ? row[col.key] : '-' }}
                   </td>
                 </tr>
-                <tr *ngIf="tabla.filas.length === 0">
-                  <td [attr.colspan]="tabla.columnas.length" class="text-center text-muted">Sin registros</td>
+                <tr *ngIf="table.rows.length === 0">
+                  <td [attr.colspan]="table.columns.length" class="text-center text-muted">Sin registros</td>
                 </tr>
               </tbody>
             </table>
           </div>
 
-          <!-- COMENTARIOS DE LA TABLA -->
+          <!-- Comentarios de la tabla -->
           <div class="mt-3 pt-2 border-top">
             <i class="bi bi-chat text-secondary me-1"></i>
-            <strong class="text-secondary">Comentarios:  </strong>
-            <span class="text-muted">{{ tabla.coments || 'Sin comentarios' }}</span>
+            <strong class="text-secondary">Comentarios: </strong>
+            <span class="text-muted">{{ table.comments || 'Sin comentarios' }}</span>
           </div>
         </div>
       </div>

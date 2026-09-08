@@ -1,4 +1,3 @@
-
 <div *ngIf="mensajeRespuesta" class="alert alert-info mt-3" role="alert">
     {{ mensajeRespuesta }}
 </div>
@@ -87,7 +86,7 @@
         >
       </div>
 
-      <!-- Comentarios -->
+      <!-- Comentarios Generales -->
       <div class="col-md-3">
         <label for="comments" class="form-label fw-bold">Comentarios</label>
         <input
@@ -167,8 +166,8 @@
     </div>
   </div>
 
-  <!-- Bucle de Tablas -->
-  <ng-container *ngFor="let tabla of tablasResultados; let i = index">
+  <!-- Bucle de Tablas (usando resultTables y propiedades en inglés) -->
+  <ng-container *ngFor="let tabla of resultTables; let i = index">
     <div class="card mb-4 border-primary shadow-sm">
 
       <!-- Encabezado colapsable -->
@@ -181,11 +180,11 @@
           aria-expanded="true"
           [attr.aria-controls]="'collapseTabla' + i">
           <span>▼</span>
-          <span class="fs-5">Tabla #{{ i + 1 }} {{ tabla.titulo }}</span>
+          <span class="fs-5">Tabla #{{ i + 1 }} {{ tabla.title }}</span>
         </button>
 
         <button
-          *ngIf="tablasResultados.length > 1"
+          *ngIf="resultTables.length > 1"
           class="btn btn-danger btn-sm"
           type="button"
           (click)="eliminarTabla(i)">
@@ -197,7 +196,7 @@
       <div [id]="'collapseTabla' + i" class="collapse show">
         <div class="card-body">
 
-          <!-- Propiedades de la Tabla -->
+          <!-- Propiedades de la Tabla (modelo en inglés) -->
           <div class="row g-3 p-3 mb-4 bg-light rounded border">
             <h6 class="text-secondary fw-bold mb-0">Propiedades del ensayo</h6>
 
@@ -206,8 +205,8 @@
               <div class="d-flex gap-2 align-items-center">
                 <select
                   class="form-select"
-                  [ngModel]="tabla.titulo"
-                  (ngModelChange)="tabla.titulo = $event; onTableChange(); actualizarMesurandoSegunTitulo(tabla)"
+                  [ngModel]="tabla.title"
+                  (ngModelChange)="tabla.title = $event; onTableChange(); actualizarParametroSegunTitulo(tabla)"
                   style="flex:1;"
                 >
                   <option *ngFor="let opcion of opcionesTitulo" [value]="opcion">
@@ -217,10 +216,10 @@
 
                 <!-- Input para "Otro" (visible solo si el título no es predefinido) -->
                 <input
-                  *ngIf="!esTituloPredefinido(tabla.titulo)"
+                  *ngIf="!esTituloPredefinido(tabla.title)"
                   type="text"
                   class="form-control"
-                  [(ngModel)]="tabla.titulo"
+                  [(ngModel)]="tabla.title"
                   (ngModelChange)="onTableChange()"
                   placeholder="Escriba título personalizado"
                   style="flex:2;"
@@ -229,15 +228,15 @@
             </div>
 
             <div class="col-md-6">
-              <label class="form-label fw-semibold small">Mesurando:</label>
+              <label class="form-label fw-semibold small">Mesurando (Parameter):</label>
               <!-- Si el título es predefinido, mostrar select con opciones -->
-              <ng-container *ngIf="esTituloPredefinido(tabla.titulo); else otroMesurando">
+              <ng-container *ngIf="esTituloPredefinido(tabla.title); else otroMesurando">
                 <select
                   class="form-select"
-                  [(ngModel)]="tabla.mesurando"
+                  [(ngModel)]="tabla.parameter"
                   (ngModelChange)="onTableChange()"
                 >
-                  <option *ngFor="let opcion of obtenerOpcionesMesurando(tabla.titulo)" [value]="opcion">
+                  <option *ngFor="let opcion of obtenerOpcionesParametro(tabla.title)" [value]="opcion">
                     {{ opcion }}
                   </option>
                 </select>
@@ -247,7 +246,7 @@
                 <input
                   type="text"
                   class="form-control"
-                  [(ngModel)]="tabla.mesurando"
+                  [(ngModel)]="tabla.parameter"
                   (ngModelChange)="onTableChange()"
                   placeholder="Especifique el mesurando"
                 />
@@ -255,7 +254,7 @@
             </div>
 
             <div class="col-md-3">
-              <label class="form-label fw-semibold small">Unidad:</label>
+              <label class="form-label fw-semibold small">Unidad (Unit):</label>
               <input
                 type="text"
                 class="form-control"
@@ -265,17 +264,17 @@
             </div>
 
             <div class="col-md-4">
-              <label class="form-label fw-semibold small">Ecuación de calibración</label>
+              <label class="form-label fw-semibold small">Ecuación de calibración (Calibration Equation)</label>
               <input
                 type="text"
                 class="form-control"
-                [(ngModel)]="tabla.ecuation_calibration"
+                [(ngModel)]="tabla.calibration_equation"
                 (ngModelChange)="onTableChange()"
                 placeholder="Ej: V=I*R">
             </div>
 
             <div class="col-md-4">
-              <label class="form-label fw-semibold small">Rango:</label>
+              <label class="form-label fw-semibold small">Rango (Range):</label>
               <input
                 type="text"
                 class="form-control"
@@ -286,7 +285,7 @@
 
           </div>
 
-          <!-- Estructura de Tabla -->
+          <!-- Estructura de Tabla (columnas y filas) -->
           <div class="d-flex justify-content-between align-items-center mb-2">
             <h6 class="fw-bold m-0">Estructura y Resultados</h6>
             <button class="btn btn-outline-primary btn-sm" type="button" (click)="agregarColumna(tabla)">
@@ -298,12 +297,12 @@
             <table class="table table-bordered align-middle mb-2">
               <thead class="table-secondary">
                 <tr>
-                  <th *ngFor="let col of tabla.columnas; let j = index" class="p-2" style="min-width: 170px;">
+                  <th *ngFor="let col of tabla.columns; let j = index" class="p-2" style="min-width: 170px;">
                     <div class="d-flex flex-column gap-1">
                       <div class="d-flex justify-content-between align-items-center">
                         <span class="badge bg-dark">Col {{ j + 1 }}</span>
                         <button
-                          *ngIf="tabla.columnas.length > 1"
+                          *ngIf="tabla.columns.length > 1"
                           class="btn btn-outline-danger btn-sm p-0 px-1 border-0"
                           type="button"
                           (click)="eliminarColumna(tabla, j)">
@@ -346,8 +345,8 @@
               </thead>
 
               <tbody>
-                <tr *ngFor="let fila of tabla.filas; let filaIndex = index">
-                  <td *ngFor="let col of tabla.columnas; let colIndex = index">
+                <tr *ngFor="let fila of tabla.rows; let filaIndex = index">
+                  <td *ngFor="let col of tabla.columns; let colIndex = index">
                     <input
                       [id]="'input-' + i + '-' + filaIndex + '-' + colIndex"
                       [type]="col.type === 'number' ? 'number' : 'text'"
@@ -360,7 +359,7 @@
 
                   <td class="text-center align-middle">
                     <button
-                      *ngIf="tabla.filas.length > 1"
+                      *ngIf="tabla.rows.length > 1"
                       class="btn btn-outline-danger btn-sm"
                       type="button"
                       (click)="eliminarFila(tabla, filaIndex)"
@@ -377,14 +376,14 @@
             + Agregar Fila
           </button>
 
-          <!-- NUEVO: Comentarios de la tabla -->
+          <!-- Comentarios de la tabla (ahora comments) -->
           <div class="mt-3">
-            <label for="tableComments{{i}}" class="form-label fw-semibold small">Comentarios de la tabla:</label>
+            <label for="tableComments{{i}}" class="form-label fw-semibold small">Comentarios de la tabla (Comments):</label>
             <textarea
               id="tableComments{{i}}"
               class="form-control"
               rows="3"
-              [(ngModel)]="tabla.coments"
+              [(ngModel)]="tabla.comments"
               (ngModelChange)="onTableChange()"
               placeholder="Sin comentarios"
             ></textarea>

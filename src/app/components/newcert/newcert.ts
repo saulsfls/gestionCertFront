@@ -3,10 +3,9 @@ import {
   OnInit,
   ChangeDetectorRef
 } from '@angular/core';
-import { Certificado } from '../../models/certificado.models';
+import { Certificado, ResultTable, Column } from '../../models/certificado.models';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { TablaResultado, Columna } from '../../models/certificado.models';
 import { CertService } from '../../services/cert.service';
 
 export type DireccionTab = 'horizontal' | 'vertical';
@@ -20,34 +19,44 @@ export type TipoDato = 'number' | 'string';
   styleUrl: './newcert.css',
 })
 export class Newcert implements OnInit {
-  // Lista de opciones para el título
+  // Lista de opciones para el título (ya en inglés)
   opcionesTitulo: string[] = [
-    'Tensión DC',
-    'Tensión AC',
-    'Corriente DC',
-    'Corriente AC',
-    'Resistencia',
-    'Resistencia 4 hilos',
-    'Tensión de impulsos (LI)(Tipo rayo)',
-    'Tensión de impulsos (SI)(Tipo maniobra)',
-    'Frecuencia',
-    'Otro'
+    'DC Voltage',
+    'AC Voltage',
+    'DC Current',
+    'AC Current',
+    'Resistance',
+    '4-Wire Resistance',
+    'Lightning Impulse Voltage (LI)',
+    'Switching Impulse Voltage (SI)',
+    'Frequency',
+    'Other'
   ];
 
-  // Mapa de opciones de mesurando por título
-  private opcionesMesurandoPorTitulo: Record<string, string[]> = {
-    'Tensión DC': ['Voltaje'],
-    'Tensión AC': ['Voltaje RMS', 'Voltaje PP (pico a pico)'],
-    'Corriente DC': ['Corriente'],
-    'Corriente AC': ['Corriente RMS', 'Corriente PP (pico a pico)'],
-    'Resistencia': ['Resistencia'],
-    'Resistencia 4 hilos': ['Resistencia 4 hilos'],
-    'Tensión de impulsos (LI)(Tipo rayo)':
-      ['Tensión de impulso LI' , 'Determinación del factor de escala y medida de Ut','Medida del tiempo de frente T1' ,'Medida del tiempo hasta valor mitad T2','Ensayo de Linealidad de Polaridad'],
-    'Tensión de impulsos (SI)(Tipo maniobra)':
-      ['Tensión de impulso LI' , 'Determinación del factor de escala y medida de Ut','Medida del tiempo de frente T1' ,'Medida del tiempo hasta valor mitad T2','Ensayo de Linealidad de Polaridad'],
-    'Frecuencia': ['Frecuencia'],
-    'Otro': []
+  // Mapa de opciones de parámetro por título
+  private opcionesParametroPorTitulo: Record<string, string[]> = {
+    'DC Voltage': ['Voltage'],
+    'AC Voltage': ['RMS Voltage', 'Peak-to-Peak Voltage (PP)'],
+    'DC Current': ['Current'],
+    'AC Current': ['RMS Current', 'Peak-to-Peak Current (PP)'],
+    'Resistance': ['Resistance'],
+    '4-Wire Resistance': ['4-Wire Resistance'],
+    'Lightning Impulse Voltage (LI)': [
+      'LI Impulse Voltage',
+      'Determination of scale factor and measurement of Ut',
+      'Measurement of front time T1',
+      'Measurement of time to half value T2',
+      'Polarity Linearity Test'
+    ],
+    'Switching Impulse Voltage (SI)': [
+      'LI Impulse Voltage',
+      'Determination of scale factor and measurement of Ut',
+      'Measurement of front time T1',
+      'Measurement of time to half value T2',
+      'Polarity Linearity Test'
+    ],
+    'Frequency': ['Frequency'],
+    'Other': []
   };
 
   certificado: Certificado = {
@@ -63,7 +72,8 @@ export class Newcert implements OnInit {
     data: {}
   };
 
-  tablasResultados: TablaResultado[] = [];
+  // Cambio de nombre: tablasResultados → resultTables
+  resultTables: ResultTable[] = [];
   direccionTab: DireccionTab = 'vertical';
   jsonInputText: string = '';
   mensajeRespuesta: string | null = null;
@@ -76,23 +86,24 @@ export class Newcert implements OnInit {
   ) {}
 
   ngOnInit(): void {
-    this.tablasResultados = [this.crearEstructuraTablaInicial()];
+    this.resultTables = [this.crearEstructuraTablaInicial()];
     this.sincronizarJsonTexto();
   }
 
-  private crearEstructuraTablaInicial(): TablaResultado {
+  // --- Estructura inicial en inglés ---
+  private crearEstructuraTablaInicial(): ResultTable {
     return {
-      titulo: 'Tensión DC',
+      title: 'DC Voltage',
       equipment_id: this.certificado.equipment_id || '',
-      mesurando: this.obtenerOpcionesMesurando('Tensión DC')[0] || '', // "Voltaje"
+      parameter: this.obtenerOpcionesParametro('DC Voltage')[0] || 'Voltage',
       unit: '',
-      ecuation_calibration: '',
+      calibration_equation: '',
       range: '',
-      coments: '', // nuevo campo
-      columnas: [
-        { key: 'key', label: 'Etiqueta', unit: 'Unidades', type: 'number' },
+      comments: '',
+      columns: [
+        { key: 'key', label: 'Label', unit: 'Units', type: 'number' },
       ],
-      filas: [{}]
+      rows: [{}]
     };
   }
 
@@ -101,66 +112,38 @@ export class Newcert implements OnInit {
     this.jsonInputText = this.obtenerJsonString();
   }
 
-  /**
-   * Se llama desde cualquier cambio en la tabla o en el equipment_id global.
-   * Actualiza el equipment_id en todas las tablas y regenera el JSON.
-   */
   onTableChange(): void {
-    this.tablasResultados.forEach(tabla => {
-      tabla.equipment_id = this.certificado.equipment_id;
+    this.resultTables.forEach(table => {
+      table.equipment_id = this.certificado.equipment_id;
     });
     this.sincronizarJsonTexto();
   }
 
-  /**
-   * Determina si el título actual es uno de los predefinidos (excluyendo "Otro")
-   */
-  esTituloPredefinido(titulo: string): boolean {
+  esTituloPredefinido(title: string): boolean {
     const predefinidos = this.opcionesTitulo.slice(0, -1);
-    return predefinidos.includes(titulo);
+    return predefinidos.includes(title);
   }
 
-  /**
-   * Devuelve las opciones de mesurando para un título dado
-   */
-  obtenerOpcionesMesurando(titulo: string): string[] {
-    return this.opcionesMesurandoPorTitulo[titulo] || [];
+  obtenerOpcionesParametro(title: string): string[] {
+    return this.opcionesParametroPorTitulo[title] || [];
   }
 
-  /**
-   * Actualiza el mesurando según el título seleccionado.
-   * Si el título es predefinido y el mesurando actual no está en la lista,
-   * se asigna el primer valor de la lista.
-   */
-  actualizarMesurandoSegunTitulo(tabla: TablaResultado): void {
-    const opciones = this.obtenerOpcionesMesurando(tabla.titulo);
-    if (opciones.length > 0 && !opciones.includes(tabla.mesurando)) {
-      tabla.mesurando = opciones[0];
-    } else if (opciones.length === 0) {
-      // Si es "Otro" o no hay opciones, dejamos el valor actual (puede estar vacío)
-      // pero no forzamos nada.
+  actualizarParametroSegunTitulo(table: ResultTable): void {
+    const opciones = this.obtenerOpcionesParametro(table.title);
+    if (opciones.length > 0 && !opciones.includes(table.parameter)) {
+      table.parameter = opciones[0];
     }
   }
 
-  /**
-   * Valida que el key sea válido:
-   * - No vacío después de sanitizar.
-   * - Solo caracteres alfanuméricos y guión bajo.
-   * - No duplicado en la misma tabla (excluyendo la columna actual si se proporciona).
-   */
-  private validarKey(key: string, tabla: TablaResultado, columnaActual?: Columna): { valido: boolean, mensaje?: string } {
-    // Sanitizar: trim, minúsculas, espacios a guión bajo
+  private validarKey(key: string, table: ResultTable, columnaActual?: Column): { valido: boolean, mensaje?: string } {
     const keyLimpio = key.trim().toLowerCase().replace(/\s+/g, '_');
     if (!keyLimpio) {
       return { valido: false, mensaje: 'El key no puede estar vacío.' };
     }
-    // Permitir solo letras, números y guión bajo
     if (!/^[a-z0-9_]+$/.test(keyLimpio)) {
       return { valido: false, mensaje: 'El key solo puede contener letras, números y guión bajo.' };
     }
-    // Verificar duplicados en la misma tabla (excluyendo la columna actual si se está editando)
-    const columnas = tabla.columnas;
-    for (const col of columnas) {
+    for (const col of table.columns) {
       if (columnaActual && col === columnaActual) continue;
       if (col.key === keyLimpio) {
         return { valido: false, mensaje: `El key "${keyLimpio}" ya existe en esta tabla.` };
@@ -169,31 +152,29 @@ export class Newcert implements OnInit {
     return { valido: true };
   }
 
-  /**
-   * Carga las tablas desde el JSON del textarea.
-   */
+  // --- Cargar desde JSON (ahora espera "Result Tables") ---
   actualizarFormularioDesdeJson(): void {
     try {
       const parsedJson = JSON.parse(this.jsonInputText);
-      if (!parsedJson || typeof parsedJson !== 'object' || !Array.isArray(parsedJson['Tablas de resultados'])) {
-        throw new Error('El JSON debe contener la propiedad "Tablas de resultados" como un arreglo.');
+      if (!parsedJson || typeof parsedJson !== 'object' || !Array.isArray(parsedJson['Result Tables'])) {
+        throw new Error('El JSON debe contener la propiedad "Result Tables" como un arreglo.');
       }
 
-      const tablasNuevas: TablaResultado[] = parsedJson['Tablas de resultados'].map((t: any, index: number) => {
-        if (!Array.isArray(t.columnas) || !Array.isArray(t.filas)) {
-          throw new Error(`Estructura inválida en la Tabla #${index + 1}. Debe incluir "columnas" y "filas".`);
+      const tablasNuevas: ResultTable[] = parsedJson['Result Tables'].map((t: any, index: number) => {
+        if (!Array.isArray(t.columns) || !Array.isArray(t.rows)) {
+          throw new Error(`Estructura inválida en la Tabla #${index + 1}. Debe incluir "columns" y "rows".`);
         }
         const equipmentId = t.equipment_id || this.certificado.equipment_id || '';
         return {
-          titulo: t.titulo || '',
+          title: t.title || '',
           equipment_id: equipmentId,
-          mesurando: t.mesurando || '',
+          parameter: t.parameter || '',
           unit: t.unit || '',
-          ecuation_calibration: t.ecuation_calibration || '',
+          calibration_equation: t.calibration_equation || '',
           range: t.range || '',
-          coments: t.comentarios || '', // nuevo campo
-          columnas: t.columnas,
-          filas: t.filas
+          comments: t.comments || '',
+          columns: t.columns,
+          rows: t.rows
         };
       });
 
@@ -201,7 +182,7 @@ export class Newcert implements OnInit {
         throw new Error('Debe incluir al menos una tabla de resultados en el JSON.');
       }
 
-      this.tablasResultados = tablasNuevas;
+      this.resultTables = tablasNuevas;
       this.sincronizarJsonTexto();
       this.mostrarAlerta('Las tablas han sido actualizadas desde el JSON correctamente.', false);
       this.cdr.detectChanges();
@@ -210,14 +191,14 @@ export class Newcert implements OnInit {
     }
   }
 
-  // --- Navegación TAB ---
-  onTabKeydown(event: Event, tablaIndex: number, filaIndex: number, colIndex: number): void {
+  // --- Navegación TAB (sin cambios) ---
+  onTabKeydown(event: Event, tableIndex: number, rowIndex: number, colIndex: number): void {
     if (this.direccionTab === 'horizontal') return;
     const keyEvent = event as KeyboardEvent;
     keyEvent.preventDefault();
     const direction = keyEvent.shiftKey ? -1 : 1;
-    const siguienteFilaIndex = filaIndex + direction;
-    const targetId = `input-${tablaIndex}-${siguienteFilaIndex}-${colIndex}`;
+    const siguienteFilaIndex = rowIndex + direction;
+    const targetId = `input-${tableIndex}-${siguienteFilaIndex}-${colIndex}`;
     const targetInput = document.getElementById(targetId) as HTMLInputElement;
     if (targetInput) {
       targetInput.focus();
@@ -227,110 +208,100 @@ export class Newcert implements OnInit {
 
   // --- Gestión de Tablas ---
   agregarTabla(): void {
-    this.tablasResultados.push(this.crearEstructuraTablaInicial());
+    this.resultTables.push(this.crearEstructuraTablaInicial());
     this.sincronizarJsonTexto();
   }
 
-  eliminarTabla(indexTabla: number): void {
-    if (this.tablasResultados.length > 1) {
-      this.tablasResultados.splice(indexTabla, 1);
+  eliminarTabla(indexTable: number): void {
+    if (this.resultTables.length > 1) {
+      this.resultTables.splice(indexTable, 1);
       this.sincronizarJsonTexto();
     }
   }
 
   // --- Gestión de Columnas ---
-  agregarColumna(tabla: TablaResultado): void {
-    const id = tabla.columnas.length + 1;
-    const nuevaKey = `columna_${id}`;
-    tabla.columnas.push({
+  agregarColumna(table: ResultTable): void {
+    const id = table.columns.length + 1;
+    const nuevaKey = `column_${id}`;
+    table.columns.push({
       key: nuevaKey,
-      label: `Nueva Columna ${id}`,
+      label: `New Column ${id}`,
       unit: '',
       type: 'number'
     });
-    tabla.filas.forEach(fila => {
-      fila[nuevaKey] = null;
+    table.rows.forEach(row => {
+      row[nuevaKey] = null;
     });
     this.sincronizarJsonTexto();
   }
 
-  eliminarColumna(tabla: TablaResultado, indexColumna: number): void {
-    if (tabla.columnas.length <= 1) return;
-    const keyAEliminar = tabla.columnas[indexColumna].key;
-    tabla.columnas.splice(indexColumna, 1);
-    tabla.filas.forEach(fila => {
-      delete fila[keyAEliminar];
+  eliminarColumna(table: ResultTable, indexColumn: number): void {
+    if (table.columns.length <= 1) return;
+    const keyAEliminar = table.columns[indexColumn].key;
+    table.columns.splice(indexColumn, 1);
+    table.rows.forEach(row => {
+      delete row[keyAEliminar];
     });
     this.sincronizarJsonTexto();
   }
 
-  /**
-   * Actualiza el key de una columna con validación.
-   */
-  actualizarKeyColumna(col: Columna, nuevaKeyRaw: string, tabla: TablaResultado): void {
-    // Sanitizar
+  actualizarKeyColumna(col: Column, nuevaKeyRaw: string, table: ResultTable): void {
     const nuevaKey = nuevaKeyRaw.trim().toLowerCase().replace(/\s+/g, '_');
     const viejaKey = col.key;
-
-    // Si no hay cambio o el key sanitizado es igual al viejo, no hacer nada
     if (!nuevaKey || nuevaKey === viejaKey) return;
 
-    // Validar el nuevo key
-    const resultado = this.validarKey(nuevaKey, tabla, col);
+    const resultado = this.validarKey(nuevaKey, table, col);
     if (!resultado.valido) {
       this.mostrarAlerta(`Key inválido: ${resultado.mensaje}`, true);
-      // No actualizar, dejar el valor anterior en el input (se restablece)
-      // Forzamos la actualización del input con el valor anterior
-      col.key = viejaKey; // Esto no es necesario porque el binding se actualizará, pero mejor refrescar
+      col.key = viejaKey;
       this.cdr.detectChanges();
       return;
     }
 
-    // Aplicar el cambio
     col.key = nuevaKey;
-    tabla.filas.forEach(fila => {
-      fila[nuevaKey] = fila[viejaKey] ?? null;
-      delete fila[viejaKey];
+    table.rows.forEach(row => {
+      row[nuevaKey] = row[viejaKey] ?? null;
+      delete row[viejaKey];
     });
     this.sincronizarJsonTexto();
   }
 
-  cambiarTipoDato(col: Columna, tabla: TablaResultado): void {
-    tabla.filas.forEach(fila => {
-      fila[col.key] = null;
+  cambiarTipoDato(col: Column, table: ResultTable): void {
+    table.rows.forEach(row => {
+      row[col.key] = null;
     });
     this.sincronizarJsonTexto();
   }
 
   // --- Gestión de Filas ---
-  agregarFila(tabla: TablaResultado): void {
+  agregarFila(table: ResultTable): void {
     const nuevaFila: Record<string, any> = {};
-    tabla.columnas.forEach(col => {
+    table.columns.forEach(col => {
       nuevaFila[col.key] = null;
     });
-    tabla.filas.push(nuevaFila);
+    table.rows.push(nuevaFila);
     this.sincronizarJsonTexto();
   }
 
-  eliminarFila(tabla: TablaResultado, indexFila: number): void {
-    if (tabla.filas.length > 1) {
-      tabla.filas.splice(indexFila, 1);
+  eliminarFila(table: ResultTable, indexRow: number): void {
+    if (table.rows.length > 1) {
+      table.rows.splice(indexRow, 1);
       this.sincronizarJsonTexto();
     }
   }
 
-  // --- Construcción del JSON Limpio (incluye equipment_id y comentarios) ---
+  // --- Construcción del JSON Limpio (estructura en inglés) ---
   obtenerJsonEstructurado(): object {
-    const tablasProcesadas = this.tablasResultados.map(tabla => {
+    const tablasProcesadas = this.resultTables.map(table => {
       const tiposPorKey: Record<string, TipoDato> = {};
-      tabla.columnas.forEach(col => {
+      table.columns.forEach(col => {
         tiposPorKey[col.key] = col.type;
       });
 
-      const filasProcesadas = tabla.filas.map(fila => {
+      const filasProcesadas = table.rows.map(row => {
         const nuevaFila: Record<string, any> = {};
-        Object.keys(fila).forEach(key => {
-          const valorRaw = fila[key];
+        Object.keys(row).forEach(key => {
+          const valorRaw = row[key];
           const esNumero = tiposPorKey[key] === 'number';
           if (esNumero) {
             if (valorRaw === null || valorRaw === undefined || valorRaw === '') {
@@ -347,20 +318,21 @@ export class Newcert implements OnInit {
       });
 
       return {
-        titulo: tabla.titulo || '',
+        title: table.title || '',
         equipment_id: this.certificado.equipment_id,
-        mesurando: tabla.mesurando || '',
-        unit: tabla.unit || '',
-        ecuation_calibration: tabla.ecuation_calibration || '',
-        range: tabla.range || '',
-        coments: tabla.coments || '', // nuevo campo
-        columnas: tabla.columnas,
-        filas: filasProcesadas
+        parameter: table.parameter || '',
+        unit: table.unit || '',
+        calibration_equation: table.calibration_equation || '',
+        range: table.range || '',
+        comments: table.comments || '',
+        columns: table.columns,
+        rows: filasProcesadas
       };
     });
 
+    // 👇 Clave principal en inglés
     return {
-      "Tablas de resultados": tablasProcesadas
+      "Result Tables": tablasProcesadas
     };
   }
 
@@ -378,9 +350,8 @@ export class Newcert implements OnInit {
     });
   }
 
-  // --- Validaciones del formulario ---
+  // --- Validaciones del formulario (actualizadas) ---
   validarFormulario(): boolean {
-    // Validar campos del certificado
     if (!this.certificado.equipment_id || !this.certificado.equipment_id.trim()) {
       this.mostrarAlerta('El "ID del Equipo" es un campo obligatorio.', true);
       return false;
@@ -398,40 +369,37 @@ export class Newcert implements OnInit {
       }
     }
 
-    // Validar tablas
-    for (let i = 0; i < this.tablasResultados.length; i++) {
-      const tabla = this.tablasResultados[i];
-      const numTabla = i + 1;
+    for (let i = 0; i < this.resultTables.length; i++) {
+      const table = this.resultTables[i];
+      const numTable = i + 1;
 
-      if (!tabla.titulo || !tabla.titulo.trim()) {
-        this.mostrarAlerta(`El título de la Tabla #${numTabla} es obligatorio.`, true);
+      if (!table.title || !table.title.trim()) {
+        this.mostrarAlerta(`El título de la Tabla #${numTable} es obligatorio.`, true);
         return false;
       }
-      if (!tabla.mesurando || !tabla.mesurando.trim()) {
-        this.mostrarAlerta(`El mesurando de la Tabla #${numTabla} es obligatorio.`, true);
+      if (!table.parameter || !table.parameter.trim()) {
+        this.mostrarAlerta(`El parámetro de la Tabla #${numTable} es obligatorio.`, true);
         return false;
       }
 
-      // Validar keys de columnas
-      const keys = tabla.columnas.map(col => col.key.trim().toLowerCase().replace(/\s+/g, '_'));
+      const keys = table.columns.map(col => col.key.trim().toLowerCase().replace(/\s+/g, '_'));
       const uniqueKeys = new Set(keys);
       if (keys.length !== uniqueKeys.size) {
-        this.mostrarAlerta(`La Tabla #${numTabla} tiene columnas con keys duplicados.`, true);
+        this.mostrarAlerta(`La Tabla #${numTable} tiene columnas con keys duplicados.`, true);
         return false;
       }
-      for (const col of tabla.columnas) {
+      for (const col of table.columns) {
         const keyLimpio = col.key.trim().toLowerCase().replace(/\s+/g, '_');
         if (!keyLimpio) {
-          this.mostrarAlerta(`La Tabla #${numTabla} tiene una columna con key vacío.`, true);
+          this.mostrarAlerta(`La Tabla #${numTable} tiene una columna con key vacío.`, true);
           return false;
         }
         if (!/^[a-z0-9_]+$/.test(keyLimpio)) {
-          this.mostrarAlerta(`La Tabla #${numTabla} tiene un key con caracteres no permitidos: "${col.key}".`, true);
+          this.mostrarAlerta(`La Tabla #${numTable} tiene un key con caracteres no permitidos: "${col.key}".`, true);
           return false;
         }
       }
     }
-
     return true;
   }
 
@@ -450,8 +418,8 @@ export class Newcert implements OnInit {
       return;
     }
 
-    this.tablasResultados.forEach(tabla => {
-      tabla.equipment_id = this.certificado.equipment_id;
+    this.resultTables.forEach(table => {
+      table.equipment_id = this.certificado.equipment_id;
     });
     this.sincronizarJsonTexto();
 
@@ -487,7 +455,7 @@ export class Newcert implements OnInit {
       active: true,
       data: {}
     };
-    this.tablasResultados = [this.crearEstructuraTablaInicial()];
+    this.resultTables = [this.crearEstructuraTablaInicial()];
     this.sincronizarJsonTexto();
     this.cdr.detectChanges();
   }

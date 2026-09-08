@@ -7,7 +7,7 @@ import { Certificado, ApiResponse } from '../models/certificado.models';
   providedIn: 'root'
 })
 export class CertService {
-  private apiUrl = 'http://localhost:3000/api'; // Ajusta según tu puerto/host
+  private apiUrl = 'http://192.168.1.187:3000/api'; // Ajusta según tu puerto/host
 
   constructor(private http: HttpClient) {}
 

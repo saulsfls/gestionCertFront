@@ -1,5 +1,5 @@
 import { ChangeDetectorRef, Component } from '@angular/core';
-import { ApiResponse, Certificado, CertificadoData, TablaResultado } from '../../models/certificado.models';
+import { ApiResponse, Certificado, CertificadoData, ResultTable } from '../../models/certificado.models';
 import { Router } from '@angular/router';
 import { CertService } from '../../services/cert.service';
 import { FiltroEstado } from '../viewcert/viewcert';
@@ -13,7 +13,7 @@ import { FormsModule } from '@angular/forms';
   styleUrl: './listcert.css',
 })
 export class Listcert {
-   // Lista principal de certificados
+  // Lista principal de certificados
   listaCertificados: Certificado[] = [];
 
   // Estado de la vista
@@ -25,13 +25,13 @@ export class Listcert {
   textoBusqueda: string = '';
   filtroEstado: FiltroEstado = 'todos';
 
-  // Control de expansión de fila para mostrar tablas/JSON
+  // Control de expansión de fila para mostrar un resumen rápido (solo datos básicos)
   idExpandido: number | string | null = null;
 
-  // Certificado seleccionado para expandir
+  // Certificado seleccionado para expandir (solo para mostrar datos, no tablas)
   certificadoSeleccionado: Certificado | null = null;
 
-  // Modal de edición rápida
+  // Modal de edición rápida (opcional)
   certificadoEdicion: Certificado | null = null;
   jsonEdicionTexto: string = '';
 
@@ -53,7 +53,6 @@ export class Listcert {
     this.router.navigate(['/editcert', id]);
   }
 
-  // Navega hacia el componente de administración de certificados
   administrarCertificado() {
     this.router.navigate(['/admincert']);
   }
@@ -117,44 +116,49 @@ export class Listcert {
   }
 
   /**
-   * Desplegar / Ocultar la sección inferior con las tablas dinámicas
-   * y almacena el certificado seleccionado.
+   * Desplegar / Ocultar la sección inferior con un resumen rápido del certificado
+   * (muestra solo los datos básicos, no las tablas).
    */
   toggleDetalle(id: number | string | undefined, cert: Certificado): void {
     if (!id) return;
     if (this.idExpandido === id) {
       this.idExpandido = null;
       this.certificadoSeleccionado = null;
-      // Limpiamos las tablas del certificado (opcional)
-      delete (cert as any).tablasResultado;
     } else {
       this.idExpandido = id;
       this.certificadoSeleccionado = cert;
-      // Calculamos y guardamos las tablas en el objeto
-      (cert as any).tablasResultado = this.obtenerTablasResultado(cert.data, cert.equipment_id);
     }
-    // Ya no llamamos a detectChanges()
   }
+
   /**
-   * Procesa la columna 'data' (JSONB) para extraer 'Tablas de resultados'
+   * Procesa la columna 'data' (JSONB) para extraer 'Result Tables'
    * y asigna el equipment_id del certificado a cada tabla si no lo tienen.
+   * NOTA: Este método ya no se usa en el toggle, pero podría ser útil en otro contexto.
+   * Lo mantenemos adaptado a la nueva estructura.
    */
   obtenerTablasResultado(
     data?: CertificadoData | Record<string, any>,
     certEquipmentId?: string
-  ): TablaResultado[] {
+  ): ResultTable[] {
     if (!data) return [];
 
     const certData = data as CertificadoData;
-    let tablas = certData['Tablas de resultados'] || certData.tablas_resultados || [];
+    // Buscar tanto en "Result Tables" como en "Tablas de resultados" (por compatibilidad)
+    let tablas = certData['Result Tables']  || [];
 
     // Si se proporciona un equipment_id del certificado, asignarlo a cada tabla si falta
     if (certEquipmentId) {
       tablas = tablas.map((tabla: any) => ({
         ...tabla,
-        equipment_id: tabla.equipment_id || tabla.id_equipment || certEquipmentId,
-        // Aseguramos que el campo coments exista (si no, se inicializa como cadena vacía)
-        coments: tabla.coments || '',
+        equipment_id: tabla.equipment_id || certEquipmentId,
+        // Aseguramos que el campo comments exista (si no, se inicializa como cadena vacía)
+        comments: tabla.comments || '',
+        // Mapeamos campos antiguos a nuevos por si acaso
+        title: tabla.title || tabla.titulo || '',
+        parameter: tabla.parameter || tabla.mesurando || '',
+        calibration_equation: tabla.calibration_equation || tabla.ecuation_calibration || '',
+        columns: tabla.columns || tabla.columnas || [],
+        rows: tabla.rows || tabla.filas || [],
       }));
     }
 
@@ -165,7 +169,7 @@ export class Listcert {
    * Obtiene el equipment_id de una tabla o, en su defecto, el del certificado seleccionado.
    * Útil para mostrar en la vista cuando se itera sobre las tablas.
    */
-  obtenerEquipmentIdDeTabla(tabla: TablaResultado): string {
+  obtenerEquipmentIdDeTabla(tabla: ResultTable): string {
     return tabla.equipment_id || this.certificadoSeleccionado?.equipment_id || '';
   }
 

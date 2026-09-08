@@ -187,8 +187,8 @@
     </div>
   </div>
 
-  <!-- Bucle de Tablas de Ensayos -->
-  <ng-container *ngFor="let tabla of tablasResultados; let i = index">
+  <!-- Bucle de Tablas de Ensayos (ahora usa resultTables y propiedades en inglés) -->
+  <ng-container *ngFor="let table of resultTables; let i = index">
     <div class="card mb-4 border-0 shadow-sm">
 
       <!-- Encabezado de Tabla -->
@@ -201,11 +201,11 @@
           aria-expanded="true"
           [attr.aria-controls]="'collapseTabla' + i">
           <span>▼</span>
-          <span class="fs-6">Tabla #{{ i + 1 }}: {{ tabla.titulo || 'Sin título' }}</span>
+          <span class="fs-6">Tabla #{{ i + 1 }}: {{ table.title || 'Sin título' }}</span>
         </button>
 
         <button
-          *ngIf="tablasResultados.length > 1"
+          *ngIf="resultTables.length > 1"
           class="btn btn-outline-light btn-sm border-0"
           type="button"
           (click)="eliminarTabla(i)"
@@ -218,20 +218,20 @@
       <div [id]="'collapseTabla' + i" class="collapse show">
         <div class="card-body p-4">
 
-          <!-- Metadatos de la Tabla -->
+          <!-- Metadatos de la Tabla (nombres en inglés) -->
           <div class="row g-3 p-3 mb-4 bg-light rounded border">
             <div class="col-12">
               <span class="badge bg-secondary text-uppercase mb-1">Propiedades del Ensayo</span>
             </div>
 
-            <!-- Título -->
+            <!-- Título (title) -->
             <div class="col-md-6">
               <label class="form-label fw-semibold small">Título de la Tabla:</label>
               <div class="d-flex gap-2 align-items-center">
                 <select
                   class="form-select form-select-sm"
-                  [ngModel]="tabla.titulo"
-                  (ngModelChange)="tabla.titulo = $event; onTableChange(); actualizarMesurandoSegunTitulo(tabla)"
+                  [ngModel]="table.title"
+                  (ngModelChange)="table.title = $event; onTableChange(); actualizarParametroSegunTitulo(table)"
                   style="flex:1;"
                 >
                   <option *ngFor="let opcion of opcionesTitulo" [value]="opcion">
@@ -241,10 +241,10 @@
 
                 <!-- Input para "Otro" (visible solo si el título no es predefinido) -->
                 <input
-                  *ngIf="!esTituloPredefinido(tabla.titulo)"
+                  *ngIf="!esTituloPredefinido(table.title)"
                   type="text"
                   class="form-control form-control-sm"
-                  [(ngModel)]="tabla.titulo"
+                  [(ngModel)]="table.title"
                   (ngModelChange)="onTableChange()"
                   placeholder="Escriba título personalizado"
                   style="flex:2;"
@@ -252,66 +252,69 @@
               </div>
             </div>
 
-            <!-- Mesurando -->
+            <!-- Parámetro (parameter) -->
             <div class="col-md-6">
-              <label class="form-label fw-semibold small">Mesurando Específico:</label>
-              <ng-container *ngIf="esTituloPredefinido(tabla.titulo); else otroMesurando">
+              <label class="form-label fw-semibold small">Mesurando Específico (Parameter):</label>
+              <ng-container *ngIf="esTituloPredefinido(table.title); else otroParametro">
                 <select
                   class="form-select form-select-sm"
-                  [(ngModel)]="tabla.mesurando"
+                  [(ngModel)]="table.parameter"
                   (ngModelChange)="onTableChange()"
                 >
-                  <option *ngFor="let opcion of obtenerOpcionesMesurando(tabla.titulo)" [value]="opcion">
+                  <option *ngFor="let opcion of obtenerOpcionesParametro(table.title)" [value]="opcion">
                     {{ opcion }}
                   </option>
                 </select>
               </ng-container>
-              <ng-template #otroMesurando>
+              <ng-template #otroParametro>
                 <input
                   type="text"
                   class="form-control form-control-sm"
-                  [(ngModel)]="tabla.mesurando"
+                  [(ngModel)]="table.parameter"
                   (ngModelChange)="onTableChange()"
                   placeholder="Especifique el mesurando"
                 />
               </ng-template>
             </div>
 
+            <!-- Unidad (unit) -->
             <div class="col-md-3">
-              <label class="form-label fw-semibold small">Unidad:</label>
+              <label class="form-label fw-semibold small">Unidad (Unit):</label>
               <input
                 type="text"
                 class="form-control form-control-sm"
-                [(ngModel)]="tabla.unit"
+                [(ngModel)]="table.unit"
                 (ngModelChange)="onTableChange()"
                 placeholder="Ej: kV">
             </div>
 
+            <!-- Ecuación de Calibración (calibration_equation) -->
             <div class="col-md-4">
               <label class="form-label fw-semibold small">Ecuación de Calibración:</label>
               <input
                 type="text"
                 class="form-control form-control-sm"
-                [(ngModel)]="tabla.ecuation_calibration"
+                [(ngModel)]="table.calibration_equation"
                 (ngModelChange)="onTableChange()"
                 placeholder="Ej: V = I * R">
             </div>
 
+            <!-- Rango (range) -->
             <div class="col-md-5">
               <label class="form-label fw-semibold small">Rango Operativo:</label>
               <input
                 type="text"
                 class="form-control form-control-sm"
-                [(ngModel)]="tabla.range"
+                [(ngModel)]="table.range"
                 (ngModelChange)="onTableChange()"
                 placeholder="Ej: 0 V a 100 V">
             </div>
           </div>
 
-          <!-- Matriz Dinámica de Datos -->
+          <!-- Matriz Dinámica de Datos (columnas y filas) -->
           <div class="d-flex justify-content-between align-items-center mb-2">
             <h6 class="fw-bold m-0 text-secondary">Columnas y Mediciones</h6>
-            <button class="btn btn-outline-primary btn-sm" type="button" (click)="agregarColumna(tabla)">
+            <button class="btn btn-outline-primary btn-sm" type="button" (click)="agregarColumna(table)">
               + Agregar Columna
             </button>
           </div>
@@ -320,15 +323,15 @@
             <table class="table table-bordered align-middle mb-0">
               <thead class="table-light">
                 <tr>
-                  <th *ngFor="let col of tabla.columnas; let j = index" class="p-2" style="min-width: 180px;">
+                  <th *ngFor="let col of table.columns; let j = index" class="p-2" style="min-width: 180px;">
                     <div class="d-flex flex-column gap-1">
                       <div class="d-flex justify-content-between align-items-center">
                         <span class="badge bg-dark">Col {{ j + 1 }}</span>
                         <button
-                          *ngIf="tabla.columnas.length > 1"
+                          *ngIf="table.columns.length > 1"
                           class="btn btn-sm text-danger border-0 p-0"
                           type="button"
-                          (click)="eliminarColumna(tabla, j)"
+                          (click)="eliminarColumna(table, j)"
                           title="Eliminar columna">
                           ✕
                         </button>
@@ -338,7 +341,7 @@
                         type="text"
                         class="form-control form-control-sm"
                         [ngModel]="col.key"
-                        (ngModelChange)="actualizarKeyColumna(col, $event, tabla)"
+                        (ngModelChange)="actualizarKeyColumna(col, $event, table)"
                         placeholder="Propiedad (Key)">
 
                       <input
@@ -358,7 +361,7 @@
                       <select
                         class="form-select form-select-sm fw-bold text-primary"
                         [(ngModel)]="col.type"
-                        (change)="cambiarTipoDato(col, tabla)">
+                        (change)="cambiarTipoDato(col, table)">
                         <option value="number">Numérico</option>
                         <option value="string">Texto</option>
                       </select>
@@ -369,24 +372,24 @@
               </thead>
 
               <tbody>
-                <tr *ngFor="let fila of tabla.filas; let filaIndex = index">
-                  <td *ngFor="let col of tabla.columnas; let colIndex = index" class="p-1">
+                <tr *ngFor="let row of table.rows; let rowIndex = index">
+                  <td *ngFor="let col of table.columns; let colIndex = index" class="p-1">
                     <input
-                      [id]="'input-' + i + '-' + filaIndex + '-' + colIndex"
+                      [id]="'input-' + i + '-' + rowIndex + '-' + colIndex"
                       [type]="col.type === 'number' ? 'number' : 'text'"
                       class="form-control form-control-sm border-0 bg-transparent"
-                      [(ngModel)]="fila[col.key]"
+                      [(ngModel)]="row[col.key]"
                       (ngModelChange)="onTableChange()"
-                      (keydown.tab)="onTabKeydown($event, i, filaIndex, colIndex)"
+                      (keydown.tab)="onTabKeydown($event, i, rowIndex, colIndex)"
                       placeholder="-">
                   </td>
 
                   <td class="text-center p-1">
                     <button
-                      *ngIf="tabla.filas.length > 1"
+                      *ngIf="table.rows.length > 1"
                       class="btn btn-link text-danger btn-sm p-0 border-0"
                       type="button"
-                      (click)="eliminarFila(tabla, filaIndex)"
+                      (click)="eliminarFila(table, rowIndex)"
                       title="Eliminar fila">
                       ✕
                     </button>
@@ -396,18 +399,18 @@
             </table>
           </div>
 
-          <button class="btn btn-outline-secondary btn-sm" type="button" (click)="agregarFila(tabla)">
+          <button class="btn btn-outline-secondary btn-sm" type="button" (click)="agregarFila(table)">
             + Agregar Fila
           </button>
 
-          <!-- Comentarios de la tabla -->
+          <!-- Comentarios de la tabla (comments) -->
           <div class="mt-3">
             <label for="tableComments{{i}}" class="form-label fw-semibold small">Comentarios de la tabla:</label>
             <textarea
               id="tableComments{{i}}"
               class="form-control"
               rows="3"
-              [(ngModel)]="tabla.coments"
+              [(ngModel)]="table.comments"
               (ngModelChange)="onTableChange()"
               placeholder="Sin comentarios"
             ></textarea>

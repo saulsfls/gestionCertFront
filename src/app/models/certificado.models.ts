@@ -1,50 +1,42 @@
 // Representa el modelo principal del Certificado según la tabla de PostgreSQL
 export interface Certificado {
-  id?: number;//id del certificado
-  cc?: string;//folio del certificado
-  equipment_id: string;//id del equipo al que esta asociado el certificado
-  name_equipment: string;//nombre del equipo
-  date_cal?: string;//Fecha de calibracion
-  date_cc?: string;//Fecha de emision del certificado
-  entity?: string;//Que se mide en el certificado, para que se calibro
-  cert_type?: string;//Tipo de certificado , ya sea certificado o datos del fabricante
-  comments?: string;//Comentarios de la certificacion
-  active?: boolean;//El certificado esta vigente
-  data?: CertificadoData | Record<string, any>;// informacion en formato de tablas JSON
+  id?: number; // Certificate ID
+  cc?: string; // Certificate folio / number
+  equipment_id: string; // Equipment ID
+  name_equipment: string; // Equipment name
+  date_cal?: string; // Calibration date
+  date_cc?: string; // Issue date
+  entity?: string; // Measured entity / purpose
+  cert_type?: string; // Certificate type
+  comments?: string; // General comments
+  active?: boolean; // Is active
+  data?: CertificadoData | Record<string, any>; // JSON data
 }
 
-// Estructura del JSON almacenado dentro de la columna 'data' (JSONB)
+// Estructura del JSON almacenado en la columna 'data'
 export interface CertificadoData {
-  "Tablas de resultados"?: TablaResultado[];
-  tablas_resultados?: TablaResultado[]; // Alias para compatibilidad
-  magnitud?: {
-    mesurando?: string;
-    unidades?: string;
-    rango?: string;
-    coments?: string;
-    estado_ajuste?: string;
-  };
+  "Result Tables"?: ResultTable[]; // Nueva clave principal en inglés
 }
 
-export interface Columna {
+export interface Column {
   key: string;
   label: string;
   unit?: string;
   type: 'string' | 'number';
 }
 
-export interface TablaResultado {
-  titulo: string;
+export interface ResultTable {
+  title: string;
   equipment_id: string;
-  mesurando: string;
-  ecuation_calibration: string;
+  parameter: string;
+  calibration_equation: string;
   unit: string;
-  range: string,
-  coments: string;
-  columnas: Columna[];
-  filas: Record<string, any>[];
+  range: string;
+  comments: string;
+  columns: Column[];
+  rows: Record<string, any>[];
 }
-// Respuesta estándar de la API Express
+
 export interface ApiResponse<T> {
   ok: boolean;
   data: T;
