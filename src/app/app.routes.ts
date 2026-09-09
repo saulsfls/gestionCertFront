@@ -6,6 +6,7 @@ import { Pimage } from './components/pimage/pimage';
 import { Editcert } from './components/editcert/editcert';
 import { admincert } from './components/admincert/admincert';
 import { Listcert } from './components/listcert/listcert';
+import { Pt24 } from './components/pt24/pt24';
 
 export const routes: Routes = [
   {path: '',redirectTo: 'inicio', pathMatch: 'full'},
@@ -16,4 +17,5 @@ export const routes: Routes = [
   {path: 'admincert', component: admincert},
   {path: 'listcert', component: Listcert},
   {path: 'viewcert/:id', component: Viewcert},//Solo se puede acceder a la ruta con un id de certificado
+  {path: 'pt24', component: Pt24}
 ];

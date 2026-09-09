@@ -1,6 +1,7 @@
 <div class="card p-3 shadow-sm">
   <h5 class="mb-3">Cargar Tabla de Certificado</h5>
 
+  <!-- Mensajes de error / éxito -->
   <div *ngIf="mensajeError" class="alert alert-danger alert-dismissible fade show mb-3" role="alert">
     <strong>¡Atención!</strong> {{ mensajeError }}
     <button type="button" class="btn-close" (click)="mensajeError = ''" aria-label="Close"></button>
@@ -58,13 +59,37 @@
       (click)="enviarANode()"
     >
       <span *ngIf="cargando" class="spinner-border spinner-border-sm me-1"></span>
-      {{ cargando ? 'Procesando en Servidor...' : 'Extraer Tabla en JSON' }}
+      {{ cargando ? 'Procesando...' : 'Extraer Tabla' }}
     </button>
   </div>
 
-  <!-- Resultado -->
-  <div *ngIf="tablaProcesada" class="p-3 border rounded bg-white">
+  <!-- Resultado: Tabla extraída -->
+  <div *ngIf="mostrarTabla && tablaHeaders.length > 0" class="mt-3 p-3 border rounded bg-white">
     <h6 class="text-success fw-bold">✓ Datos Extraídos:</h6>
-    <pre class="bg-dark text-light p-3 rounded"><code>{{ tablaProcesada | json }}</code></pre>
+    <div class="table-responsive">
+      <table class="table table-bordered table-striped table-hover">
+        <thead class="table-dark">
+          <tr>
+            <th *ngFor="let header of tablaHeaders">{{ header }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let row of tablaRows">
+            <td *ngFor="let cell of row">{{ cell }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- (Opcional) Mostrar el texto crudo para depuración -->
+    <details class="mt-3">
+      <summary class="text-muted small">Ver texto original extraído</summary>
+      <pre class="bg-light p-2 mt-2 rounded" style="white-space: pre-wrap; font-size: 0.8rem;">{{ tablaTexto }}</pre>
+    </details>
+  </div>
+
+  <!-- Si no hay tabla pero hay un mensaje de éxito, mostrarlo -->
+  <div *ngIf="mensajeExito && !mostrarTabla" class="alert alert-warning mt-3">
+    No se pudo extraer una tabla válida.
   </div>
 </div>
