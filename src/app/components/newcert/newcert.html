@@ -1,7 +1,10 @@
 <div *ngIf="mensajeRespuesta" class="alert alert-info mt-3" role="alert">
-    {{ mensajeRespuesta }}
+  {{ mensajeRespuesta }}
 </div>
-<!-- Formulario Principal del Certificado -->
+
+<!-- ============================================= -->
+<!-- Formulario Principal del Certificado          -->
+<!-- ============================================= -->
 <div class="card mb-4 shadow-sm">
   <div class="card-header bg-dark text-white">
     <h5 class="m-0">Datos Generales del Certificado</h5>
@@ -11,7 +14,9 @@
 
       <!-- ID / Código del Equipo -->
       <div class="col-md-4">
-        <label for="equipment_id" class="form-label fw-bold">ID del Equipo <span class="text-danger">*</span></label>
+        <label for="equipment_id" class="form-label fw-bold">
+          ID del Equipo <span class="text-danger">*</span>
+        </label>
         <input
           type="text"
           id="equipment_id"
@@ -26,7 +31,9 @@
 
       <!-- Nombre del Equipo -->
       <div class="col-md-5">
-        <label for="name_equipment" class="form-label fw-bold">Nombre del Equipo <span class="text-danger">*</span></label>
+        <label for="name_equipment" class="form-label fw-bold">
+          Nombre del Equipo <span class="text-danger">*</span>
+        </label>
         <input
           type="text"
           id="name_equipment"
@@ -38,7 +45,7 @@
         >
       </div>
 
-      <!-- Código / Folio del Certificado (CC) -->
+      <!-- Folio / CC -->
       <div class="col-md-3">
         <label for="cc" class="form-label fw-bold">Folio / CC</label>
         <input
@@ -62,7 +69,7 @@
         >
       </div>
 
-      <!-- Fecha de Emisión/Certificado (date_cc) -->
+      <!-- Fecha del Certificado -->
       <div class="col-md-3">
         <label for="date_cc" class="form-label fw-bold">Fecha del Certificado</label>
         <input
@@ -73,7 +80,7 @@
         >
       </div>
 
-      <!-- Entidad emisora -->
+      <!-- Entidad Emisora -->
       <div class="col-md-3">
         <label for="entity" class="form-label fw-bold">Entidad emisora</label>
         <input
@@ -99,6 +106,7 @@
         >
       </div>
 
+      <!-- Tipo de Certificado -->
       <div class="col-md-3">
         <label for="cert_type" class="form-label fw-bold">Tipo de certificado</label>
         <select
@@ -112,7 +120,7 @@
         </select>
       </div>
 
-      <!-- Estatus Activo / Inactivo -->
+      <!-- Switch Activo -->
       <div class="col-12 mt-3">
         <div class="form-check form-switch">
           <input
@@ -132,13 +140,18 @@
   </div>
 </div>
 
+<!-- ============================================= -->
+<!-- Resultados del Certificado                    -->
+<!-- ============================================= -->
 <div class="container my-4">
   <div class="d-flex justify-content-between align-items-center mb-4">
     <h3 class="fw-bold m-0">Resultados del Certificado</h3>
 
     <div class="d-flex align-items-center gap-3">
       <div class="d-flex align-items-center bg-light border rounded px-2 py-1">
-        <label class="form-label fw-semibold small text-secondary m-0 me-2">Navegación con Tab:</label>
+        <label class="form-label fw-semibold small text-secondary m-0 me-2">
+          Navegación con Tab:
+        </label>
         <div class="btn-group btn-group-sm" role="group">
           <input
             type="radio"
@@ -166,7 +179,7 @@
     </div>
   </div>
 
-  <!-- Bucle de Tablas (usando resultTables y propiedades en inglés) -->
+  <!-- Bucle de Tablas -->
   <ng-container *ngFor="let tabla of resultTables; let i = index">
     <div class="card mb-4 border-primary shadow-sm">
 
@@ -192,11 +205,11 @@
         </button>
       </div>
 
-      <!-- Cuerpo colapsable de la Card -->
+      <!-- Cuerpo colapsable -->
       <div [id]="'collapseTabla' + i" class="collapse show">
         <div class="card-body">
 
-          <!-- Propiedades de la Tabla (modelo en inglés) -->
+          <!-- Propiedades de la Tabla -->
           <div class="row g-3 p-3 mb-4 bg-light rounded border">
             <h6 class="text-secondary fw-bold mb-0">Propiedades del ensayo</h6>
 
@@ -214,7 +227,6 @@
                   </option>
                 </select>
 
-                <!-- Input para "Otro" (visible solo si el título no es predefinido) -->
                 <input
                   *ngIf="!esTituloPredefinido(tabla.title)"
                   type="text"
@@ -229,7 +241,6 @@
 
             <div class="col-md-6">
               <label class="form-label fw-semibold small">Mesurando (Parameter):</label>
-              <!-- Si el título es predefinido, mostrar select con opciones -->
               <ng-container *ngIf="esTituloPredefinido(tabla.title); else otroMesurando">
                 <select
                   class="form-select"
@@ -241,7 +252,6 @@
                   </option>
                 </select>
               </ng-container>
-              <!-- Si es "Otro", mostrar input de texto libre -->
               <ng-template #otroMesurando>
                 <input
                   type="text"
@@ -264,7 +274,9 @@
             </div>
 
             <div class="col-md-4">
-              <label class="form-label fw-semibold small">Ecuación de calibración (Calibration Equation)</label>
+              <label class="form-label fw-semibold small">
+                Ecuación de calibración (Calibration Equation)
+              </label>
               <input
                 type="text"
                 class="form-control"
@@ -282,10 +294,9 @@
                 (ngModelChange)="onTableChange()"
                 placeholder="Ej: 0v - 100v">
             </div>
-
           </div>
 
-          <!-- Estructura de Tabla (columnas y filas) -->
+          <!-- Estructura de Tabla -->
           <div class="d-flex justify-content-between align-items-center mb-2">
             <h6 class="fw-bold m-0">Estructura y Resultados</h6>
             <button class="btn btn-outline-primary btn-sm" type="button" (click)="agregarColumna(tabla)">
@@ -376,11 +387,13 @@
             + Agregar Fila
           </button>
 
-          <!-- Comentarios de la tabla (ahora comments) -->
+          <!-- Comentarios de la tabla -->
           <div class="mt-3">
-            <label for="tableComments{{i}}" class="form-label fw-semibold small">Comentarios de la tabla (Comments):</label>
+            <label [for]="'tableComments' + i" class="form-label fw-semibold small">
+              Comentarios de la tabla (Comments):
+            </label>
             <textarea
-              id="tableComments{{i}}"
+              [id]="'tableComments' + i"
               class="form-control"
               rows="3"
               [(ngModel)]="tabla.comments"
@@ -389,13 +402,96 @@
             ></textarea>
           </div>
 
+          <!-- ============================================ -->
+          <!-- SECCIÓN DE IMAGEN (Extraer datos por foto)   -->
+          <!-- ============================================ -->
+          <div class="mt-4 p-3 border rounded bg-white">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <h6 class="fw-bold m-0">📷 Extraer datos desde imagen</h6>
+              <small class="text-muted">
+                Pega o sube una imagen, ajusta el recorte sobre la tabla y presiona "Extraer Tabla".
+              </small>
+            </div>
+
+            <!-- Área de Pegado (visible solo mientras NO haya imagen) -->
+            <div
+              *ngIf="!imageStates[i]?.imageChangedEvent && !imageStates[i]?.pasteImageFile"
+              class="paste-zone p-4 text-center border border-2 border-dashed rounded mb-3 bg-light"
+              (paste)="onPaste($event, i)"
+              tabindex="0"
+            >
+              <p class="mb-1 text-primary fw-bold">
+                📋 Haz clic aquí y presiona <kbd>Ctrl + V</kbd> para pegar la imagen
+              </p>
+              <small class="text-muted">O selecciona un archivo local:</small>
+              <input
+                type="file"
+                class="form-control form-control-sm mt-2"
+                (change)="fileChangeEvent($event, i)"
+                accept="image/*"
+              />
+            </div>
+
+            <!-- Cropper (visible solo cuando hay imagen cargada) -->
+            @if (isBrowser) {
+              <div
+                class="cropper-wrapper mb-3"
+                *ngIf="imageStates[i]?.imageChangedEvent || imageStates[i]?.pasteImageFile"
+              >
+                <p class="small text-muted mb-1 p-2">
+                  Ajusta los bordes para seleccionar únicamente la tabla:
+                </p>
+
+                <image-cropper
+                  [imageChangedEvent]="imageStates[i].imageChangedEvent"
+                  [imageFile]="imageStates[i].pasteImageFile"
+                  [maintainAspectRatio]="false"
+                  format="png"
+                  (imageCropped)="imageCropped($event, i)"
+                  (imageLoaded)="imageLoaded($event)"
+                  (cropperReady)="cropperReady()"
+                  (loadImageFailed)="loadImageFailed(i)"
+                ></image-cropper>
+
+                <!-- Botón Cancelar (debajo de la imagen) -->
+                <div class="d-flex justify-content-center mt-3">
+                  <button
+                    type="button"
+                    class="btn btn-outline-danger btn-sm"
+                    (click)="cancelarImagen(i)"
+                  >
+                    ✕ Cancelar y cargar otra imagen
+                  </button>
+                </div>
+              </div>
+            }
+
+            <!-- Botón de Procesar (visible solo si ya hay imagen) -->
+            <div
+              class="d-flex justify-content-end mb-1"
+              *ngIf="imageStates[i]?.imageChangedEvent || imageStates[i]?.pasteImageFile"
+            >
+              <button
+                class="btn btn-primary btn-sm"
+                type="button"
+                [disabled]="imageStates[i]?.cargando"
+                (click)="enviarANode(i)"
+              >
+                <span *ngIf="imageStates[i]?.cargando" class="spinner-border spinner-border-sm me-1"></span>
+                {{ imageStates[i]?.cargando ? 'Procesando...' : 'Extraer Tabla' }}
+              </button>
+            </div>
+          </div>
+          <!-- ============= FIN SECCIÓN IMAGEN ============ -->
+
         </div>
       </div>
-
     </div>
   </ng-container>
 
-  <!-- Previsualizador y Editor de JSON (sin botón de actualizar) -->
+  <!-- ============================================= -->
+  <!-- Previsualizador y Editor de JSON              -->
+  <!-- ============================================= -->
   <div class="card bg-dark text-white shadow-sm mb-4">
     <div class="card-header d-flex justify-content-between align-items-center border-secondary p-2">
       <button
@@ -413,7 +509,6 @@
       </button>
 
       <div class="d-flex gap-2">
-        <!-- Botón de copiar -->
         <button class="btn btn-outline-light btn-sm" type="button" (click)="copiarJson()">
           {{ copiadoExitoso ? 'Copiado' : 'Copiar JSON' }}
         </button>
@@ -437,7 +532,7 @@
     </div>
   </div>
 
-  <!-- Alerta de Bootstrap para Mensajes -->
+  <!-- Alerta de Mensajes -->
   <div
     *ngIf="mensajeRespuesta"
     class="alert alert-dismissible fade show mt-3 shadow-sm"
@@ -447,7 +542,7 @@
     <button type="button" class="btn-close" (click)="mensajeRespuesta = null" aria-label="Close"></button>
   </div>
 
-  <!-- Botón de Guardado Directo -->
+  <!-- Botón de Guardado -->
   <div class="d-flex justify-content-end my-4">
     <button
       type="button"
