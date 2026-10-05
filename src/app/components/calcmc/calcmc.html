@@ -1,0 +1,280 @@
+<div class="container py-4" style="max-width: 1100px;">
+
+  <!-- ===================== HEADER ===================== -->
+  <div class="d-flex align-items-center justify-content-between mb-4">
+    <h2 class="h4 fw-bold mb-0">Cálculo de la CMC</h2>
+    <span class="text-muted small">
+      Equipo <span class="badge bg-dark">620-0000</span> · Voltaje en corriente directa
+    </span>
+  </div>
+
+  <!-- ===================== FORMULARIO ===================== -->
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-header bg-dark text-white fw-semibold py-2">
+      Datos de entrada
+    </div>
+
+    <div class="card-body">
+      <div class="row g-3">
+
+        <!-- Errores -->
+        <div class="col-12">
+          <label class="form-label fw-bold small">
+            Errores (V) <span class="text-danger">*</span>
+          </label>
+          <input
+            type="text"
+            class="form-control"
+            [ngModel]="erroresTexto()"
+            (ngModelChange)="erroresTexto.set($event)"
+            placeholder="Ej: -0.024, -0.031, 0.015">
+          <div class="form-text">
+            Separados por coma. Uno por cada certificado.
+          </div>
+        </div>
+
+        <!-- Incertidumbres -->
+        <div class="col-12">
+          <label class="form-label fw-bold small">
+            Incertidumbres expandidas (V) <span class="text-danger">*</span>
+          </label>
+          <input
+            type="text"
+            class="form-control"
+            [ngModel]="incertidumbresTexto()"
+            (ngModelChange)="incertidumbresTexto.set($event)"
+            placeholder="Ej: 0.080, 0.094, 0.080">
+          <div class="form-text">
+            Mismo orden y longitud que los errores. Se asume k = 2.
+          </div>
+        </div>
+
+        <!-- Tiempo intermedio -->
+        <div class="col-12">
+          <label class="form-label fw-bold small">
+            Tiempo intermedio entre calibraciones (días) <span class="text-danger">*</span>
+          </label>
+          <input
+            type="text"
+            class="form-control"
+            [ngModel]="tiempoIntermedioTexto()"
+            (ngModelChange)="tiempoIntermedioTexto.set($event)"
+            placeholder="Ej: 393, 642">
+          <div class="form-text">
+            Debe tener un elemento menos que la lista de errores.
+          </div>
+        </div>
+
+        <!-- Intervalo, resolución, k, confianza -->
+        <div class="col-md-6 col-lg-3">
+          <label class="form-label fw-bold small">
+            Intervalo de calibración (meses)
+          </label>
+          <input type="number" min="1" class="form-control"
+            placeholder="0"
+            [ngModel]="intervaloCalibracion()"
+            (ngModelChange)="intervaloCalibracion.set(+$event)">
+        </div>
+
+        <div class="col-md-6 col-lg-3">
+          <label class="form-label fw-bold small">Resolución del Instrumento</label>
+          <input type="number" step="0.0001" min="0" class="form-control"
+            placeholder="0"
+            [ngModel]="resolucion()"
+            (ngModelChange)="resolucion.set(+$event)">
+        </div>
+
+        <div class="col-md-6 col-lg-3">
+          <label class="form-label fw-bold small">Factor k (referencia)</label>
+          <input type="number" min="1" class="form-control"
+            placeholder="2"
+            [ngModel]="kReferencia()"
+            (ngModelChange)="kReferencia.set(+$event)">
+        </div>
+
+        <div class="col-md-6 col-lg-3">
+          <label class="form-label fw-bold small">Nivel de confianza</label>
+          <select class="form-select"
+            [ngModel]="nivelConfianza()"
+            (ngModelChange)="nivelConfianza.set(+$event)">
+            <option [ngValue]="0.95">95 %</option>
+            <option [ngValue]="0.99">99 %</option>
+          </select>
+        </div>
+
+        <!-- Toggle avanzado -->
+        <div class="col-12">
+          <div class="form-check form-switch mt-2">
+            <input class="form-check-input" type="checkbox" role="switch"
+              id="switchAvanzado"
+              [ngModel]="mostrarAvanzado()"
+              (ngModelChange)="mostrarAvanzado.set($event)">
+            <label class="form-check-label fw-bold small" for="switchAvanzado">
+              Parámetros de repetibilidad y reproducibilidad
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sección avanzada -->
+      <div class="mt-3" [class.d-none]="!mostrarAvanzado()">
+        <div class="row g-3">
+          <div class="col-md-6 col-lg-3">
+            <label class="form-label fw-bold small">Repetibilidad</label>
+            <input type="number" step="0.0001" class="form-control"
+              [ngModel]="repetibilidad()"
+              (ngModelChange)="repetibilidad.set(+$event)">
+          </div>
+          <div class="col-md-6 col-lg-3">
+            <label class="form-label fw-bold small">Reproducibilidad</label>
+            <input type="number" step="0.0001" class="form-control"
+              [ngModel]="reproducibilidad()"
+              (ngModelChange)="reproducibilidad.set(+$event)">
+          </div>
+          <div class="col-md-6 col-lg-3">
+            <label class="form-label fw-bold small">ν repetibilidad</label>
+            <input type="number" class="form-control"
+              [ngModel]="dofRepetibilidad()"
+              (ngModelChange)="dofRepetibilidad.set(+$event)">
+          </div>
+          <div class="col-md-6 col-lg-3">
+            <label class="form-label fw-bold small">ν reproducibilidad</label>
+            <input type="number" class="form-control"
+              [ngModel]="dofReproducibilidad()"
+              (ngModelChange)="dofReproducibilidad.set(+$event)">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card-footer bg-white d-flex justify-content-end border-0 py-3">
+      <button class="btn btn-outline-secondary btn-sm" (click)="reset()">
+        Restablecer
+      </button>
+    </div>
+  </div>
+
+  <!-- ===================== RESULTADOS ===================== -->
+  <ng-container *ngIf="resultado() as r; else sinDatos">
+
+    <h2 class="h4 fw-bold mb-3">Resultados del cálculo</h2>
+
+    <!-- Presupuesto -->
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-header bg-dark text-white fw-semibold py-2">
+        Presupuesto de incertidumbre
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover table-sm align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th class="ps-3">Fuente</th>
+                <th class="text-end">u<sub>i</sub></th>
+                <th class="text-end">ν<sub>i</sub></th>
+                <th class="text-end pe-3">Peso (%)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let f of r.fuentes">
+                <td class="ps-3">{{ f.nombre }}</td>
+                <td class="text-end font-monospace">{{ fmt(f.valor) }}</td>
+                <td class="text-end font-monospace">
+                  {{ f.dof >= 1e99 ? '∞' : f.dof }}
+                </td>
+                <td class="text-end font-monospace pe-3">{{ fmt(f.peso, 2) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Resumen -->
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-header bg-dark text-white fw-semibold py-2">
+        Resumen
+      </div>
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-6 col-md-3">
+            <label class="form-label fw-bold small">Estabilidad</label>
+            <div class="form-control-plaintext font-monospace">{{ fmt(r.estabilidad) }}</div>
+          </div>
+          <div class="col-6 col-md-3">
+            <label class="form-label fw-bold small">Sesgo</label>
+            <div class="form-control-plaintext font-monospace">{{ fmt(r.sesgo) }}</div>
+          </div>
+          <div class="col-6 col-md-3">
+            <label class="form-label fw-bold small">Deriva</label>
+            <div class="form-control-plaintext font-monospace">{{ fmt(r.deriva) }}</div>
+          </div>
+          <div class="col-6 col-md-3">
+            <label class="form-label fw-bold small">Inc. referencia</label>
+            <div class="form-control-plaintext font-monospace">{{ fmt(r.incertRef) }}</div>
+          </div>
+
+          <div class="col-6 col-md-3">
+            <label class="form-label fw-bold small">Estab. referencia</label>
+            <div class="form-control-plaintext font-monospace">{{ fmt(r.estabilidadRef) }}</div>
+          </div>
+          <div class="col-6 col-md-3">
+            <label class="form-label fw-bold small">u<sub>c</sub> combinada</label>
+            <div class="form-control-plaintext font-monospace">{{ fmt(r.incCombinada) }}</div>
+          </div>
+          <div class="col-6 col-md-3">
+            <label class="form-label fw-bold small">ν<sub>ef</sub></label>
+            <div class="form-control-plaintext font-monospace">{{ r.dofEfectivos }}</div>
+          </div>
+          <div class="col-6 col-md-3">
+            <label class="form-label fw-bold small">k (cobertura)</label>
+            <div class="form-control-plaintext font-monospace">{{ fmt(r.coefExpansion, 4) }}</div>
+          </div>
+        </div>
+
+        <div class="mt-4">
+          <label class="form-label fw-bold small">Incertidumbre expandida (CMC)</label>
+          <div class="input-group">
+            <input type="text" class="form-control font-monospace fw-bold"
+              [value]="fmt(r.incExpandida)" readonly>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pesos -->
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-dark text-white fw-semibold py-2">
+        Peso por fuente
+      </div>
+      <div class="card-body">
+        <div *ngFor="let f of r.fuentes" class="mb-3">
+          <div class="d-flex justify-content-between small mb-1">
+            <span class="fw-bold">{{ f.nombre }}</span>
+            <span class="text-muted font-monospace">{{ fmt(f.peso, 2) }}%</span>
+          </div>
+          <div class="progress" style="height: 14px;">
+            <div class="progress-bar"
+              role="progressbar"
+              [style.width.%]="f.peso"
+              [attr.aria-valuenow]="f.peso"
+              aria-valuemin="0"
+              aria-valuemax="100">
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </ng-container>
+
+  <!-- Estado vacío -->
+  <ng-template #sinDatos>
+    <div class="alert alert-warning d-flex align-items-center mt-3" role="alert">
+      <div>
+        <strong>Revisa las entradas:</strong>
+        se requieren al menos 2 errores, igual número de incertidumbres,
+        y un tiempo intermedio entre cada par de calibraciones.
+      </div>
+    </div>
+  </ng-template>
+</div>
