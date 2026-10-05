@@ -7,6 +7,7 @@ import {
 } from '@angular/core';
 import { isPlatformBrowser, CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { finalize, timeout } from 'rxjs/operators';
 import { Certificado, ResultTable, Column } from '../../models/certificado.models';
 import { CertService } from '../../services/cert.service';
 import { ImageService } from '../../services/image.service';
@@ -25,6 +26,7 @@ interface TableImageState {
   pasteImageFile: File | undefined;
   croppedImageBase64: string;
   cargando: boolean;
+  tieneEncabezado: boolean;
 }
 
 @Component({
@@ -39,7 +41,6 @@ export class Newcert implements OnInit {
   private imageService = inject(ImageService);
   isBrowser: boolean = isPlatformBrowser(this.platformId);
 
-  // Lista de opciones para el título
   opcionesTitulo: string[] = [
     'DC Voltage',
     'AC Voltage',
@@ -84,6 +85,8 @@ export class Newcert implements OnInit {
     cc: '',
     date_cal: '',
     date_cc: '',
+    calibration_interval: 0,
+    resolution: 0,
     entity: '',
     cert_type: '',
     comments: '',
@@ -95,11 +98,15 @@ export class Newcert implements OnInit {
   direccionTab: DireccionTab = 'vertical';
   jsonInputText: string = '';
   mensajeRespuesta: string | null = null;
+  mensajeAlerta: string | null = null;
   esError: boolean = false;
   copiadoExitoso: boolean = false;
+  guardando: boolean = false;
 
-  // Estado de imagen por cada tabla (paralelo a resultTables)
   imageStates: TableImageState[] = [];
+
+  // 🔑 id de timeout de alertas para poder cancelar el anterior
+  private alertTimeoutId: any = null;
 
   constructor(
     private certificadoService: CertService,
@@ -118,7 +125,8 @@ export class Newcert implements OnInit {
       imageChangedEvent: null,
       pasteImageFile: undefined,
       croppedImageBase64: '',
-      cargando: false
+      cargando: false,
+      tieneEncabezado: true
     };
   }
 
@@ -127,6 +135,8 @@ export class Newcert implements OnInit {
     return {
       title: 'DC Voltage',
       equipment_id: this.certificado.equipment_id || '',
+      cc_id: this.certificado.cc || '',
+      cmc: '',
       parameter: this.obtenerOpcionesParametro('DC Voltage')[0] || 'Voltage',
       unit: '',
       calibration_equation: '',
@@ -147,6 +157,10 @@ export class Newcert implements OnInit {
   onTableChange(): void {
     this.resultTables.forEach(table => {
       table.equipment_id = this.certificado.equipment_id;
+      // Si cc_id está vacío y el certificado ya tiene cc, lo hereda
+      if (!table.cc_id && this.certificado.cc) {
+        table.cc_id = this.certificado.cc;
+      }
     });
     this.sincronizarJsonTexto();
   }
@@ -199,9 +213,12 @@ export class Newcert implements OnInit {
           throw new Error(`Estructura inválida en la Tabla #${index + 1}. Debe incluir "columns" y "rows".`);
         }
         const equipmentId = t.equipment_id || this.certificado.equipment_id || '';
+        const ccId = t.cc || t.cc_id || this.certificado.cc || '';
         return {
           title: t.title || '',
           equipment_id: equipmentId,
+          cc_id: ccId,
+          cmc: t.cmc || '',
           parameter: t.parameter || '',
           unit: t.unit || '',
           calibration_equation: t.calibration_equation || '',
@@ -220,7 +237,6 @@ export class Newcert implements OnInit {
       this.imageStates = tablasNuevas.map(() => this.crearEstadoImagenVacio());
       this.sincronizarJsonTexto();
       this.mostrarAlerta('Las tablas han sido actualizadas desde el JSON correctamente.', false);
-      this.cdr.detectChanges();
     } catch (err: any) {
       this.mostrarAlerta(`JSON Inválido: ${err.message}`, true);
     }
@@ -287,7 +303,6 @@ export class Newcert implements OnInit {
     if (!resultado.valido) {
       this.mostrarAlerta(`Key inválido: ${resultado.mensaje}`, true);
       col.key = viejaKey;
-      this.cdr.detectChanges();
       return;
     }
 
@@ -300,7 +315,8 @@ export class Newcert implements OnInit {
   }
 
   cambiarTipoDato(col: Column, table: ResultTable): void {
-    table.rows.forEach(row => { row[col.key] = null; });
+    // No borramos los valores: si el tipo pasa a 'number' y algún
+    // valor no es numérico, esValorInvalido() lo marcará en rojo.
     this.sincronizarJsonTexto();
   }
 
@@ -317,6 +333,21 @@ export class Newcert implements OnInit {
       table.rows.splice(indexRow, 1);
       this.sincronizarJsonTexto();
     }
+  }
+
+  // ========== HELPERS NUMÉRICOS ==========
+  esNumeroValido(s: string): boolean {
+    const t = (s ?? '').trim();
+    if (!t) return false;
+    return /^-?(?:\d+[.,]?\d*|[.,]\d+)(?:[eE][+-]?\d+)?$/.test(t);
+  }
+
+  esValorInvalido(valor: any, col: Column): boolean {
+    if (col.type !== 'number') return false;
+    if (valor === null || valor === undefined) return false;
+    if (typeof valor === 'number') return !isFinite(valor);
+    if (String(valor).trim() === '') return false;
+    return !this.esNumeroValido(String(valor));
   }
 
   // ========== MÉTODOS DE IMAGEN ==========
@@ -378,9 +409,7 @@ export class Newcert implements OnInit {
     this.cdr.detectChanges();
   }
 
-  cropperReady(): void {
-    /* listo */
-  }
+  cropperReady(): void { /* listo */ }
 
   loadImageFailed(_tableIndex?: number): void {
     this.mostrarAlerta('Error al cargar la imagen. Intenta con otra captura o archivo.', true);
@@ -431,8 +460,6 @@ export class Newcert implements OnInit {
     state.cargando = true;
     this.cdr.detectChanges();
 
-    // Función que garantiza apagar el spinner SIEMPRE,
-    // aunque el observable no complete.
     const terminar = () => {
       state.cargando = false;
       try { this.cdr.detectChanges(); } catch { /* noop */ }
@@ -459,7 +486,12 @@ export class Newcert implements OnInit {
               }
 
               if (headers.length > 0 && rows.length > 0) {
-                this.aplicarDatosExtraidos(tableIndex, headers, rows);
+                this.aplicarDatosExtraidos(
+                  tableIndex,
+                  headers,
+                  rows,
+                  state.tieneEncabezado
+                );
                 this.mostrarAlerta(
                   'Tabla extraída correctamente. Completa título, mesurando, ecuación, rango y unidad.',
                   false
@@ -474,41 +506,23 @@ export class Newcert implements OnInit {
             console.error('Error procesando la respuesta:', e);
             this.mostrarAlerta('Error al procesar la respuesta del servidor.', true);
           } finally {
-            terminar(); // 👈 apaga el spinner apenas llega la respuesta
+            terminar();
           }
         },
         error: (err: any) => {
           console.error('Error en servidor:', err);
           this.mostrarAlerta('Ocurrió un error al procesar la tabla en el servidor.', true);
-          terminar(); // 👈 apaga el spinner en error
+          terminar();
         },
-        complete: () => {
-          terminar(); // 👈 y si el observable completa, también
-        }
+        complete: () => terminar()
       });
   }
 
-  // ========== HELPERS NUMÉRICOS ==========
-  /**
-   * Devuelve true si el string representa un número.
-   * Acepta notación científica ("1.5e-3", "2E+6") y coma decimal ("1,5").
-   */
-  private esNumeroValido(s: string): boolean {
-    const t = (s ?? '').trim();
-    if (!t) return false;
-    return /^-?(?:\d+[.,]?\d*|[.,]\d+)(?:[eE][+-]?\d+)?$/.test(t);
-  }
-
-  /**
-   * Convierte notación científica ("1.5e-3", "2E+6") a decimal plano ("0.0015", "2000000").
-   * También normaliza la coma decimal a punto.
-   * Si el valor no es numérico, lo devuelve sin cambios.
-   */
+  // ========== HELPERS DE NOTACIÓN CIENTÍFICA ==========
   private expandirNotacionCientifica(raw: string): string {
     let s = String(raw ?? '').trim();
     if (!s) return '';
 
-    // Coma decimal -> punto (solo si es claramente decimal)
     if (/^-?\d+,\d+(?:[eE][+-]?\d+)?$/.test(s)) {
       s = s.replace(',', '.');
     }
@@ -518,13 +532,11 @@ export class Newcert implements OnInit {
     const num = Number(s);
     if (isNaN(num) || !isFinite(num)) return s;
 
-    // toLocaleString sin agrupamiento expande la notación científica
     let resultado = num.toLocaleString('en-US', {
       useGrouping: false,
       maximumSignificantDigits: 21
     });
 
-    // Fallback manual si aún tiene 'e' (por ejemplo, en algunos navegadores antiguos)
     if (/[eE]/.test(resultado)) {
       const str = num.toString();
       const m = str.match(/^(-?)(\d+)(?:\.(\d+))?[eE]([+-]?\d+)$/);
@@ -663,7 +675,6 @@ export class Newcert implements OnInit {
       rows.push(rowData);
     });
 
-    // Propagar valores hacia abajo para celdas vacías
     const lastValues: string[] = new Array(headers.length).fill('');
     const finalRows: string[][] = rows.map(row => {
       const newRow: string[] = [];
@@ -679,23 +690,33 @@ export class Newcert implements OnInit {
     return { headers, rows: finalRows };
   }
 
-  // ========== APLICAR DATOS EXTRAÍDOS A LA TABLA ==========
+  // ========== APLICAR DATOS EXTRAÍDOS ==========
   private aplicarDatosExtraidos(
     indexTable: number,
     headers: string[],
-    rows: string[][]
+    rows: string[][],
+    tieneEncabezado: boolean
   ): void {
     const table = this.resultTables[indexTable];
     if (!table) return;
 
-    // Paso 1: expandir notación científica en TODAS las celdas antes de procesar
-    const rowsProcesadas: string[][] = rows.map(row =>
+    let headersEfectivos: string[];
+    let filasEfectivas: string[][];
+
+    if (tieneEncabezado) {
+      headersEfectivos = headers;
+      filasEfectivas = rows;
+    } else {
+      headersEfectivos = headers.map((_, idx) => `col_${idx + 1}`);
+      filasEfectivas = [headers.slice(), ...rows];
+    }
+
+    const rowsProcesadas: string[][] = filasEfectivas.map(row =>
       row.map(celda => this.expandirNotacionCientifica(celda))
     );
 
-    // Paso 2: construir columnas
     const usedKeys = new Set<string>();
-    const newColumns: Column[] = headers.map((header, idx) => {
+    const newColumns: Column[] = headersEfectivos.map((header, idx) => {
       const baseKey =
         (header || '')
           .trim()
@@ -710,7 +731,6 @@ export class Newcert implements OnInit {
       while (usedKeys.has(key)) key = `${baseKey}_${counter++}`;
       usedKeys.add(key);
 
-      // Detección de tipo: usa el helper que acepta notación científica
       let type: TipoDato = 'string';
       for (const row of rowsProcesadas) {
         const raw = row[idx];
@@ -724,7 +744,6 @@ export class Newcert implements OnInit {
       return { key, label: header || `Col ${idx + 1}`, unit: '', type };
     });
 
-    // Paso 3: construir filas (los valores numéricos quedan como Number puro)
     const newRows = rowsProcesadas.map(row => {
       const obj: Record<string, any> = {};
       newColumns.forEach((col, idx) => {
@@ -783,6 +802,8 @@ export class Newcert implements OnInit {
       return {
         title: table.title || '',
         equipment_id: this.certificado.equipment_id,
+        cc: this.certificado.cc ,
+        cmc: table.cmc || '',
         parameter: table.parameter || '',
         unit: table.unit || '',
         calibration_equation: table.calibration_equation || '',
@@ -864,23 +885,56 @@ export class Newcert implements OnInit {
           );
           return false;
         }
+
+        if (col.type === 'number') {
+          for (let r = 0; r < table.rows.length; r++) {
+            const val = table.rows[r][col.key];
+            if (this.esValorInvalido(val, col)) {
+              this.mostrarAlerta(
+                `La Tabla #${numTable}, columna "${col.label}" contiene un valor no numérico ("${val}"). Corrígelo para continuar.`,
+                true
+              );
+              return false;
+            }
+          }
+        }
       }
     }
     return true;
   }
 
+  // ========== ALERTAS ==========
   mostrarAlerta(mensaje: string, esError: boolean): void {
+    if (this.alertTimeoutId) {
+      clearTimeout(this.alertTimeoutId);
+      this.alertTimeoutId = null;
+    }
+
     this.mensajeRespuesta = mensaje;
     this.esError = esError;
+
+    this.mensajeAlerta = esError
+      ? 'Verifica los datos extraídos, la AI puede cometer errores.'
+      : null;
+
     this.cdr.detectChanges();
-    setTimeout(() => {
+
+    this.alertTimeoutId = setTimeout(() => {
       this.mensajeRespuesta = null;
+      this.mensajeAlerta = null;
+      this.alertTimeoutId = null;
       this.cdr.detectChanges();
-    }, 5000);
+    }, 8000);
   }
 
+  // ========== GUARDAR ==========
   guardarCertificado(): void {
+    if (this.guardando) return;
     if (!this.validarFormulario()) return;
+
+    this.guardando = true;
+    this.mensajeRespuesta = null;
+    this.cdr.detectChanges();
 
     this.resultTables.forEach(table => {
       table.equipment_id = this.certificado.equipment_id;
@@ -894,18 +948,29 @@ export class Newcert implements OnInit {
       data: this.obtenerJsonEstructurado()
     };
 
-    this.certificadoService.crearCertificado(payload).subscribe({
+    this.certificadoService.crearCertificado(payload).pipe(
+      timeout(30000),
+      finalize(() => {
+        this.guardando = false;
+        this.cdr.detectChanges();
+      })
+    ).subscribe({
       next: () => {
         this.mostrarAlerta('¡Certificado guardado correctamente!', false);
         this.limpiarFormulario();
       },
       error: (err: any) => {
-        const msg = err.error?.message || 'Error al conectar con la API de PostgreSQL.';
+        console.error('Error al guardar:', err);
+        const msg =
+          err?.name === 'TimeoutError'
+            ? 'El servidor tardó demasiado en responder. Intenta de nuevo.'
+            : (err?.error?.message || 'Error al conectar con la API de PostgreSQL.');
         this.mostrarAlerta(msg, true);
       }
     });
   }
 
+  // ========== LIMPIAR ==========
   limpiarFormulario(): void {
     this.certificado = {
       equipment_id: '',
@@ -913,6 +978,8 @@ export class Newcert implements OnInit {
       cc: '',
       date_cal: '',
       date_cc: '',
+      calibration_interval: 0,
+      resolution: 0,
       entity: '',
       cert_type: '',
       comments: '',

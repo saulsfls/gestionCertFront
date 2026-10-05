@@ -1,7 +1,3 @@
-<div *ngIf="mensajeRespuesta" class="alert alert-info mt-3" role="alert">
-  {{ mensajeRespuesta }}
-</div>
-
 <!-- ============================================= -->
 <!-- Formulario Principal del Certificado          -->
 <!-- ============================================= -->
@@ -24,9 +20,8 @@
           [(ngModel)]="certificado.equipment_id"
           maxlength="30"
           (ngModelChange)="onTableChange()"
-          placeholder="Ej: EQ-2026-001"
-          required
-        >
+          placeholder="Ej: 849-0000"
+          required>
       </div>
 
       <!-- Nombre del Equipo -->
@@ -41,8 +36,7 @@
           maxlength="30"
           [(ngModel)]="certificado.name_equipment"
           placeholder="Ej: Multímetro Digital / Calibrador"
-          required
-        >
+          required>
       </div>
 
       <!-- Folio / CC -->
@@ -54,8 +48,8 @@
           maxlength="50"
           class="form-control"
           [(ngModel)]="certificado.cc"
-          placeholder="Ej: CC-89421"
-        >
+          (ngModelChange)="onTableChange()"
+          placeholder="Ej: CC-89421">
       </div>
 
       <!-- Fecha de Calibración -->
@@ -65,8 +59,7 @@
           type="date"
           id="date_cal"
           class="form-control"
-          [(ngModel)]="certificado.date_cal"
-        >
+          [(ngModel)]="certificado.date_cal">
       </div>
 
       <!-- Fecha del Certificado -->
@@ -76,8 +69,33 @@
           type="date"
           id="date_cc"
           class="form-control"
-          [(ngModel)]="certificado.date_cc"
-        >
+          [(ngModel)]="certificado.date_cc">
+      </div>
+
+      <!-- Intervalo de calibración -->
+      <div class="col-md-3">
+        <label for="calibration_interval" class="form-label fw-bold">
+          Intervalo de Calibración (meses)
+        </label>
+        <input
+          type="number"
+          id="calibration_interval"
+          class="form-control"
+          [(ngModel)]="certificado.calibration_interval"
+          placeholder="Ej: 12">
+      </div>
+
+      <!-- Resolución del instrumento -->
+      <div class="col-md-3">
+        <label for="resolution" class="form-label fw-bold">
+          Resolución del Instrumento
+        </label>
+        <input
+          type="number"
+          id="resolution"
+          class="form-control"
+          [(ngModel)]="certificado.resolution"
+          placeholder="Ej: 4">
       </div>
 
       <!-- Entidad Emisora -->
@@ -89,8 +107,7 @@
           class="form-control"
           maxlength="30"
           [(ngModel)]="certificado.entity"
-          placeholder="LECOE"
-        >
+          placeholder="LECOE">
       </div>
 
       <!-- Comentarios Generales -->
@@ -102,8 +119,7 @@
           class="form-control"
           maxlength="100"
           [(ngModel)]="certificado.comments"
-          placeholder="Comments"
-        >
+          placeholder="Comments">
       </div>
 
       <!-- Tipo de Certificado -->
@@ -112,8 +128,7 @@
         <select
           id="cert_type"
           class="form-select"
-          [(ngModel)]="certificado.cert_type"
-        >
+          [(ngModel)]="certificado.cert_type">
           <option value="" disabled selected>Seleccione una opción</option>
           <option value="Certificado">Certificado</option>
           <option value="Especificaciones del fabricante">Especificaciones del fabricante</option>
@@ -128,8 +143,7 @@
             type="checkbox"
             role="switch"
             id="active"
-            [(ngModel)]="certificado.active"
-          >
+            [(ngModel)]="certificado.active">
           <label class="form-check-label fw-bold" for="active">
             Certificado Activo {{ certificado.active ? '(Habilitado)' : '(Inactivo)' }}
           </label>
@@ -181,10 +195,10 @@
 
   <!-- Bucle de Tablas -->
   <ng-container *ngFor="let tabla of resultTables; let i = index">
-    <div class="card mb-4 border-primary shadow-sm">
+    <div class="card mb-4 border-light shadow-sm">
 
       <!-- Encabezado colapsable -->
-      <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+      <div class="card-header bg-black text-white d-flex justify-content-between align-items-center">
         <button
           class="btn btn-link text-white text-decoration-none p-0 fw-bold d-flex align-items-center gap-2 shadow-none"
           type="button"
@@ -213,15 +227,15 @@
           <div class="row g-3 p-3 mb-4 bg-light rounded border">
             <h6 class="text-secondary fw-bold mb-0">Propiedades del ensayo</h6>
 
+            <!-- Título -->
             <div class="col-md-6">
               <label class="form-label fw-semibold small">Título:</label>
               <div class="d-flex gap-2 align-items-center">
                 <select
                   class="form-select"
                   [ngModel]="tabla.title"
-                  (ngModelChange)="tabla.title = $event; onTableChange(); actualizarParametroSegunTitulo(tabla)"
-                  style="flex:1;"
-                >
+                  (ngModelChange)="tabla.title = $event; actualizarParametroSegunTitulo(tabla); onTableChange()"
+                  style="flex:1;">
                   <option *ngFor="let opcion of opcionesTitulo" [value]="opcion">
                     {{ opcion }}
                   </option>
@@ -234,19 +248,18 @@
                   [(ngModel)]="tabla.title"
                   (ngModelChange)="onTableChange()"
                   placeholder="Escriba título personalizado"
-                  style="flex:2;"
-                />
+                  style="flex:2;">
               </div>
             </div>
 
+            <!-- Mesurando -->
             <div class="col-md-6">
               <label class="form-label fw-semibold small">Mesurando (Parameter):</label>
               <ng-container *ngIf="esTituloPredefinido(tabla.title); else otroMesurando">
                 <select
                   class="form-select"
                   [(ngModel)]="tabla.parameter"
-                  (ngModelChange)="onTableChange()"
-                >
+                  (ngModelChange)="onTableChange()">
                   <option *ngFor="let opcion of obtenerOpcionesParametro(tabla.title)" [value]="opcion">
                     {{ opcion }}
                   </option>
@@ -258,11 +271,35 @@
                   class="form-control"
                   [(ngModel)]="tabla.parameter"
                   (ngModelChange)="onTableChange()"
-                  placeholder="Especifique el mesurando"
-                />
+                  placeholder="Especifique el mesurando">
               </ng-template>
             </div>
 
+            <!-- 👇 NUEVO: CC ID -->
+            <div class="col-md-3">
+              <label class="form-label fw-semibold small">CC ID:</label>
+              <input
+                type="text"
+                class="form-control"
+                [(ngModel)]="tabla.cc_id"
+                (ngModelChange)="onTableChange()"
+                placeholder="{{certificado.cc || 'Ej: CC-89421'}}"
+                value="{{certificado.cc || 'Ej: CC-89421'}}"
+                disabled>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label fw-semibold small">CMC:</label>
+              <input
+                type="number"
+                class="form-control"
+                [(ngModel)]="tabla.cmc"
+                (ngModelChange)="onTableChange()"
+                maxlength="50"
+                placeholder="Uncertainty (CMC) Ej: 0.5"
+              >
+            </div>
+
+            <!-- Unidad -->
             <div class="col-md-3">
               <label class="form-label fw-semibold small">Unidad (Unit):</label>
               <input
@@ -273,7 +310,19 @@
                 placeholder="Ej: kV">
             </div>
 
-            <div class="col-md-4">
+            <!-- Rango -->
+            <div class="col-md-3">
+              <label class="form-label fw-semibold small">Rango (Range):</label>
+              <input
+                type="text"
+                class="form-control"
+                [(ngModel)]="tabla.range"
+                (ngModelChange)="onTableChange()"
+                placeholder="Ej: 0v - 100v">
+            </div>
+
+            <!-- Ecuación de calibración -->
+            <div class="col-md-12">
               <label class="form-label fw-semibold small">
                 Ecuación de calibración (Calibration Equation)
               </label>
@@ -283,16 +332,6 @@
                 [(ngModel)]="tabla.calibration_equation"
                 (ngModelChange)="onTableChange()"
                 placeholder="Ej: V=I*R">
-            </div>
-
-            <div class="col-md-4">
-              <label class="form-label fw-semibold small">Rango (Range):</label>
-              <input
-                type="text"
-                class="form-control"
-                [(ngModel)]="tabla.range"
-                (ngModelChange)="onTableChange()"
-                placeholder="Ej: 0v - 100v">
             </div>
           </div>
 
@@ -362,6 +401,7 @@
                       [id]="'input-' + i + '-' + filaIndex + '-' + colIndex"
                       [type]="col.type === 'number' ? 'number' : 'text'"
                       class="form-control form-control-sm"
+                      [class.is-invalid]="esValorInvalido(fila[col.key], col)"
                       [(ngModel)]="fila[col.key]"
                       (ngModelChange)="onTableChange()"
                       (keydown.tab)="onTabKeydown($event, i, filaIndex, colIndex)"
@@ -398,8 +438,7 @@
               rows="3"
               [(ngModel)]="tabla.comments"
               (ngModelChange)="onTableChange()"
-              placeholder="Sin comentarios"
-            ></textarea>
+              placeholder="Sin comentarios"></textarea>
           </div>
 
           <!-- ============================================ -->
@@ -413,13 +452,34 @@
               </small>
             </div>
 
+            <!-- Checkbox "La imagen tiene encabezado" -->
+            <div class="form-check mb-3 p-2 bg-light rounded border">
+              <input
+                [id]="'tieneEncabezado' + i"
+                type="checkbox"
+                class="form-check-input"
+                [(ngModel)]="imageStates[i].tieneEncabezado">
+              <label class="form-check-label fw-semibold" [for]="'tieneEncabezado' + i">
+                La imagen tiene encabezado
+                <small class="text-muted d-block">
+                  Si la desmarcas, la primera fila extraída se tratará como datos y los encabezados
+                  serán generados como <code>col_1</code>, <code>col_2</code>, ... <code>col_n</code>.
+                </small>
+              </label>
+            </div>
+
+            <!-- Alerta de advertencia secundaria -->
+            <div *ngIf="mensajeAlerta" class="alert alert-warning mt-3 alert-dismissible fade show shadow-sm"
+              role="alert">
+              {{ mensajeAlerta }}
+            </div>
+
             <!-- Área de Pegado (visible solo mientras NO haya imagen) -->
             <div
               *ngIf="!imageStates[i]?.imageChangedEvent && !imageStates[i]?.pasteImageFile"
               class="paste-zone p-4 text-center border border-2 border-dashed rounded mb-3 bg-light"
               (paste)="onPaste($event, i)"
-              tabindex="0"
-            >
+              tabindex="0">
               <p class="mb-1 text-primary fw-bold">
                 📋 Haz clic aquí y presiona <kbd>Ctrl + V</kbd> para pegar la imagen
               </p>
@@ -428,16 +488,14 @@
                 type="file"
                 class="form-control form-control-sm mt-2"
                 (change)="fileChangeEvent($event, i)"
-                accept="image/*"
-              />
+                accept="image/*">
             </div>
 
             <!-- Cropper (visible solo cuando hay imagen cargada) -->
             @if (isBrowser) {
               <div
                 class="cropper-wrapper mb-3"
-                *ngIf="imageStates[i]?.imageChangedEvent || imageStates[i]?.pasteImageFile"
-              >
+                *ngIf="imageStates[i]?.imageChangedEvent || imageStates[i]?.pasteImageFile">
                 <p class="small text-muted mb-1 p-2">
                   Ajusta los bordes para seleccionar únicamente la tabla:
                 </p>
@@ -450,16 +508,14 @@
                   (imageCropped)="imageCropped($event, i)"
                   (imageLoaded)="imageLoaded($event)"
                   (cropperReady)="cropperReady()"
-                  (loadImageFailed)="loadImageFailed(i)"
-                ></image-cropper>
+                  (loadImageFailed)="loadImageFailed(i)">
+                </image-cropper>
 
-                <!-- Botón Cancelar (debajo de la imagen) -->
                 <div class="d-flex justify-content-center mt-3">
                   <button
                     type="button"
                     class="btn btn-outline-danger btn-sm"
-                    (click)="cancelarImagen(i)"
-                  >
+                    (click)="cancelarImagen(i)">
                     ✕ Cancelar y cargar otra imagen
                   </button>
                 </div>
@@ -469,14 +525,12 @@
             <!-- Botón de Procesar (visible solo si ya hay imagen) -->
             <div
               class="d-flex justify-content-end mb-1"
-              *ngIf="imageStates[i]?.imageChangedEvent || imageStates[i]?.pasteImageFile"
-            >
+              *ngIf="imageStates[i]?.imageChangedEvent || imageStates[i]?.pasteImageFile">
               <button
                 class="btn btn-primary btn-sm"
                 type="button"
                 [disabled]="imageStates[i]?.cargando"
-                (click)="enviarANode(i)"
-              >
+                (click)="enviarANode(i)">
                 <span *ngIf="imageStates[i]?.cargando" class="spinner-border spinner-border-sm me-1"></span>
                 {{ imageStates[i]?.cargando ? 'Procesando...' : 'Extraer Tabla' }}
               </button>
@@ -526,17 +580,19 @@
           rows="12"
           [(ngModel)]="jsonInputText"
           placeholder="El JSON se actualiza automáticamente al modificar la tabla..."
-          style="resize: vertical; font-size: 0.9rem;"
-        ></textarea>
+          style="resize: vertical; font-size: 0.9rem;"></textarea>
       </div>
     </div>
   </div>
 
-  <!-- Alerta de Mensajes -->
+  <!-- ============================================= -->
+  <!-- Alerta ÚNICA (toast fijo, siempre visible)    -->
+  <!-- ============================================= -->
   <div
     *ngIf="mensajeRespuesta"
-    class="alert alert-dismissible fade show mt-3 shadow-sm"
+    class="alert alert-dismissible fade show shadow position-fixed"
     [ngClass]="esError ? 'alert-danger' : 'alert-success'"
+    style="top: 80px; right: 20px; z-index: 1050; min-width: 320px; max-width: 520px;"
     role="alert">
     <strong>{{ esError ? '¡Atención!' : '¡Éxito!' }}</strong> {{ mensajeRespuesta }}
     <button type="button" class="btn-close" (click)="mensajeRespuesta = null" aria-label="Close"></button>
@@ -547,8 +603,10 @@
     <button
       type="button"
       class="btn btn-success btn-lg shadow-sm"
+      [disabled]="guardando"
       (click)="guardarCertificado()">
-      Guardar Certificado
+      <span *ngIf="guardando" class="spinner-border spinner-border-sm me-2"></span>
+      {{ guardando ? 'Guardando...' : 'Guardar Certificado' }}
     </button>
   </div>
 

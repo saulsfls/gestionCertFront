@@ -70,6 +70,8 @@ export class Viewcert implements OnInit {
             this.resultTables = tablesData.map((t: any) => ({
               title: t.title || '',
               equipment_id: t.equipment_id || this.certificado?.equipment_id || '',
+              cc_id: t.cc_id || this.certificado?.cc || '',
+              cmc: t.cmc || '',
               parameter: t.parameter || '',
               unit: t.unit || '',
               calibration_equation: t.calibration_equation || '',

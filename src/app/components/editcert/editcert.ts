@@ -24,7 +24,7 @@ export type TipoDato = 'number' | 'string';
 export class Editcert implements OnInit {
   @Input() id!: string | number;
 
-  // Lista de opciones para el título (en inglés)
+  // Opciones predefinidas para título de tabla
   opcionesTitulo: string[] = [
     'DC Voltage',
     'AC Voltage',
@@ -38,7 +38,7 @@ export class Editcert implements OnInit {
     'Other'
   ];
 
-  // Mapa de opciones de parámetro por título (en inglés)
+  // Opciones de parámetros según el título seleccionado
   private opcionesParametroPorTitulo: Record<string, string[]> = {
     'DC Voltage': ['Voltage'],
     'AC Voltage': ['RMS Voltage', 'Peak-to-Peak Voltage (PP)'],
@@ -64,13 +64,15 @@ export class Editcert implements OnInit {
     'Other': []
   };
 
-  // 1. Formulario del certificado
+  // Formulario del certificado
   certificado: Certificado = {
     equipment_id: '',
     name_equipment: '',
     cc: '',
     date_cal: '',
     date_cc: '',
+    calibration_interval: 0,
+    resolution: 0,
     entity: '',
     cert_type: '',
     comments: '',
@@ -78,15 +80,15 @@ export class Editcert implements OnInit {
     data: {}
   };
 
-  // 2. Control de Tablas Dinámicas y Vista (ahora con nombres en inglés)
+  // Control de Tablas Dinámicas
   resultTables: ResultTable[] = [];
   direccionTab: DireccionTab = 'vertical';
   cargando: boolean = false;
 
-  // Control del JSON bidireccional
+  // Control de texto JSON bidireccional
   jsonInputText: string = '';
 
-  // Control de alertas Bootstrap
+  // Control de Alertas UI
   mensajeRespuesta: string | null = null;
   esError: boolean = false;
   guardandoExitoso: boolean = false;
@@ -120,23 +122,24 @@ export class Editcert implements OnInit {
           date_cc: certData.date_cc ? this.formatearFechaISO(certData.date_cc) : ''
         };
 
-        // Cargar tablas desde el data del certificado (ahora espera "Result Tables")
-        if (certData.data && certData.data['Result Tables']) {
-          this.resultTables = certData.data['Result Tables'].map((table: any) => {
-            return {
-              title: table.title || '',
-              equipment_id: table.equipment_id || this.certificado.equipment_id || '',
-              parameter: table.parameter || '',
-              unit: table.unit || '',
-              calibration_equation: table.calibration_equation || '',
-              range: table.range || '',
-              comments: table.comments || '',
-              columns: table.columns || [],
-              rows: table.rows || []
-            };
-          });
+        // Extraer tablas de resultados soportando la llave "Result Tables"
+        const rawTables = certData.data?.['Result Tables'] || certData.data?.['Result Tables'] || [];
+
+        if (Array.isArray(rawTables) && rawTables.length > 0) {
+          this.resultTables = rawTables.map((table: any) => ({
+            title: table.title || '',
+            equipment_id: table.equipment_id || this.certificado.equipment_id || '',
+            cc_id: table.cc_id || '',
+            cmc: table.cmc || '',
+            parameter: table.parameter || '',
+            unit: table.unit || '',
+            calibration_equation: table.calibration_equation || '',
+            range: table.range || '',
+            comments: table.comments || '',
+            columns: table.columns || [],
+            rows: table.rows || []
+          }));
         } else {
-          // Si no existe, inicializar con una tabla por defecto
           this.resultTables = [this.crearEstructuraTablaInicial()];
         }
 
@@ -157,26 +160,28 @@ export class Editcert implements OnInit {
   private formatearFechaISO(fechaStr: string): string {
     if (!fechaStr) return '';
     const date = new Date(fechaStr);
-    return date.toISOString().split('T')[0];
+    return isNaN(date.getTime()) ? '' : date.toISOString().split('T')[0];
   }
 
   private crearEstructuraTablaInicial(): ResultTable {
     return {
       title: 'DC Voltage',
       equipment_id: this.certificado.equipment_id || '',
+      cc_id: '',
+      cmc: '',
       parameter: this.obtenerOpcionesParametro('DC Voltage')[0] || 'Voltage',
       unit: '',
       calibration_equation: '',
       range: '',
       comments: '',
       columns: [
-        { key: 'key', label: 'Label', unit: 'Units', type: 'number' },
+        { key: 'reading', label: 'Reading', unit: 'V', type: 'number' },
       ],
       rows: [{}]
     };
   }
 
-  // --- Sincronización de JSON ---
+  // --- Sincronización JSON ---
   sincronizarJsonTexto(): void {
     this.jsonInputText = this.obtenerJsonString();
   }
@@ -210,7 +215,7 @@ export class Editcert implements OnInit {
       return { valido: false, mensaje: 'El key no puede estar vacío.' };
     }
     if (!/^[a-z0-9_]+$/.test(keyLimpio)) {
-      return { valido: false, mensaje: 'El key solo puede contener letras, números y guión bajo.' };
+      return { valido: false, mensaje: 'El key solo puede contener letras minusculas, números y guión bajo.' };
     }
     for (const col of table.columns) {
       if (columnaActual && col === columnaActual) continue;
@@ -224,18 +229,21 @@ export class Editcert implements OnInit {
   actualizarFormularioDesdeJson(): void {
     try {
       const parsedJson = JSON.parse(this.jsonInputText);
-      if (!parsedJson || typeof parsedJson !== 'object' || !Array.isArray(parsedJson['Result Tables'])) {
+      const rawTables = parsedJson['Result Tables'] || parsedJson.resultTables;
+
+      if (!parsedJson || typeof parsedJson !== 'object' || !Array.isArray(rawTables)) {
         throw new Error('El JSON debe contener la propiedad "Result Tables" como un arreglo.');
       }
 
-      const tablasNuevas: ResultTable[] = parsedJson['Result Tables'].map((t: any, index: number) => {
+      const tablasNuevas: ResultTable[] = rawTables.map((t: any, index: number) => {
         if (!Array.isArray(t.columns) || !Array.isArray(t.rows)) {
           throw new Error(`Estructura inválida en la Tabla #${index + 1}. Debe incluir "columns" y "rows".`);
         }
-        const equipmentId = t.equipment_id || this.certificado.equipment_id || '';
         return {
           title: t.title || '',
-          equipment_id: equipmentId,
+          equipment_id: t.equipment_id || this.certificado.equipment_id || '',
+          cc_id: t.cc_id || '',
+          cmc: t.cmc || '',
           parameter: t.parameter || '',
           unit: t.unit || '',
           calibration_equation: t.calibration_equation || '',
@@ -358,7 +366,7 @@ export class Editcert implements OnInit {
     }
   }
 
-  // --- Construcción del JSON Limpio (estructura en inglés) ---
+  // --- Construcción del JSON Limpio ---
   obtenerJsonEstructurado(): object {
     const tablasProcesadas = this.resultTables.map(table => {
       const tiposPorKey: Record<string, TipoDato> = {};
@@ -388,6 +396,8 @@ export class Editcert implements OnInit {
       return {
         title: table.title || '',
         equipment_id: this.certificado.equipment_id,
+        cc_id: table.cc_id || '',
+        cmc: table.cmc || '',
         parameter: table.parameter || '',
         unit: table.unit || '',
         calibration_equation: table.calibration_equation || '',
@@ -417,7 +427,7 @@ export class Editcert implements OnInit {
     });
   }
 
-  // --- Sistema de Validaciones (actualizado) ---
+  // --- Sistema de Validaciones ---
   validarFormulario(): boolean {
     if (!this.certificado.equipment_id || !this.certificado.equipment_id.trim()) {
       this.mostrarAlerta('El "ID del Equipo" es un campo obligatorio.', true);
@@ -512,7 +522,7 @@ export class Editcert implements OnInit {
       next: () => {
         this.cargando = false;
         this.guardandoExitoso = true;
-        this.mostrarAlerta('¡Certificado actualizado correctamente! Redirigiendo ...', false);
+        this.mostrarAlerta('¡Certificado actualizado correctamente! Redirigiendo...', false);
 
         setTimeout(() => {
           this.router.navigate(['/listcert']);
@@ -527,6 +537,9 @@ export class Editcert implements OnInit {
   }
 
   cancelar(): void {
-    this.router.navigate(['/listcert']);
+    this.mostrarAlerta('Operación cancelada por el usuario.', true);
+    setTimeout(() => {
+      this.router.navigate(['/listcert']);
+    }, 2000);
   }
 }
