@@ -1,13 +1,13 @@
 import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
-import { CertService } from '../../services/cert.service';
+import { CertService } from '../../..//services/cert.service';
 import { FormsModule } from '@angular/forms';
 import * as XLSX from 'xlsx';
 import {
   Certificado,
   ResultTable,
-} from '../../models/certificado.models';
+} from '../../../models/certificado.models';
 import { finalize } from 'rxjs/operators';
 
 export type FiltroEstado = 'todos' | 'activos' | 'inactivos';

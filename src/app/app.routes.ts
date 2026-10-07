@@ -1,16 +1,14 @@
 import { Routes } from '@angular/router';
-import { Inicio } from './components/inicio/inicio';
-import { Newcert } from './components/newcert/newcert';
-import { Viewcert } from './components/viewcert/viewcert';
-import { Pimage } from './components/pimage/pimage';
-import { Editcert } from './components/editcert/editcert';
-import { admincert } from './components/admincert/admincert';
-import { Listcert } from './components/listcert/listcert';
-import { Calcmc } from './components/calcmc/calcmc';
+import { Newcert } from './components/modules/newcert/newcert';
+import { Viewcert } from './components/view/viewcert/viewcert';
+import { Pimage } from './components/test/pimage/pimage';
+import { Editcert } from './components/modules/editcert/editcert';
+import { admincert } from './components/modules/admincert/admincert';
+import { Listcert } from './components/view/listcert/listcert';
+import { Calcmc } from './components/cmc/calcmc/calcmc';
 
 export const routes: Routes = [
   {path: '',redirectTo: 'inicio', pathMatch: 'full'},
-  {path: 'inicio', component: Inicio},
   {path: 'newcert', component: Newcert},
   {path: 'pimage', component: Pimage },
   {path: 'editcert/:id', component: Editcert},//Solo se puede acceder a la ruta con un id de certificado

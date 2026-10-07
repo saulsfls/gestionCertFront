@@ -1,7 +1,7 @@
 import { ChangeDetectorRef, Component } from '@angular/core';
-import { ApiResponse, Certificado, CertificadoData, ResultTable } from '../../models/certificado.models';
+import { ApiResponse, Certificado, CertificadoData, ResultTable } from '../../../models/certificado.models';
 import { Router } from '@angular/router';
-import { CertService } from '../../services/cert.service';
+import { CertService } from '../../../services/cert.service';
 import { FiltroEstado } from '../viewcert/viewcert';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
