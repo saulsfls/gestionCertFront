@@ -9,7 +9,7 @@
     <div class="row g-3">
 
       <!-- ID / Código del Equipo -->
-      <div class="col-md-4">
+      <div class="col-md-3">
         <label for="equipment_id" class="form-label fw-bold">
           ID del Equipo <span class="text-danger">*</span>
         </label>
@@ -25,7 +25,7 @@
       </div>
 
       <!-- Nombre del Equipo -->
-      <div class="col-md-5">
+      <div class="col-md-6">
         <label for="name_equipment" class="form-label fw-bold">
           Nombre del Equipo <span class="text-danger">*</span>
         </label>
@@ -72,6 +72,31 @@
           [(ngModel)]="certificado.date_cc">
       </div>
 
+      <!-- Entidad Emisora -->
+      <div class="col-md-6">
+        <label for="entity" class="form-label fw-bold">Entidad emisora</label>
+        <input
+          type="text"
+          id="entity"
+          class="form-control"
+          maxlength="30"
+          [(ngModel)]="certificado.entity"
+          placeholder="LECOE">
+      </div>
+
+      <!-- Tipo de Certificado -->
+      <div class="col-md-6">
+        <label for="cert_type" class="form-label fw-bold">Tipo de certificado</label>
+        <select
+          id="cert_type"
+          class="form-select"
+          [(ngModel)]="certificado.cert_type">
+          <option value="" disabled selected>Seleccione una opción</option>
+          <option value="Certificado">Certificado</option>
+          <option value="Especificaciones del fabricante">Especificaciones del fabricante</option>
+        </select>
+      </div>
+
       <!-- Intervalo de calibración -->
       <div class="col-md-3">
         <label for="calibration_interval" class="form-label fw-bold">
@@ -98,20 +123,8 @@
           placeholder="Ej: 4">
       </div>
 
-      <!-- Entidad Emisora -->
-      <div class="col-md-3">
-        <label for="entity" class="form-label fw-bold">Entidad emisora</label>
-        <input
-          type="text"
-          id="entity"
-          class="form-control"
-          maxlength="30"
-          [(ngModel)]="certificado.entity"
-          placeholder="LECOE">
-      </div>
-
       <!-- Comentarios Generales -->
-      <div class="col-md-3">
+      <div class="col-md-12">
         <label for="comments" class="form-label fw-bold">Comentarios</label>
         <input
           type="text"
@@ -122,18 +135,6 @@
           placeholder="Comments">
       </div>
 
-      <!-- Tipo de Certificado -->
-      <div class="col-md-3">
-        <label for="cert_type" class="form-label fw-bold">Tipo de certificado</label>
-        <select
-          id="cert_type"
-          class="form-select"
-          [(ngModel)]="certificado.cert_type">
-          <option value="" disabled selected>Seleccione una opción</option>
-          <option value="Certificado">Certificado</option>
-          <option value="Especificaciones del fabricante">Especificaciones del fabricante</option>
-        </select>
-      </div>
 
       <!-- Switch Activo -->
       <div class="col-12 mt-3">
@@ -225,7 +226,7 @@
 
           <!-- Propiedades de la Tabla -->
           <div class="row g-3 p-3 mb-4 bg-light rounded border">
-            <h6 class="text-secondary fw-bold mb-0">Propiedades del ensayo</h6>
+            <h6 class="text-secondary fw-bold mb-0">Tablas del certificado</h6>
 
             <!-- Título -->
             <div class="col-md-6">
@@ -275,7 +276,7 @@
               </ng-template>
             </div>
 
-            <!-- 👇 NUEVO: CC ID -->
+
             <div class="col-md-3">
               <label class="form-label fw-semibold small">CC ID:</label>
               <input
@@ -287,16 +288,17 @@
                 value="{{certificado.cc || 'Ej: CC-89421'}}"
                 disabled>
             </div>
+
             <div class="col-md-3">
-              <label class="form-label fw-semibold small">CMC:</label>
+              <label class="form-label fw-semibold small">Tabla ID:</label>
               <input
-                type="number"
+                type="text"
                 class="form-control"
-                [(ngModel)]="tabla.cmc"
+                [(ngModel)]="tabla.table_id"
                 (ngModelChange)="onTableChange()"
-                maxlength="50"
-                placeholder="Uncertainty (CMC) Ej: 0.5"
-              >
+                placeholder="{{certificado.cc || 'Ej: CC-89421'}}"
+                value="{{ tabla.table_id || 'Ej: CC-89421'}}"
+                disabled>
             </div>
 
             <!-- Unidad -->

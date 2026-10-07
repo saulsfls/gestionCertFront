@@ -39,15 +39,18 @@
   </div>
 
   <!-- Alertas de Notificación -->
-  <div *ngIf="mensajeError" class="alert alert-danger alert-dismissible fade show shadow-sm">
+  <div *ngIf="mensajeError" class="alert alert-danger alert-dismissible fade show shadow-sm"
+   class="alert alert-dismissible fade show shadow position-fixed alert-danger"
+    >
     {{ mensajeError }}
     <button type="button" class="btn-close" (click)="mensajeError = null"></button>
   </div>
-  <div *ngIf="mensajeExito" class="alert alert-success alert-dismissible fade show shadow-sm">
+  <div *ngIf="mensajeExito" class="alert alert-success alert-dismissible fade show shadow-sm"
+  class="alert alert-dismissible fade show shadow position-fixed alert-success"
+    >
     {{ mensajeExito }}
     <button type="button" class="btn-close" (click)="mensajeExito = null"></button>
   </div>
-
   <!-- Indicador de Carga (no bloquea la tabla) -->
   <div *ngIf="cargando" class="text-center py-5">
     <div class="spinner-border text-primary" role="status">

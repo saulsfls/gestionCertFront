@@ -116,7 +116,37 @@ export class Newcert implements OnInit {
   ngOnInit(): void {
     this.resultTables = [this.crearEstructuraTablaInicial()];
     this.imageStates = [this.crearEstadoImagenVacio()];
+    this.regenerarTableIds(); // 🔑 asigna {folio}-T1
     this.sincronizarJsonTexto();
+  }
+
+  // ========== 🔑 GENERACIÓN DE table_id ==========
+
+  /**
+   * Construye el id de una tabla a partir del folio del certificado.
+   * Formato: {cc}-T{n}  →  "CERT-2026-00123-T1"
+   * Si el cc aún está vacío, devuelve solo "T{n}".
+   */
+  private construirTableId(indexTable: number): string {
+    const folio = (this.certificado.cc || '').trim();
+    const sufijo = `T${indexTable + 1}`;
+    return folio ? `${folio}-${sufijo}` : sufijo;
+  }
+
+  /**
+   * Recalcula table_id y cc_id en todas las tablas según su posición actual.
+   * Se llama cada vez que cambia el folio del certificado, o cuando se
+   * agrega / elimina / reordena una tabla.
+   */
+  private regenerarTableIds(): void {
+    const folio = (this.certificado.cc || '').trim();
+    const equipo = this.certificado.equipment_id || '';
+
+    this.resultTables.forEach((table, i) => {
+      table.table_id = this.construirTableId(i);
+      table.cc_id = folio;
+      table.equipment_id = equipo;
+    });
   }
 
   // ========== ESTADO DE IMAGEN ==========
@@ -136,7 +166,7 @@ export class Newcert implements OnInit {
       title: 'DC Voltage',
       equipment_id: this.certificado.equipment_id || '',
       cc_id: this.certificado.cc || '',
-      cmc: '',
+      table_id: '', // 🔑 se asignará con regenerarTableIds()
       parameter: this.obtenerOpcionesParametro('DC Voltage')[0] || 'Voltage',
       unit: '',
       calibration_equation: '',
@@ -155,13 +185,9 @@ export class Newcert implements OnInit {
   }
 
   onTableChange(): void {
-    this.resultTables.forEach(table => {
-      table.equipment_id = this.certificado.equipment_id;
-      // Si cc_id está vacío y el certificado ya tiene cc, lo hereda
-      if (!table.cc_id && this.certificado.cc) {
-        table.cc_id = this.certificado.cc;
-      }
-    });
+    // 🔑 Al cambiar datos del certificado (cc, equipment_id, etc.)
+    // se regeneran los ids de todas las tablas.
+    this.regenerarTableIds();
     this.sincronizarJsonTexto();
   }
 
@@ -218,6 +244,9 @@ export class Newcert implements OnInit {
           title: t.title || '',
           equipment_id: equipmentId,
           cc_id: ccId,
+          // 🔑 Se preserva el table_id del JSON solo si coincide con el folio actual;
+          // si no, se recalcula más abajo con regenerarTableIds().
+          table_id: t.table_id || '',
           cmc: t.cmc || '',
           parameter: t.parameter || '',
           unit: t.unit || '',
@@ -235,6 +264,9 @@ export class Newcert implements OnInit {
 
       this.resultTables = tablasNuevas;
       this.imageStates = tablasNuevas.map(() => this.crearEstadoImagenVacio());
+
+      // 🔑 Normaliza los ids según el folio actual
+      this.regenerarTableIds();
       this.sincronizarJsonTexto();
       this.mostrarAlerta('Las tablas han sido actualizadas desde el JSON correctamente.', false);
     } catch (err: any) {
@@ -261,6 +293,7 @@ export class Newcert implements OnInit {
   agregarTabla(): void {
     this.resultTables.push(this.crearEstructuraTablaInicial());
     this.imageStates.push(this.crearEstadoImagenVacio());
+    this.regenerarTableIds(); // 🔑 asigna {folio}-T{n+1}
     this.sincronizarJsonTexto();
   }
 
@@ -268,6 +301,8 @@ export class Newcert implements OnInit {
     if (this.resultTables.length > 1) {
       this.resultTables.splice(indexTable, 1);
       this.imageStates.splice(indexTable, 1);
+      // 🔑 Reindexamos T1..Tn para mantener la secuencia "hasta completar"
+      this.regenerarTableIds();
       this.sincronizarJsonTexto();
     }
   }
@@ -775,6 +810,9 @@ export class Newcert implements OnInit {
 
   // ========== CONSTRUCCIÓN DEL JSON ==========
   obtenerJsonEstructurado(): object {
+    // 🔑 Nos aseguramos de que los ids estén al día antes de serializar
+    this.regenerarTableIds();
+
     const tablasProcesadas = this.resultTables.map(table => {
       const tiposPorKey: Record<string, TipoDato> = {};
       table.columns.forEach(col => { tiposPorKey[col.key] = col.type; });
@@ -800,10 +838,12 @@ export class Newcert implements OnInit {
       });
 
       return {
+        // 🔑 Identificadores compuestos
+        table_id: table.table_id,
+        cc_id: this.certificado.cc || '',
+        // Datos descriptivos
         title: table.title || '',
         equipment_id: this.certificado.equipment_id,
-        cc: this.certificado.cc ,
-        cmc: table.cmc || '',
         parameter: table.parameter || '',
         unit: table.unit || '',
         calibration_equation: table.calibration_equation || '',
@@ -841,6 +881,11 @@ export class Newcert implements OnInit {
       this.mostrarAlerta('El "Nombre del Equipo" es un campo obligatorio.', true);
       return false;
     }
+    // 🔑 El folio es necesario para construir table_id de forma trazable
+    if (!this.certificado.cc || !this.certificado.cc.trim()) {
+      this.mostrarAlerta('El "Folio del Certificado (cc)" es un campo obligatorio.', true);
+      return false;
+    }
     if (this.certificado.date_cal && this.certificado.date_cc) {
       const fechaCal = new Date(this.certificado.date_cal);
       const fechaCc = new Date(this.certificado.date_cc);
@@ -864,6 +909,14 @@ export class Newcert implements OnInit {
       if (!table.parameter || !table.parameter.trim()) {
         this.mostrarAlerta(`El parámetro de la Tabla #${numTable} es obligatorio.`, true);
         return false;
+      }
+      // 🔑 table_id debe existir (se regenera antes de validar)
+      if (!table.table_id) {
+        this.regenerarTableIds();
+        if (!table.table_id) {
+          this.mostrarAlerta(`No se pudo generar el ID de la Tabla #${numTable}.`, true);
+          return false;
+        }
       }
 
       const keys = table.columns.map(c => c.key.trim().toLowerCase().replace(/\s+/g, '_'));
@@ -936,9 +989,8 @@ export class Newcert implements OnInit {
     this.mensajeRespuesta = null;
     this.cdr.detectChanges();
 
-    this.resultTables.forEach(table => {
-      table.equipment_id = this.certificado.equipment_id;
-    });
+    // 🔑 Antes de serializar, aseguramos que los ids estén al día
+    this.regenerarTableIds();
     this.sincronizarJsonTexto();
 
     const payload: Certificado = {
@@ -988,6 +1040,7 @@ export class Newcert implements OnInit {
     };
     this.resultTables = [this.crearEstructuraTablaInicial()];
     this.imageStates = [this.crearEstadoImagenVacio()];
+    this.regenerarTableIds();
     this.sincronizarJsonTexto();
     this.cdr.detectChanges();
   }

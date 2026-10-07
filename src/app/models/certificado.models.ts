@@ -20,7 +20,7 @@ export interface ResultTable {
   title: string; //Titulo de la tabla
   equipment_id: string; //Id del equipo
   cc_id: string; //Id del certificado asociado a la tabla
-  cmc: string //CMC
+  table_id: string; //Id de la tabla
   parameter: string; //Mesureament de la tabla
   calibration_equation: string; //Ecuacion de calibracion
   unit: string; //Unidad en la que se esta midiendo la tabla

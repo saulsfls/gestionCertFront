@@ -38,7 +38,6 @@ export class Editcert implements OnInit {
     'Other'
   ];
 
-  // Opciones de parámetros según el título seleccionado
   private opcionesParametroPorTitulo: Record<string, string[]> = {
     'DC Voltage': ['Voltage'],
     'AC Voltage': ['RMS Voltage', 'Peak-to-Peak Voltage (PP)'],
@@ -64,7 +63,6 @@ export class Editcert implements OnInit {
     'Other': []
   };
 
-  // Formulario del certificado
   certificado: Certificado = {
     equipment_id: '',
     name_equipment: '',
@@ -80,19 +78,26 @@ export class Editcert implements OnInit {
     data: {}
   };
 
-  // Control de Tablas Dinámicas
   resultTables: ResultTable[] = [];
   direccionTab: DireccionTab = 'vertical';
   cargando: boolean = false;
 
-  // Control de texto JSON bidireccional
   jsonInputText: string = '';
 
-  // Control de Alertas UI
   mensajeRespuesta: string | null = null;
   esError: boolean = false;
   guardandoExitoso: boolean = false;
   copiadoExitoso: boolean = false;
+
+  modoEliminarTexto: boolean = false;
+  columnasParaLimpiar: Set<string> = new Set();
+
+  modoSepararSimbolo: boolean = false;
+  columnaParaSeparar: string | null = null;
+
+  // 🔑 Contador monótono de secuencia de tablas para este certificado.
+  // Se calcula al cargar (max T{n} existente) y se incrementa al agregar.
+  private lastTableSeq: number = 0;
 
   constructor(
     private certificadoService: CertService,
@@ -110,6 +115,51 @@ export class Editcert implements OnInit {
     }
   }
 
+  // ========== 🔑 GENERACIÓN / PRESERVACIÓN DE table_id ==========
+
+  /** Extrae el número N de un id con formato "{algo}-T{N}" o "T{N}". */
+  private extraerSecuenciaDeId(tableId: string | null | undefined): number | null {
+    if (!tableId) return null;
+    const m = String(tableId).match(/T(\d+)\s*$/i);
+    return m ? parseInt(m[1], 10) : null;
+  }
+
+  /**
+   * Reconstruye el prefijo de cada table_id usando el folio actual,
+   * PRESERVANDO la secuencia T{n} existente. Solo asigna una secuencia
+   * nueva cuando el table_id está vacío o corrupto.
+   */
+  private regenerarTableIds(): void {
+    const folio = (this.certificado.cc || '').trim();
+    const equipo = this.certificado.equipment_id || '';
+
+    // Actualizamos lastTableSeq con el máximo ya existente
+    this.resultTables.forEach(t => {
+      const n = this.extraerSecuenciaDeId(t.table_id);
+      if (n !== null && n > this.lastTableSeq) this.lastTableSeq = n;
+    });
+
+    this.resultTables.forEach(t => {
+      let seq = this.extraerSecuenciaDeId(t.table_id);
+      if (seq === null) {
+        this.lastTableSeq++;
+        seq = this.lastTableSeq;
+      }
+      t.table_id = folio ? `${folio}-T${seq}` : `T${seq}`;
+      t.cc_id = folio;
+      t.equipment_id = equipo;
+    });
+  }
+
+  /** Genera el table_id para una NUEVA tabla (incrementa el contador). */
+  private nuevoTableIdParaAgregar(): string {
+    this.lastTableSeq++;
+    const folio = (this.certificado.cc || '').trim();
+    return folio ? `${folio}-T${this.lastTableSeq}` : `T${this.lastTableSeq}`;
+  }
+
+  // ========== CARGA DEL CERTIFICADO ==========
+
   cargarCertificadoPorId(id: string | number): void {
     this.cargando = true;
     this.certificadoService.obtenerCertificadoPorId(id).subscribe({
@@ -122,14 +172,18 @@ export class Editcert implements OnInit {
           date_cc: certData.date_cc ? this.formatearFechaISO(certData.date_cc) : ''
         };
 
-        // Extraer tablas de resultados soportando la llave "Result Tables"
-        const rawTables = certData.data?.['Result Tables'] || certData.data?.['Result Tables'] || [];
+        const rawTables = certData.data?.['Result Tables'] || [];
+
+        // Reset del contador antes de reconstruir
+        this.lastTableSeq = 0;
 
         if (Array.isArray(rawTables) && rawTables.length > 0) {
           this.resultTables = rawTables.map((table: any) => ({
             title: table.title || '',
             equipment_id: table.equipment_id || this.certificado.equipment_id || '',
-            cc_id: table.cc_id || '',
+            cc_id: table.cc_id || this.certificado.cc || '',
+            // 🔑 preservamos el table_id que viene del backend
+            table_id: table.table_id || '',
             cmc: table.cmc || '',
             parameter: table.parameter || '',
             unit: table.unit || '',
@@ -139,6 +193,9 @@ export class Editcert implements OnInit {
             columns: table.columns || [],
             rows: table.rows || []
           }));
+
+          // Sincroniza prefijo y calcula lastTableSeq desde los ids existentes
+          this.regenerarTableIds();
         } else {
           this.resultTables = [this.crearEstructuraTablaInicial()];
         }
@@ -164,11 +221,13 @@ export class Editcert implements OnInit {
   }
 
   private crearEstructuraTablaInicial(): ResultTable {
+    // 🔑 La primera tabla de un certificado sin datos recibe la siguiente secuencia
+    const tableId = this.nuevoTableIdParaAgregar();
     return {
       title: 'DC Voltage',
       equipment_id: this.certificado.equipment_id || '',
-      cc_id: '',
-      cmc: '',
+      cc_id: this.certificado.cc || '',
+      table_id: tableId,
       parameter: this.obtenerOpcionesParametro('DC Voltage')[0] || 'Voltage',
       unit: '',
       calibration_equation: '',
@@ -181,15 +240,14 @@ export class Editcert implements OnInit {
     };
   }
 
-  // --- Sincronización JSON ---
+  // ========== JSON ==========
   sincronizarJsonTexto(): void {
     this.jsonInputText = this.obtenerJsonString();
   }
 
   onTableChange(): void {
-    this.resultTables.forEach(table => {
-      table.equipment_id = this.certificado.equipment_id;
-    });
+    // 🔑 Se preserva la secuencia T{n} y se actualiza el prefijo del folio
+    this.regenerarTableIds();
     this.sincronizarJsonTexto();
   }
 
@@ -242,7 +300,9 @@ export class Editcert implements OnInit {
         return {
           title: t.title || '',
           equipment_id: t.equipment_id || this.certificado.equipment_id || '',
-          cc_id: t.cc_id || '',
+          cc_id: t.cc_id || this.certificado.cc || '',
+          // 🔑 preservamos el table_id si el JSON lo trae
+          table_id: t.table_id || '',
           cmc: t.cmc || '',
           parameter: t.parameter || '',
           unit: t.unit || '',
@@ -259,6 +319,8 @@ export class Editcert implements OnInit {
       }
 
       this.resultTables = tablasNuevas;
+      // 🔑 Recalcula lastTableSeq desde los ids preservados y rellena los faltantes
+      this.regenerarTableIds();
       this.sincronizarJsonTexto();
       this.mostrarAlerta('Las tablas han sido actualizadas desde el JSON correctamente.', false);
       this.cdr.detectChanges();
@@ -267,7 +329,7 @@ export class Editcert implements OnInit {
     }
   }
 
-  // --- Navegación mediante TAB ---
+  // ========== NAVEGACIÓN TAB ==========
   onTabKeydown(event: Event, tableIndex: number, rowIndex: number, colIndex: number): void {
     if (this.direccionTab === 'horizontal') return;
     const keyEvent = event as KeyboardEvent;
@@ -282,20 +344,39 @@ export class Editcert implements OnInit {
     }
   }
 
-  // --- Gestión de Tablas ---
+  // ========== GESTIÓN DE TABLAS ==========
   agregarTabla(): void {
-    this.resultTables.push(this.crearEstructuraTablaInicial());
+    // 🔑 Asigna la SIGUIENTE secuencia disponible (no reutiliza ids)
+    const nueva = this.crearEstructuraTablaInicial();
+    this.resultTables.push(nueva);
     this.sincronizarJsonTexto();
   }
 
   eliminarTabla(indexTable: number): void {
     if (this.resultTables.length > 1) {
+      // 🔑 NO se reindexa: los T{n} de las tablas restantes se preservan
       this.resultTables.splice(indexTable, 1);
+
+      // Re-indexar columnasParaLimpiar
+      const nuevasSelecciones = new Set<string>();
+      this.columnasParaLimpiar.forEach(id => {
+        const [tIdx, cIdx] = id.split('-').map(Number);
+        if (tIdx < indexTable) nuevasSelecciones.add(id);
+        else if (tIdx > indexTable) nuevasSelecciones.add(`${tIdx - 1}-${cIdx}`);
+      });
+      this.columnasParaLimpiar = nuevasSelecciones;
+
+      if (this.columnaParaSeparar) {
+        const [tIdx, cIdx] = this.columnaParaSeparar.split('-').map(Number);
+        if (tIdx === indexTable) this.columnaParaSeparar = null;
+        else if (tIdx > indexTable) this.columnaParaSeparar = `${tIdx - 1}-${cIdx}`;
+      }
+
       this.sincronizarJsonTexto();
     }
   }
 
-  // --- Gestión de Columnas ---
+  // ========== GESTIÓN DE COLUMNAS ==========
   agregarColumna(table: ResultTable): void {
     const id = table.columns.length + 1;
     const nuevaKey = `column_${id}`;
@@ -349,7 +430,193 @@ export class Editcert implements OnInit {
     this.sincronizarJsonTexto();
   }
 
-  // --- Gestión de Filas ---
+  // ============================================================
+  // MODO 1: ELIMINAR TEXTO
+  // ============================================================
+  toggleModoEliminarTexto(): void {
+    this.modoEliminarTexto = !this.modoEliminarTexto;
+    if (this.modoEliminarTexto) {
+      this.modoSepararSimbolo = false;
+      this.columnaParaSeparar = null;
+    } else {
+      this.columnasParaLimpiar.clear();
+    }
+    this.cdr.detectChanges();
+  }
+
+  esColumnaSeleccionada(tableIndex: number, colIndex: number): boolean {
+    return this.columnasParaLimpiar.has(`${tableIndex}-${colIndex}`);
+  }
+
+  toggleColumnaLimpiar(tableIndex: number, colIndex: number): void {
+    const id = `${tableIndex}-${colIndex}`;
+    if (this.columnasParaLimpiar.has(id)) {
+      this.columnasParaLimpiar.delete(id);
+    } else {
+      this.columnasParaLimpiar.add(id);
+    }
+    this.cdr.detectChanges();
+  }
+
+  private extraerNumeroDeTexto(valor: any): number | null {
+    if (valor === null || valor === undefined) return null;
+    if (typeof valor === 'number') return isNaN(valor) ? null : valor;
+
+    const str = String(valor).trim();
+    if (str === '') return null;
+
+    const match = str.match(/-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/);
+    if (!match) return null;
+
+    const num = Number(match[0]);
+    return isNaN(num) ? null : num;
+  }
+
+  formatearTexto(): void {
+    if (this.columnasParaLimpiar.size === 0) {
+      this.mostrarAlerta('Seleccione al menos una columna para formatear.', true);
+      return;
+    }
+
+    let valoresLimpiados = 0;
+
+    this.resultTables.forEach((table, tableIndex) => {
+      table.columns.forEach((col, colIndex) => {
+        if (!this.columnasParaLimpiar.has(`${tableIndex}-${colIndex}`)) return;
+
+        col.type = 'number';
+
+        table.rows.forEach(row => {
+          const original = row[col.key];
+          if (original === null || original === undefined || original === '') return;
+
+          const numero = this.extraerNumeroDeTexto(original);
+          if (numero !== null) {
+            row[col.key] = numero;
+            valoresLimpiados++;
+          }
+        });
+      });
+    });
+
+    this.sincronizarJsonTexto();
+    this.mostrarAlerta(
+      `Se limpiaron ${valoresLimpiados} valores correctamente.`,
+      valoresLimpiados === 0
+    );
+    this.cdr.detectChanges();
+  }
+
+  // ============================================================
+  // MODO 2: SEPARAR SÍMBOLO "±"
+  // ============================================================
+  toggleModoSepararSimbolo(): void {
+    this.modoSepararSimbolo = !this.modoSepararSimbolo;
+    if (this.modoSepararSimbolo) {
+      this.modoEliminarTexto = false;
+      this.columnasParaLimpiar.clear();
+    } else {
+      this.columnaParaSeparar = null;
+    }
+    this.cdr.detectChanges();
+  }
+
+  esColumnaParaSeparar(tableIndex: number, colIndex: number): boolean {
+    return this.columnaParaSeparar === `${tableIndex}-${colIndex}`;
+  }
+
+  seleccionarColumnaParaSeparar(tableIndex: number, colIndex: number): void {
+    const id = `${tableIndex}-${colIndex}`;
+    this.columnaParaSeparar = this.columnaParaSeparar === id ? null : id;
+    this.cdr.detectChanges();
+  }
+
+  separarColumna(): void {
+    if (!this.columnaParaSeparar) {
+      this.mostrarAlerta('Selecciona una columna para separar.', true);
+      return;
+    }
+
+    const [tIdx, cIdx] = this.columnaParaSeparar.split('-').map(Number);
+    const table = this.resultTables[tIdx];
+    if (!table) return;
+
+    const colOriginal = table.columns[cIdx];
+    if (!colOriginal) return;
+
+    let conSimbolo = 0;
+    const valoresSeparados: Array<{ a: number | null, b: number | null }> = [];
+
+    table.rows.forEach(row => {
+      const valor = row[colOriginal.key];
+      if (valor === null || valor === undefined || String(valor).trim() === '') {
+        valoresSeparados.push({ a: null, b: null });
+        return;
+      }
+      const str = String(valor);
+      if (str.includes('±')) {
+        const partes = str.split('±');
+        const a = this.extraerNumeroDeTexto(partes[0]);
+        const b = this.extraerNumeroDeTexto(partes[1]);
+        valoresSeparados.push({ a, b });
+        conSimbolo++;
+      } else {
+        const a = this.extraerNumeroDeTexto(str);
+        valoresSeparados.push({ a, b: null });
+      }
+    });
+
+    if (conSimbolo === 0) {
+      this.mostrarAlerta(
+        `La columna "${colOriginal.label || colOriginal.key}" no contiene el símbolo "±" en ningún valor. No se puede separar.`,
+        true
+      );
+      return;
+    }
+
+    const keyBase = colOriginal.key;
+    const existingKeys = table.columns.map(c => c.key);
+    let key1 = `${keyBase}_1`;
+    let key2 = `${keyBase}_2`;
+    let suffix = 1;
+    while (existingKeys.includes(key1) || existingKeys.includes(key2)) {
+      key1 = `${keyBase}_${suffix}_1`;
+      key2 = `${keyBase}_${suffix}_2`;
+      suffix++;
+    }
+
+    const col1: Column = {
+      key: key1,
+      label: 'col 1',
+      unit: colOriginal.unit,
+      type: 'number'
+    };
+    const col2: Column = {
+      key: key2,
+      label: 'col 2',
+      unit: colOriginal.unit,
+      type: 'number'
+    };
+
+    table.rows.forEach((row, idx) => {
+      const { a, b } = valoresSeparados[idx];
+      row[key1] = a;
+      row[key2] = b;
+      delete row[colOriginal.key];
+    });
+
+    table.columns.splice(cIdx, 1, col1, col2);
+
+    this.columnaParaSeparar = null;
+    this.sincronizarJsonTexto();
+    this.mostrarAlerta(
+      `Columna separada correctamente en "col 1" y "col 2" (${conSimbolo} valor(es) con "±" procesados).`,
+      false
+    );
+    this.cdr.detectChanges();
+  }
+
+  // ========== GESTIÓN DE FILAS ==========
   agregarFila(table: ResultTable): void {
     const nuevaFila: Record<string, any> = {};
     table.columns.forEach(col => {
@@ -366,8 +633,11 @@ export class Editcert implements OnInit {
     }
   }
 
-  // --- Construcción del JSON Limpio ---
+  // ========== CONSTRUCCIÓN DEL JSON ==========
   obtenerJsonEstructurado(): object {
+    // 🔑 Asegura que el prefijo de los ids esté sincronizado con el folio actual
+    this.regenerarTableIds();
+
     const tablasProcesadas = this.resultTables.map(table => {
       const tiposPorKey: Record<string, TipoDato> = {};
       table.columns.forEach(col => {
@@ -394,10 +664,12 @@ export class Editcert implements OnInit {
       });
 
       return {
+        // 🔑 Identificadores compuestos
+        table_id: table.table_id,
+        cc_id: this.certificado.cc || '',
+        // Datos descriptivos
         title: table.title || '',
         equipment_id: this.certificado.equipment_id,
-        cc_id: table.cc_id || '',
-        cmc: table.cmc || '',
         parameter: table.parameter || '',
         unit: table.unit || '',
         calibration_equation: table.calibration_equation || '',
@@ -427,7 +699,7 @@ export class Editcert implements OnInit {
     });
   }
 
-  // --- Sistema de Validaciones ---
+  // ========== VALIDACIONES ==========
   validarFormulario(): boolean {
     if (!this.certificado.equipment_id || !this.certificado.equipment_id.trim()) {
       this.mostrarAlerta('El "ID del Equipo" es un campo obligatorio.', true);
@@ -435,6 +707,11 @@ export class Editcert implements OnInit {
     }
     if (!this.certificado.name_equipment || !this.certificado.name_equipment.trim()) {
       this.mostrarAlerta('El "Nombre del Equipo" es un campo obligatorio.', true);
+      return false;
+    }
+    // 🔑 El folio es necesario para construir table_id de forma trazable
+    if (!this.certificado.cc || !this.certificado.cc.trim()) {
+      this.mostrarAlerta('El "Folio del Certificado (cc)" es un campo obligatorio.', true);
       return false;
     }
     if (this.certificado.date_cal && this.certificado.date_cc) {
@@ -457,6 +734,14 @@ export class Editcert implements OnInit {
       if (!table.parameter || !table.parameter.trim()) {
         this.mostrarAlerta(`El parámetro de la Tabla #${numTable} es obligatorio.`, true);
         return false;
+      }
+      // 🔑 table_id debe existir (regenerar por si acaso)
+      if (!table.table_id) {
+        this.regenerarTableIds();
+        if (!table.table_id) {
+          this.mostrarAlerta(`No se pudo generar el ID de la Tabla #${numTable}.`, true);
+          return false;
+        }
       }
 
       const keys = table.columns.map(col => col.key.trim().toLowerCase().replace(/\s+/g, '_'));
@@ -493,14 +778,14 @@ export class Editcert implements OnInit {
     }
   }
 
+  // ========== GUARDAR ==========
   guardarCertificado(): void {
     if (!this.validarFormulario()) {
       return;
     }
 
-    this.resultTables.forEach(table => {
-      table.equipment_id = this.certificado.equipment_id;
-    });
+    // 🔑 Sincroniza ids con el folio/equipo actuales antes de enviar
+    this.regenerarTableIds();
     this.sincronizarJsonTexto();
 
     const payload: Certificado = {

@@ -71,6 +71,7 @@ export class Viewcert implements OnInit {
               title: t.title || '',
               equipment_id: t.equipment_id || this.certificado?.equipment_id || '',
               cc_id: t.cc_id || this.certificado?.cc || '',
+              table_id: t.table_id || '',
               cmc: t.cmc || '',
               parameter: t.parameter || '',
               unit: t.unit || '',
