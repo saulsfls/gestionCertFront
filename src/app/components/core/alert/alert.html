@@ -1,0 +1,156 @@
+@if (isToast()) {
+  <div
+    [class]="toastClass()"
+    [attr.role]="data().type === 'error' ? 'alert' : 'status'"
+    (mouseenter)="onHover(true)"
+    (mouseleave)="onHover(false)">
+
+    <div class="nga-toast-icon">
+      @switch (data().type) {
+        @case ('success') {
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 6 9 17l-5-5"/>
+          </svg>
+        }
+        @case ('error') {
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 6 6 18M6 6l12 12"/>
+          </svg>
+        }
+        @case ('warning') {
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 9v4"/>
+            <path d="M12 17h.01"/>
+            <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+          </svg>
+        }
+        @case ('info') {
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 7v7"/>
+            <path d="M12 18h.01"/>
+          </svg>
+        }
+        @case ('question') {
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+            <path d="M12 18h.01"/>
+          </svg>
+        }
+      }
+    </div>
+
+    <div class="nga-toast-body">
+      @if (data().title; as t) {
+        <div class="nga-toast-title">{{ t }}</div>
+      }
+      <div class="nga-toast-message">{{ data().message }}</div>
+    </div>
+
+    @if (data().closeButton !== false) {
+      <button type="button"
+              class="nga-toast-close"
+              aria-label="Cerrar"
+              (click)="close()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 6 6 18M6 6l12 12"/>
+        </svg>
+      </button>
+    }
+
+    @if (showProgress()) {
+      <div class="nga-toast-progress"
+           [style.animation-duration.ms]="data().duration"
+           [style.animation-play-state]="hovering() ? 'paused' : 'running'"></div>
+    }
+  </div>
+} @else {
+  <div class="nga-backdrop"
+       [class.nga-show]="visible()"
+       (mousedown)="onBackdrop($event)">
+
+    <div [class]="modalClass()" role="dialog" aria-modal="true">
+      <div class="nga-modal-body">
+
+        <div class="nga-modal-icon">
+          @switch (data().type) {
+            @case ('success') {
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M20 6 9 17l-5-5"/>
+              </svg>
+            }
+            @case ('error') {
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M18 6 6 18M6 6l12 12"/>
+              </svg>
+            }
+            @case ('warning') {
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 9v4"/>
+                <path d="M12 17h.01"/>
+                <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+              </svg>
+            }
+            @case ('info') {
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M12 7v7"/>
+                <path d="M12 18h.01"/>
+              </svg>
+            }
+            @case ('question') {
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+                <path d="M12 18h.01"/>
+              </svg>
+            }
+          }
+        </div>
+
+        <div class="nga-modal-content">
+          @if (data().title; as t) {
+            <h3 class="nga-modal-title">{{ t }}</h3>
+          }
+          <p class="nga-modal-message">{{ data().message }}</p>
+
+          @if (isPrompt()) {
+            <input #promptInput
+                   type="text"
+                   class="nga-modal-input"
+                   [placeholder]="data().prompt?.placeholder || ''"
+                   [(ngModel)]="promptValue"
+                   (keydown.enter)="confirm()">
+          }
+        </div>
+      </div>
+
+      <div class="nga-modal-footer">
+        @if (!isAlertDialog()) {
+          <button type="button"
+                  class="btn btn-light nga-btn-cancel"
+                  (click)="cancel()">
+            {{ data().cancelText || 'Cancelar' }}
+          </button>
+        }
+        <button type="button"
+                [class]="'btn ' + confirmBtnClass()"
+                (click)="confirm()">
+          {{ data().confirmText || (isAlertDialog() ? 'Aceptar' : 'Confirmar') }}
+        </button>
+      </div>
+    </div>
+  </div>
+}

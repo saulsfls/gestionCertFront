@@ -1,1 +1,7 @@
-<p>inicio works!</p>
+<div class="d-flex flex-wrap gap-2 p-4">
+  <button class="btn btn-success" (click)="alert.success('Guardado', 'Éxito')">Success</button>
+  <button class="btn btn-danger"  (click)="alert.error('Falló', 'Error')">Error</button>
+  <button class="btn btn-warning" (click)="alert.warning('Cuidado', 'Atención')">Warning</button>
+  <button class="btn btn-info"    (click)="alert.info('Nuevo dato', 'Info')">Info</button>
+  <button class="btn btn-primary" (click)="preguntar()">Pregunta</button>
+</div>
