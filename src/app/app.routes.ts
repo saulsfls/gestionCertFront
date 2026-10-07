@@ -6,14 +6,16 @@ import { Editcert } from './components/modules/editcert/editcert';
 import { admincert } from './components/modules/admincert/admincert';
 import { Listcert } from './components/view/listcert/listcert';
 import { Calcmc } from './components/cmc/calcmc/calcmc';
+import { Inicio } from './components/view/inicio/inicio';
 
 export const routes: Routes = [
   {path: '',redirectTo: 'inicio', pathMatch: 'full'},
+  {path: 'inicio', component: Inicio},
   {path: 'newcert', component: Newcert},
   {path: 'pimage', component: Pimage },
   {path: 'editcert/:id', component: Editcert},//Solo se puede acceder a la ruta con un id de certificado
   {path: 'admincert', component: admincert},
   {path: 'listcert', component: Listcert},
   {path: 'viewcert/:id', component: Viewcert},//Solo se puede acceder a la ruta con un id de certificado
-  {path: 'calcmc', component: Calcmc},//Solo se puede acceder a la ruta con un id de certificado
+  {path: 'calcmc', component: Calcmc},
 ];
