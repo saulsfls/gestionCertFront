@@ -2,13 +2,15 @@ import {
   Component,
   OnInit,
   Input,
-  ChangeDetectorRef
+  ChangeDetectorRef,
+  inject
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Certificado, ResultTable, Column } from '../../../models/certificado.models';
 import { CertService } from '../../../services/cert.service';
+import { AlertService } from '../../../services/alert.service';
 
 export type DireccionTab = 'horizontal' | 'vertical';
 export type JsonPrimitiveType = 'string' | 'number' | 'boolean';
@@ -22,9 +24,17 @@ export type TipoDato = 'number' | 'string';
   styleUrl: './editcert.css',
 })
 export class Editcert implements OnInit {
+
+  /* ══════════════════════════════════════════════════════════════
+   *  INYECCIONES
+   * ══════════════════════════════════════════════════════════════ */
+  private readonly alert = inject(AlertService);
+
   @Input() id!: string | number;
 
-  // Opciones predefinidas para título de tabla
+  /* ══════════════════════════════════════════════════════════════
+   *  OPCIONES DE TÍTULO Y PARÁMETRO
+   * ══════════════════════════════════════════════════════════════ */
   opcionesTitulo: string[] = [
     'DC Voltage',
     'AC Voltage',
@@ -63,6 +73,9 @@ export class Editcert implements OnInit {
     'Other': []
   };
 
+  /* ══════════════════════════════════════════════════════════════
+   *  ESTADO PRINCIPAL
+   * ══════════════════════════════════════════════════════════════ */
   certificado: Certificado = {
     equipment_id: '',
     name_equipment: '',
@@ -80,25 +93,31 @@ export class Editcert implements OnInit {
 
   resultTables: ResultTable[] = [];
   direccionTab: DireccionTab = 'vertical';
-  cargando: boolean = false;
+  cargando = false;
 
-  jsonInputText: string = '';
+  jsonInputText = '';
 
-  mensajeRespuesta: string | null = null;
-  esError: boolean = false;
-  guardandoExitoso: boolean = false;
-  copiadoExitoso: boolean = false;
+  copiadoExitoso = false;
+  guardandoExitoso = false;
 
-  modoEliminarTexto: boolean = false;
+  modoEliminarTexto = false;
   columnasParaLimpiar: Set<string> = new Set();
 
-  modoSepararSimbolo: boolean = false;
+  modoSepararSimbolo = false;
   columnaParaSeparar: string | null = null;
 
-  // 🔑 Contador monótono de secuencia de tablas para este certificado.
-  // Se calcula al cargar (max T{n} existente) y se incrementa al agregar.
-  private lastTableSeq: number = 0;
+  /** 🔑 Contador monótono de secuencia de tablas para este certificado */
+  private lastTableSeq = 0;
 
+  /** 🚩 Bandera para el guard de navegación */
+  private guardMostrando = false;
+
+  /** 🚩 Bandera para no disparar el guard tras guardar o cancelar */
+  private salirSinConfirmar = false;
+
+  /* ══════════════════════════════════════════════════════════════
+   *  CONSTRUCTOR
+   * ══════════════════════════════════════════════════════════════ */
   constructor(
     private certificadoService: CertService,
     private route: ActivatedRoute,
@@ -106,34 +125,30 @@ export class Editcert implements OnInit {
     private cdr: ChangeDetectorRef
   ) {}
 
+  /* ══════════════════════════════════════════════════════════════
+   *  CICLO DE VIDA
+   * ══════════════════════════════════════════════════════════════ */
   ngOnInit(): void {
     const certId = this.id || this.route.snapshot.paramMap.get('id');
     if (certId) {
       this.cargarCertificadoPorId(certId);
     } else {
-      this.mostrarAlerta('No se proporcionó un ID de certificado válido.', true);
+      this.alert.error('No se proporcionó un ID de certificado válido.', 'Error de navegación');
     }
   }
 
   // ========== 🔑 GENERACIÓN / PRESERVACIÓN DE table_id ==========
 
-  /** Extrae el número N de un id con formato "{algo}-T{N}" o "T{N}". */
   private extraerSecuenciaDeId(tableId: string | null | undefined): number | null {
     if (!tableId) return null;
     const m = String(tableId).match(/T(\d+)\s*$/i);
     return m ? parseInt(m[1], 10) : null;
   }
 
-  /**
-   * Reconstruye el prefijo de cada table_id usando el folio actual,
-   * PRESERVANDO la secuencia T{n} existente. Solo asigna una secuencia
-   * nueva cuando el table_id está vacío o corrupto.
-   */
   private regenerarTableIds(): void {
     const folio = (this.certificado.cc || '').trim();
     const equipo = this.certificado.equipment_id || '';
 
-    // Actualizamos lastTableSeq con el máximo ya existente
     this.resultTables.forEach(t => {
       const n = this.extraerSecuenciaDeId(t.table_id);
       if (n !== null && n > this.lastTableSeq) this.lastTableSeq = n;
@@ -151,7 +166,6 @@ export class Editcert implements OnInit {
     });
   }
 
-  /** Genera el table_id para una NUEVA tabla (incrementa el contador). */
   private nuevoTableIdParaAgregar(): string {
     this.lastTableSeq++;
     const folio = (this.certificado.cc || '').trim();
@@ -159,7 +173,6 @@ export class Editcert implements OnInit {
   }
 
   // ========== CARGA DEL CERTIFICADO ==========
-
   cargarCertificadoPorId(id: string | number): void {
     this.cargando = true;
     this.certificadoService.obtenerCertificadoPorId(id).subscribe({
@@ -174,7 +187,6 @@ export class Editcert implements OnInit {
 
         const rawTables = certData.data?.['Result Tables'] || [];
 
-        // Reset del contador antes de reconstruir
         this.lastTableSeq = 0;
 
         if (Array.isArray(rawTables) && rawTables.length > 0) {
@@ -182,7 +194,6 @@ export class Editcert implements OnInit {
             title: table.title || '',
             equipment_id: table.equipment_id || this.certificado.equipment_id || '',
             cc_id: table.cc_id || this.certificado.cc || '',
-            // 🔑 preservamos el table_id que viene del backend
             table_id: table.table_id || '',
             cmc: table.cmc || '',
             parameter: table.parameter || '',
@@ -194,7 +205,6 @@ export class Editcert implements OnInit {
             rows: table.rows || []
           }));
 
-          // Sincroniza prefijo y calcula lastTableSeq desde los ids existentes
           this.regenerarTableIds();
         } else {
           this.resultTables = [this.crearEstructuraTablaInicial()];
@@ -203,11 +213,16 @@ export class Editcert implements OnInit {
         this.sincronizarJsonTexto();
         this.cargando = false;
         this.cdr.detectChanges();
+
+        this.alert.success(
+          `Certificado "${this.certificado.cc || id}" cargado correctamente.`,
+          'Cargado'
+        );
       },
       error: (err: any) => {
         console.error('Error al obtener certificado:', err);
         const msg = err.error?.message || 'Error al obtener la información del certificado.';
-        this.mostrarAlerta(msg, true);
+        this.alert.error(msg, 'Error al cargar');
         this.cargando = false;
         this.cdr.detectChanges();
       }
@@ -221,7 +236,6 @@ export class Editcert implements OnInit {
   }
 
   private crearEstructuraTablaInicial(): ResultTable {
-    // 🔑 La primera tabla de un certificado sin datos recibe la siguiente secuencia
     const tableId = this.nuevoTableIdParaAgregar();
     return {
       title: 'DC Voltage',
@@ -246,7 +260,6 @@ export class Editcert implements OnInit {
   }
 
   onTableChange(): void {
-    // 🔑 Se preserva la secuencia T{n} y se actualiza el prefijo del folio
     this.regenerarTableIds();
     this.sincronizarJsonTexto();
   }
@@ -267,13 +280,17 @@ export class Editcert implements OnInit {
     }
   }
 
-  private validarKey(key: string, table: ResultTable, columnaActual?: Column): { valido: boolean, mensaje?: string } {
+  private validarKey(
+    key: string,
+    table: ResultTable,
+    columnaActual?: Column
+  ): { valido: boolean; mensaje?: string } {
     const keyLimpio = key.trim().toLowerCase().replace(/\s+/g, '_');
     if (!keyLimpio) {
       return { valido: false, mensaje: 'El key no puede estar vacío.' };
     }
     if (!/^[a-z0-9_]+$/.test(keyLimpio)) {
-      return { valido: false, mensaje: 'El key solo puede contener letras minusculas, números y guión bajo.' };
+      return { valido: false, mensaje: 'El key solo puede contener letras minúsculas, números y guión bajo.' };
     }
     for (const col of table.columns) {
       if (columnaActual && col === columnaActual) continue;
@@ -301,7 +318,6 @@ export class Editcert implements OnInit {
           title: t.title || '',
           equipment_id: t.equipment_id || this.certificado.equipment_id || '',
           cc_id: t.cc_id || this.certificado.cc || '',
-          // 🔑 preservamos el table_id si el JSON lo trae
           table_id: t.table_id || '',
           cmc: t.cmc || '',
           parameter: t.parameter || '',
@@ -319,13 +335,13 @@ export class Editcert implements OnInit {
       }
 
       this.resultTables = tablasNuevas;
-      // 🔑 Recalcula lastTableSeq desde los ids preservados y rellena los faltantes
       this.regenerarTableIds();
       this.sincronizarJsonTexto();
-      this.mostrarAlerta('Las tablas han sido actualizadas desde el JSON correctamente.', false);
       this.cdr.detectChanges();
+
+      this.alert.success('Las tablas han sido actualizadas desde el JSON.', 'JSON aplicado');
     } catch (err: any) {
-      this.mostrarAlerta(`JSON Inválido: ${err.message}`, true);
+      this.alert.error(err?.message ?? 'JSON inválido', 'Error al parsear JSON');
     }
   }
 
@@ -346,15 +362,14 @@ export class Editcert implements OnInit {
 
   // ========== GESTIÓN DE TABLAS ==========
   agregarTabla(): void {
-    // 🔑 Asigna la SIGUIENTE secuencia disponible (no reutiliza ids)
     const nueva = this.crearEstructuraTablaInicial();
     this.resultTables.push(nueva);
     this.sincronizarJsonTexto();
+    this.alert.info(`Tabla #${this.resultTables.length} agregada.`, 'Nueva tabla');
   }
 
   eliminarTabla(indexTable: number): void {
     if (this.resultTables.length > 1) {
-      // 🔑 NO se reindexa: los T{n} de las tablas restantes se preservan
       this.resultTables.splice(indexTable, 1);
 
       // Re-indexar columnasParaLimpiar
@@ -373,6 +388,7 @@ export class Editcert implements OnInit {
       }
 
       this.sincronizarJsonTexto();
+      this.alert.warning(`Tabla #${indexTable + 1} eliminada.`, 'Tabla eliminada');
     }
   }
 
@@ -409,7 +425,7 @@ export class Editcert implements OnInit {
 
     const resultado = this.validarKey(nuevaKey, table, col);
     if (!resultado.valido) {
-      this.mostrarAlerta(`Key inválido: ${resultado.mensaje}`, true);
+      this.alert.error(resultado.mensaje ?? 'Key inválido', 'Key inválido');
       col.key = viejaKey;
       this.cdr.detectChanges();
       return;
@@ -474,7 +490,7 @@ export class Editcert implements OnInit {
 
   formatearTexto(): void {
     if (this.columnasParaLimpiar.size === 0) {
-      this.mostrarAlerta('Seleccione al menos una columna para formatear.', true);
+      this.alert.warning('Seleccione al menos una columna para formatear.', 'Sin columnas');
       return;
     }
 
@@ -500,11 +516,20 @@ export class Editcert implements OnInit {
     });
 
     this.sincronizarJsonTexto();
-    this.mostrarAlerta(
-      `Se limpiaron ${valoresLimpiados} valores correctamente.`,
-      valoresLimpiados === 0
-    );
+    this.modoEliminarTexto = false;
     this.cdr.detectChanges();
+
+    if (valoresLimpiados === 0) {
+      this.alert.warning(
+        'No se encontraron valores numéricos para formatear en las columnas seleccionadas.',
+        'Sin cambios'
+      );
+    } else {
+      this.alert.success(
+        `Se limpiaron ${valoresLimpiados} valor${valoresLimpiados === 1 ? '' : 'es'} correctamente.`,
+        'Formato aplicado'
+      );
+    }
   }
 
   // ============================================================
@@ -533,7 +558,7 @@ export class Editcert implements OnInit {
 
   separarColumna(): void {
     if (!this.columnaParaSeparar) {
-      this.mostrarAlerta('Selecciona una columna para separar.', true);
+      this.alert.warning('Selecciona una columna para separar.', 'Sin columna');
       return;
     }
 
@@ -545,7 +570,7 @@ export class Editcert implements OnInit {
     if (!colOriginal) return;
 
     let conSimbolo = 0;
-    const valoresSeparados: Array<{ a: number | null, b: number | null }> = [];
+    const valoresSeparados: Array<{ a: number | null; b: number | null }> = [];
 
     table.rows.forEach(row => {
       const valor = row[colOriginal.key];
@@ -567,9 +592,9 @@ export class Editcert implements OnInit {
     });
 
     if (conSimbolo === 0) {
-      this.mostrarAlerta(
-        `La columna "${colOriginal.label || colOriginal.key}" no contiene el símbolo "±" en ningún valor. No se puede separar.`,
-        true
+      this.alert.error(
+        `La columna "${colOriginal.label || colOriginal.key}" no contiene el símbolo "±" en ningún valor.`,
+        'No se puede separar'
       );
       return;
     }
@@ -608,12 +633,14 @@ export class Editcert implements OnInit {
     table.columns.splice(cIdx, 1, col1, col2);
 
     this.columnaParaSeparar = null;
+    this.modoSepararSimbolo = false;
     this.sincronizarJsonTexto();
-    this.mostrarAlerta(
-      `Columna separada correctamente en "col 1" y "col 2" (${conSimbolo} valor(es) con "±" procesados).`,
-      false
-    );
     this.cdr.detectChanges();
+
+    this.alert.success(
+      `Columna separada en "col 1" y "col 2" (${conSimbolo} valor${conSimbolo === 1 ? '' : 'es'} con "±" procesado${conSimbolo === 1 ? '' : 's'}).`,
+      'Separación completa'
+    );
   }
 
   // ========== GESTIÓN DE FILAS ==========
@@ -635,7 +662,6 @@ export class Editcert implements OnInit {
 
   // ========== CONSTRUCCIÓN DEL JSON ==========
   obtenerJsonEstructurado(): object {
-    // 🔑 Asegura que el prefijo de los ids esté sincronizado con el folio actual
     this.regenerarTableIds();
 
     const tablasProcesadas = this.resultTables.map(table => {
@@ -664,10 +690,8 @@ export class Editcert implements OnInit {
       });
 
       return {
-        // 🔑 Identificadores compuestos
         table_id: table.table_id,
         cc_id: this.certificado.cc || '',
-        // Datos descriptivos
         title: table.title || '',
         equipment_id: this.certificado.equipment_id,
         parameter: table.parameter || '',
@@ -680,9 +704,7 @@ export class Editcert implements OnInit {
       };
     });
 
-    return {
-      "Result Tables": tablasProcesadas
-    };
+    return { 'Result Tables': tablasProcesadas };
   }
 
   obtenerJsonString(): string {
@@ -692,6 +714,7 @@ export class Editcert implements OnInit {
   copiarJson(): void {
     navigator.clipboard.writeText(this.jsonInputText).then(() => {
       this.copiadoExitoso = true;
+      this.alert.success('JSON copiado al portapapeles.');
       setTimeout(() => {
         this.copiadoExitoso = false;
         this.cdr.detectChanges();
@@ -702,23 +725,25 @@ export class Editcert implements OnInit {
   // ========== VALIDACIONES ==========
   validarFormulario(): boolean {
     if (!this.certificado.equipment_id || !this.certificado.equipment_id.trim()) {
-      this.mostrarAlerta('El "ID del Equipo" es un campo obligatorio.', true);
+      this.alert.warning('El "ID del Equipo" es un campo obligatorio.', 'Campo requerido');
       return false;
     }
     if (!this.certificado.name_equipment || !this.certificado.name_equipment.trim()) {
-      this.mostrarAlerta('El "Nombre del Equipo" es un campo obligatorio.', true);
+      this.alert.warning('El "Nombre del Equipo" es un campo obligatorio.', 'Campo requerido');
       return false;
     }
-    // 🔑 El folio es necesario para construir table_id de forma trazable
     if (!this.certificado.cc || !this.certificado.cc.trim()) {
-      this.mostrarAlerta('El "Folio del Certificado (cc)" es un campo obligatorio.', true);
+      this.alert.warning('El "Folio del Certificado (cc)" es un campo obligatorio.', 'Campo requerido');
       return false;
     }
     if (this.certificado.date_cal && this.certificado.date_cc) {
       const fechaCal = new Date(this.certificado.date_cal);
       const fechaCc = new Date(this.certificado.date_cc);
       if (fechaCc < fechaCal) {
-        this.mostrarAlerta('La "Fecha del Certificado" no puede ser anterior a la "Fecha de Calibración".', true);
+        this.alert.warning(
+          'La "Fecha del Certificado" no puede ser anterior a la "Fecha de Calibración".',
+          'Fechas inválidas'
+        );
         return false;
       }
     }
@@ -728,18 +753,17 @@ export class Editcert implements OnInit {
       const numTable = i + 1;
 
       if (!table.title || !table.title.trim()) {
-        this.mostrarAlerta(`El título de la Tabla #${numTable} es obligatorio.`, true);
+        this.alert.warning(`El título de la Tabla #${numTable} es obligatorio.`);
         return false;
       }
       if (!table.parameter || !table.parameter.trim()) {
-        this.mostrarAlerta(`El parámetro de la Tabla #${numTable} es obligatorio.`, true);
+        this.alert.warning(`El parámetro de la Tabla #${numTable} es obligatorio.`);
         return false;
       }
-      // 🔑 table_id debe existir (regenerar por si acaso)
       if (!table.table_id) {
         this.regenerarTableIds();
         if (!table.table_id) {
-          this.mostrarAlerta(`No se pudo generar el ID de la Tabla #${numTable}.`, true);
+          this.alert.error(`No se pudo generar el ID de la Tabla #${numTable}.`);
           return false;
         }
       }
@@ -747,17 +771,19 @@ export class Editcert implements OnInit {
       const keys = table.columns.map(col => col.key.trim().toLowerCase().replace(/\s+/g, '_'));
       const uniqueKeys = new Set(keys);
       if (keys.length !== uniqueKeys.size) {
-        this.mostrarAlerta(`La Tabla #${numTable} tiene columnas con keys duplicados.`, true);
+        this.alert.error(`La Tabla #${numTable} tiene columnas con keys duplicados.`, 'Keys duplicados');
         return false;
       }
       for (const col of table.columns) {
         const keyLimpio = col.key.trim().toLowerCase().replace(/\s+/g, '_');
         if (!keyLimpio) {
-          this.mostrarAlerta(`La Tabla #${numTable} tiene una columna con key vacío.`, true);
+          this.alert.error(`La Tabla #${numTable} tiene una columna con key vacío.`);
           return false;
         }
         if (!/^[a-z0-9_]+$/.test(keyLimpio)) {
-          this.mostrarAlerta(`La Tabla #${numTable} tiene un key con caracteres no permitidos: "${col.key}".`, true);
+          this.alert.error(
+            `La Tabla #${numTable} tiene un key con caracteres no permitidos: "${col.key}".`
+          );
           return false;
         }
       }
@@ -765,26 +791,11 @@ export class Editcert implements OnInit {
     return true;
   }
 
-  mostrarAlerta(mensaje: string, esError: boolean): void {
-    this.mensajeRespuesta = mensaje;
-    this.esError = esError;
-    this.cdr.detectChanges();
-
-    if (esError) {
-      setTimeout(() => {
-        this.mensajeRespuesta = null;
-        this.cdr.detectChanges();
-      }, 5000);
-    }
-  }
-
   // ========== GUARDAR ==========
   guardarCertificado(): void {
-    if (!this.validarFormulario()) {
-      return;
-    }
+    if (this.cargando) return;
+    if (!this.validarFormulario()) return;
 
-    // 🔑 Sincroniza ids con el folio/equipo actuales antes de enviar
     this.regenerarTableIds();
     this.sincronizarJsonTexto();
 
@@ -798,16 +809,24 @@ export class Editcert implements OnInit {
     const certId = this.certificado.id || this.id;
 
     if (!certId) {
-      this.mostrarAlerta('No se pudo determinar el ID del certificado a actualizar.', true);
+      this.alert.error('No se pudo determinar el ID del certificado a actualizar.', 'Error');
       return;
     }
 
     this.cargando = true;
+    this.cdr.detectChanges();
+
     this.certificadoService.actualizarCertificado(certId, payload).subscribe({
       next: () => {
         this.cargando = false;
         this.guardandoExitoso = true;
-        this.mostrarAlerta('¡Certificado actualizado correctamente! Redirigiendo...', false);
+        this.salirSinConfirmar = true;   // 🚩 no preguntar al guard
+        this.cdr.detectChanges();
+
+        this.alert.success(
+          '¡Certificado actualizado correctamente! Redirigiendo…',
+          'Guardado'
+        );
 
         setTimeout(() => {
           this.router.navigate(['/listcert']);
@@ -815,16 +834,84 @@ export class Editcert implements OnInit {
       },
       error: (err: any) => {
         this.cargando = false;
+        this.cdr.detectChanges();
         const msg = err.error?.message || 'Error al actualizar el certificado en la base de datos.';
-        this.mostrarAlerta(msg, true);
+        this.alert.error(msg, 'Error al guardar');
       }
     });
   }
 
-  cancelar(): void {
-    this.mostrarAlerta('Operación cancelada por el usuario.', true);
+  // ========== CANCELAR ==========
+  async cancelar(): Promise<void> {
+    // 🔑 Si hay cambios, confirmar antes de salir
+    if (!this.salirSinConfirmar && this.tieneCambios()) {
+      const ok = await this.alert.confirm(
+        'Los cambios que no hayas guardado se perderán. ¿Deseas salir de todas formas?',
+        '⚠ Cambios sin guardar',
+        {
+          type: 'warning',
+          confirmText: 'Sí, salir',
+          cancelText: 'Seguir editando',
+          dismissible: false,
+        }
+      );
+      if (!ok) return;
+    }
+
+    this.salirSinConfirmar = true;
+    this.alert.info('Operación cancelada por el usuario.', 'Cancelado');
     setTimeout(() => {
       this.router.navigate(['/listcert']);
-    }, 2000);
+    }, 1200);
+  }
+
+  // ================================================================
+  //  🚪 GUARD · Confirmación antes de cambiar de página
+  // ================================================================
+  private tieneCambios(): boolean {
+    if (!this.certificado) return false;
+
+    const c = this.certificado;
+    if (c.equipment_id || c.name_equipment || c.cc || c.comments || c.entity) {
+      return true;
+    }
+
+    for (const t of this.resultTables) {
+      if (t.calibration_equation || t.range || t.comments) return true;
+      const tieneFilas = t.rows.some(row =>
+        Object.values(row).some(v => v !== null && v !== '' && v !== undefined)
+      );
+      if (tieneFilas) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Invocado por `pendingChangesGuard`.
+   * Devuelve `true` para permitir la navegación, `false` para bloquearla.
+   */
+  async puedeSalir(): Promise<boolean> {
+    if (this.salirSinConfirmar) return true;
+    if (this.guardMostrando) return false;
+    if (!this.tieneCambios()) return true;
+
+    this.guardMostrando = true;
+    try {
+      const ok = await this.alert.confirm(
+        'Si sales ahora, los cambios que no hayas guardado se perderán. ¿Deseas salir de todas formas?',
+        '⚠ Cambios sin guardar',
+        {
+          type: 'warning',
+          confirmText: 'Sí, salir',
+          cancelText: 'Quedarme',
+          dismissible: false,
+        }
+      );
+
+      if (ok) this.salirSinConfirmar = true;
+      return ok;
+    } finally {
+      this.guardMostrando = false;
+    }
   }
 }

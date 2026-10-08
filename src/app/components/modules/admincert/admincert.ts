@@ -1,9 +1,10 @@
-import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { CertService } from '../../../services/cert.service';
 import { Certificado, ApiResponse } from '../../../models/certificado.models';
+import { AlertService } from '../../../services/alert.service';
 
 @Component({
   selector: 'app-admincert',
@@ -13,20 +14,24 @@ import { Certificado, ApiResponse } from '../../../models/certificado.models';
   styleUrl: './admincert.css',
 })
 export class admincert implements OnInit {
+
+  private readonly alert = inject(AlertService);
+
   // Contraseña de protección (cambiar según necesidad)
   private readonly PASSWORD = 'admin';
 
   // Lista de certificados
   listaCertificados: Certificado[] = [];
 
-  // Estados de carga y mensajes
-  cargando: boolean = false;
-  mensajeError: string | null = null;
-  mensajeExito: string | null = null;
+  // Estado de carga
+  cargando = false;
 
-  // Filtros de búsqueda (opcional)
-  textoBusqueda: string = '';
+  // Filtros de búsqueda
+  textoBusqueda = '';
   filtroEstado: 'todos' | 'activos' | 'inactivos' = 'todos';
+
+  // Bandera para evitar doble eliminación
+  private eliminando: Set<string | number> = new Set();
 
   constructor(
     private certService: CertService,
@@ -35,34 +40,46 @@ export class admincert implements OnInit {
   ) {}
 
   ngOnInit(): void {
-    // Verificar contraseña antes de cargar cualquier dato
     this.verificarPassword();
   }
 
-  /**
-   * Solicita la contraseña al usuario mediante prompt.
-   * Si es correcta, carga los certificados.
-   * Si es incorrecta, redirige a la lista de certificados.
-   */
-  verificarPassword(): void {
-    const pass = prompt('🔒 Ingrese la contraseña para acceder a la administración de eliminación:');
+  // Solicita la contraseña al usuario; si es correcta carga los certificados
+  async verificarPassword(): Promise<void> {
+    const pass = await this.alert.prompt(
+      'Ingrese la contraseña para acceder a la administración de certificados.',
+      'Acceso restringido',
+      {
+        type: 'question',
+        confirmText: 'Acceder',
+        cancelText: 'Cancelar',
+        dismissible: false,
+        prompt: {
+          placeholder: 'Contraseña…',
+          defaultValue: '',
+          inputType: 'password',   // 👈 Aquí
+        },
+      }
+    );
+
+    if (pass === null) {
+      this.alert.info('Acceso cancelado.', 'Saliendo');
+      this.router.navigate(['/listcert']);
+      return;
+    }
+
     if (pass === this.PASSWORD) {
-      // Contraseña correcta, cargar certificados
+      this.alert.success('Acceso concedido.', 'Bienvenido');
       this.obtenerCertificados();
     } else {
-      // Contraseña incorrecta o cancelada
-      alert('Contraseña incorrecta. Acceso denegado.');
-      this.router.navigate(['/viewcert']);
+      this.alert.error('Contraseña incorrecta. Acceso denegado.', 'Acceso denegado');
+      this.router.navigate(['/listcert']);
     }
   }
 
-  /**
-   * Obtiene todos los certificados desde el servicio.
-   */
+  // Obtiene todos los certificados desde el servicio
   obtenerCertificados(): void {
     this.cargando = true;
-    this.mensajeError = null;
-    this.mensajeExito = null;
+    this.cdr.detectChanges();
 
     this.certService.obtenerCertificados().subscribe({
       next: (res: ApiResponse<Certificado[]>) => {
@@ -73,28 +90,36 @@ export class admincert implements OnInit {
         } else {
           this.listaCertificados = [];
         }
+
         this.cargando = false;
         this.cdr.detectChanges();
+
+        if (this.listaCertificados.length > 0) {
+          this.alert.success(
+            `Se cargaron ${this.listaCertificados.length} certificado${this.listaCertificados.length === 1 ? '' : 's'}.`,
+            'Lista actualizada'
+          );
+        } else {
+          this.alert.info('No hay certificados registrados todavía.', 'Sin datos');
+        }
       },
       error: (err: any) => {
         console.error('Error al obtener certificados:', err);
-        this.mensajeError = err.error?.message || 'Error al conectar con la base de datos.';
         this.cargando = false;
         this.cdr.detectChanges();
+
+        const msg = err.error?.message || 'Error al conectar con la base de datos.';
+        this.alert.error(msg, 'Error al cargar certificados');
       },
     });
   }
 
-  /**
-   * Getter para filtrar la lista según búsqueda y estado.
-   */
+  // Getter que filtra la lista según búsqueda y estado
   get certificadosFiltrados(): Certificado[] {
     return this.listaCertificados.filter((cert) => {
-      // Filtro por estado
       if (this.filtroEstado === 'activos' && !cert.active) return false;
       if (this.filtroEstado === 'inactivos' && cert.active) return false;
 
-      // Filtro por texto de búsqueda
       if (!this.textoBusqueda.trim()) return true;
 
       const termino = this.textoBusqueda.toLowerCase().trim();
@@ -107,45 +132,63 @@ export class admincert implements OnInit {
     });
   }
 
-  /**
-   * Elimina un certificado por su ID con confirmación del usuario.
-   */
-  eliminarCertificado(id: number | string | undefined): void {
+  // Elimina un certificado por su ID con confirmación previa del usuario
+  async eliminarCertificado(id: number | string | undefined): Promise<void> {
     if (!id) {
-      this.mensajeError = 'ID de certificado no válido.';
+      this.alert.warning('ID de certificado no válido.', 'Sin ID');
       return;
     }
 
-    // Buscar el certificado para mostrar información en la confirmación
+    if (this.eliminando.has(id)) return;
+
     const cert = this.listaCertificados.find(c => c.id === id);
     const identificador = cert ? (cert.cc || cert.equipment_id || id) : id;
 
-    const confirmado = window.confirm(
-      `¿Estás seguro de que deseas eliminar el certificado "${identificador}"?\nEsta acción no se puede deshacer.`
+    const confirmado = await this.alert.confirm(
+      `Se eliminará permanentemente el certificado "${identificador}". Esta acción no se puede deshacer.`,
+      'Eliminar certificado',
+      {
+        type: 'error',
+        confirmText: 'Sí, eliminar',
+        cancelText: 'Cancelar',
+        dismissible: false,
+      }
     );
-    if (!confirmado) return;
 
+    if (!confirmado) {
+      this.alert.info('Eliminación cancelada.', 'Sin cambios');
+      return;
+    }
+
+    this.eliminando.add(id);
     this.cargando = true;
+    this.cdr.detectChanges();
+
     this.certService.eliminarCertificado(id).subscribe({
       next: () => {
-        this.mensajeExito = `Certificado "${identificador}" eliminado correctamente.`;
-        // Eliminar de la lista local para actualizar la vista
         this.listaCertificados = this.listaCertificados.filter(c => c.id !== id);
+        this.eliminando.delete(id);
         this.cargando = false;
         this.cdr.detectChanges();
+
+        this.alert.success(
+          `Certificado "${identificador}" eliminado correctamente.`,
+          'Eliminado'
+        );
       },
       error: (err: any) => {
         console.error('Error al eliminar certificado:', err);
-        this.mensajeError = err.error?.message || 'No se pudo eliminar el certificado.';
+        this.eliminando.delete(id);
         this.cargando = false;
         this.cdr.detectChanges();
+
+        const msg = err.error?.message || 'No se pudo eliminar el certificado.';
+        this.alert.error(msg, 'Error al eliminar');
       },
     });
   }
 
-  /**
-   * Navega de vuelta a la vista principal de certificados.
-   */
+  // Navega de vuelta a la vista principal de certificados
   volver(): void {
     this.router.navigate(['/listcert']);
   }

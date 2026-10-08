@@ -39,7 +39,7 @@ export class AlertService implements OnDestroy {
 
   private config: AlertServiceConfig = {
     position:     'top-right',
-    duration:     4000,
+    duration:     5000,
     maxVisible:   5,
     pauseOnHover: true,
     showProgress: true,

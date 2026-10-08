@@ -128,11 +128,12 @@
 
           @if (isPrompt()) {
             <input #promptInput
-                   type="text"
-                   class="nga-modal-input"
-                   [placeholder]="data().prompt?.placeholder || ''"
-                   [(ngModel)]="promptValue"
-                   (keydown.enter)="confirm()">
+                  [type]="data().prompt?.inputType || 'text'"
+                  class="nga-modal-input"
+                  [placeholder]="data().prompt?.placeholder || ''"
+                  autocomplete="off"
+                  [(ngModel)]="promptValue"
+                  (keydown.enter)="confirm()">
           }
         </div>
       </div>

@@ -307,36 +307,44 @@
                       </select>
 
                       <!-- ============================================ -->
-                      <!-- Pill de selección: Limpiar texto              -->
+                      <!-- Pill: Limpiar texto (más llamativa)          -->
                       <!-- ============================================ -->
-                      <div
+                      <button
                         *ngIf="modoEliminarTexto"
-                        class="text-center py-1 px-2 rounded"
+                        type="button"
+                        class="w-100 mt-1 d-flex align-items-center justify-content-center gap-2 py-2 px-2 rounded-3 fw-bold border-2"
                         [ngClass]="esColumnaSeleccionada(i, j)
-                          ? 'bg-warning text-dark fw-bold'
-                          : 'bg-light text-secondary border'"
+                          ? 'bg-warning text-dark shadow border-warning'
+                          : 'bg-warning bg-opacity-10 text-dark border-warning'"
+                        [style.border-style]="esColumnaSeleccionada(i, j) ? 'solid' : 'dashed'"
+                        [style.transform]="esColumnaSeleccionada(i, j) ? 'scale(1.05)' : 'scale(1)'"
+                        [style.box-shadow]="esColumnaSeleccionada(i, j) ? '0 0 0 3px rgba(255,193,7,.35)' : 'none'"
                         (click)="toggleColumnaLimpiar(i, j)"
-                        style="cursor: pointer; user-select: none; font-size: 0.72rem; transition: all .15s ease;"
+                        style="cursor: pointer; font-size: 0.85rem; transition: all .18s ease; letter-spacing: .3px;"
                         title="Clic para seleccionar/deseleccionar esta columna">
-                        <span class="me-1">{{ esColumnaSeleccionada(i, j) ? '✓' : '＋' }}</span>
-                        <span>Limpiar texto</span>
-                      </div>
+                        <span class="fs-6">{{ esColumnaSeleccionada(i, j) ? '✅' : '🎯' }}</span>
+                        <span>{{ esColumnaSeleccionada(i, j) ? 'Seleccionada' : 'Limpiar texto' }}</span>
+                      </button>
 
                       <!-- ============================================ -->
-                      <!-- Pill de selección: Separar ± (solo una)      -->
+                      <!-- Pill: Separar ± (más llamativa)              -->
                       <!-- ============================================ -->
-                      <div
+                      <button
                         *ngIf="modoSepararSimbolo"
-                        class="text-center py-1 px-2 rounded"
+                        type="button"
+                        class="w-100 mt-1 d-flex align-items-center justify-content-center gap-2 py-2 px-2 rounded-3 fw-bold border-2"
                         [ngClass]="esColumnaParaSeparar(i, j)
-                          ? 'bg-info text-white fw-bold'
-                          : 'bg-light text-secondary border'"
+                          ? 'bg-info text-white shadow border-info'
+                          : 'bg-info bg-opacity-10 text-dark border-info'"
+                        [style.border-style]="esColumnaParaSeparar(i, j) ? 'solid' : 'dashed'"
+                        [style.transform]="esColumnaParaSeparar(i, j) ? 'scale(1.05)' : 'scale(1)'"
+                        [style.box-shadow]="esColumnaParaSeparar(i, j) ? '0 0 0 3px rgba(13,202,240,.35)' : 'none'"
                         (click)="seleccionarColumnaParaSeparar(i, j)"
-                        style="cursor: pointer; user-select: none; font-size: 0.72rem; transition: all .15s ease;"
+                        style="cursor: pointer; font-size: 0.85rem; transition: all .18s ease; letter-spacing: .3px;"
                         title="Clic para seleccionar esta columna (solo una a la vez)">
-                        <span class="me-1">{{ esColumnaParaSeparar(i, j) ? '◉' : '○' }}</span>
-                        <span>Separar ±</span>
-                      </div>
+                        <span class="fs-6">{{ esColumnaParaSeparar(i, j) ? '✅' : '✂️' }}</span>
+                        <span>{{ esColumnaParaSeparar(i, j) ? 'Seleccionada' : 'Separar ±' }}</span>
+                      </button>
                     </div>
                   </th>
                   <th style="width: 50px;" class="text-center align-middle"></th>
@@ -442,16 +450,6 @@
           style="resize: vertical; font-size: 0.9rem;"></textarea>
       </div>
     </div>
-  </div>
-
-  <!-- Alerta única -->
-  <div *ngIf="mensajeRespuesta"
-    class="alert alert-dismissible fade show shadow position-fixed"
-    [ngClass]="esError ? 'alert-danger' : 'alert-success'"
-    style="top: 80px; right: 20px; z-index: 1050; min-width: 320px; max-width: 520px;"
-    role="alert">
-    <strong>{{ esError ? '¡Atención!' : '¡Éxito!' }}</strong> {{ mensajeRespuesta }}
-    <button type="button" class="btn-close" (click)="mensajeRespuesta = null" aria-label="Close"></button>
   </div>
 
   <!-- Botones de Acción -->

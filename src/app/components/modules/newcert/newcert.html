@@ -455,26 +455,39 @@
             </div>
 
             <!-- Checkbox "La imagen tiene encabezado" -->
-            <div class="form-check mb-3 p-2 bg-light rounded border">
-              <input
-                [id]="'tieneEncabezado' + i"
-                type="checkbox"
-                class="form-check-input"
-                [(ngModel)]="imageStates[i].tieneEncabezado">
-              <label class="form-check-label fw-semibold" [for]="'tieneEncabezado' + i">
-                La imagen tiene encabezado
-                <small class="text-muted d-block">
+            <label
+              class="d-flex align-items-center justify-content-between gap-3 mb-3 p-3 bg-light rounded border user-select-none"
+              [for]="'tieneEncabezado' + i"
+              style="cursor: pointer; transition: all .15s;"
+              [class.border-primary]="imageStates[i].tieneEncabezado"
+              [class.bg-primary-subtle]="imageStates[i].tieneEncabezado">
+
+              <div class="flex-grow-1">
+                <div class="fw-semibold d-flex align-items-center gap-2">
+                  <span>📋 La imagen tiene encabezado</span>
+                  <span
+                    class="badge"
+                    [class.bg-success]="imageStates[i].tieneEncabezado"
+                    [class.bg-secondary]="!imageStates[i].tieneEncabezado">
+                    {{ imageStates[i].tieneEncabezado ? 'Sí' : 'No' }}
+                  </span>
+                </div>
+                <small class="text-muted d-block mt-1">
                   Si la desmarcas, la primera fila extraída se tratará como datos y los encabezados
                   serán generados como <code>col_1</code>, <code>col_2</code>, ... <code>col_n</code>.
                 </small>
-              </label>
-            </div>
+              </div>
 
-            <!-- Alerta de advertencia secundaria -->
-            <div *ngIf="mensajeAlerta" class="alert alert-warning mt-3 alert-dismissible fade show shadow-sm"
-              role="alert">
-              {{ mensajeAlerta }}
-            </div>
+              <div class="form-check form-switch m-0">
+                <input
+                  [id]="'tieneEncabezado' + i"
+                  type="checkbox"
+                  role="switch"
+                  class="form-check-input m-0"
+                  style="width: 2.5rem; height: 1.25rem;"
+                  [(ngModel)]="imageStates[i].tieneEncabezado">
+              </div>
+            </label>
 
             <!-- Área de Pegado (visible solo mientras NO haya imagen) -->
             <div
@@ -586,20 +599,6 @@
       </div>
     </div>
   </div>
-
-  <!-- ============================================= -->
-  <!-- Alerta ÚNICA (toast fijo, siempre visible)    -->
-  <!-- ============================================= -->
-  <div
-    *ngIf="mensajeRespuesta"
-    class="alert alert-dismissible fade show shadow position-fixed"
-    [ngClass]="esError ? 'alert-danger' : 'alert-success'"
-    style="top: 80px; right: 20px; z-index: 1050; min-width: 320px; max-width: 520px;"
-    role="alert">
-    <strong>{{ esError ? '¡Atención!' : '¡Éxito!' }}</strong> {{ mensajeRespuesta }}
-    <button type="button" class="btn-close" (click)="mensajeRespuesta = null" aria-label="Close"></button>
-  </div>
-
   <!-- Botón de Guardado -->
   <div class="d-flex justify-content-end my-4">
     <button

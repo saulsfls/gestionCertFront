@@ -29,6 +29,7 @@ export interface AlertData {
   prompt?: {
     defaultValue?: string;
     placeholder?: string;
+    inputType?: 'text' | 'password' | 'email' | 'number' | 'tel' | 'url';
   };
 }
 

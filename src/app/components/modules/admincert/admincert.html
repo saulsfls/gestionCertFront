@@ -9,16 +9,6 @@
     </button>
   </div>
 
-  <!-- Alertas -->
-  <div *ngIf="mensajeError" class="alert alert-danger alert-dismissible fade show shadow-sm">
-    {{ mensajeError }}
-    <button type="button" class="btn-close" (click)="mensajeError = null"></button>
-  </div>
-  <div *ngIf="mensajeExito" class="alert alert-success alert-dismissible fade show shadow-sm">
-    {{ mensajeExito }}
-    <button type="button" class="btn-close" (click)="mensajeExito = null"></button>
-  </div>
-
   <!-- Panel de búsqueda y filtros -->
   <div class="card shadow-sm mb-4">
     <div class="card-body">

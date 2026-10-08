@@ -1,13 +1,11 @@
-import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
-import { CertService } from '../../..//services/cert.service';
+import { CertService } from '../../../services/cert.service';
 import { FormsModule } from '@angular/forms';
+import { AlertService } from '../../../services/alert.service';
 import * as XLSX from 'xlsx';
-import {
-  Certificado,
-  ResultTable,
-} from '../../../models/certificado.models';
+import { Certificado, ResultTable } from '../../../models/certificado.models';
 import { finalize } from 'rxjs/operators';
 
 export type FiltroEstado = 'todos' | 'activos' | 'inactivos';
@@ -20,6 +18,9 @@ export type FiltroEstado = 'todos' | 'activos' | 'inactivos';
   styleUrl: './viewcert.css',
 })
 export class Viewcert implements OnInit {
+
+  private readonly alert = inject(AlertService);
+
   certificado: Certificado | null = null;
   resultTables: ResultTable[] = [];
   loading = false;
@@ -38,6 +39,7 @@ export class Viewcert implements OnInit {
       this.loadDetail(id);
     } else {
       this.errorMsg = 'No certificate ID provided.';
+      this.alert.error('No se proporcionó un ID de certificado.', 'Error de navegación');
     }
   }
 
@@ -60,12 +62,12 @@ export class Viewcert implements OnInit {
           const data: Certificado = res.data || res;
           if (!data) {
             this.errorMsg = 'No certificate data received.';
+            this.alert.error('No se recibieron datos del certificado.', 'Sin datos');
             return;
           }
           this.certificado = data;
 
-          // Look for "Result Tables" (English) or fallback to "Tablas de resultados"
-          const tablesData = data.data?.['Result Tables'] ||[];
+          const tablesData = data.data?.['Result Tables'] || [];
           if (tablesData && Array.isArray(tablesData)) {
             this.resultTables = tablesData.map((t: any) => ({
               title: t.title || '',
@@ -88,6 +90,7 @@ export class Viewcert implements OnInit {
         },
         error: (err) => {
           this.errorMsg = err.error?.message || 'Error loading the certificate.';
+          this.alert.error(this.errorMsg ?? 'Error al cargar el certificado.', 'Error');
         }
       });
   }
@@ -98,104 +101,129 @@ export class Viewcert implements OnInit {
 
   exportToExcel(): void {
     if (!this.certificado) {
-      alert('No certificate data to export.');
+      this.alert.warning('No hay datos del certificado para exportar.', 'Sin datos');
       return;
     }
 
-    const wb = XLSX.utils.book_new();
+    try {
+      const wb = XLSX.utils.book_new();
+      const sheetData: any[][] = [];
 
-    // Build a single sheet with all content
-    const sheetData: any[][] = [];
-
-    // --- Section: Certificate Summary ---
-    sheetData.push(['CERTIFICATE SUMMARY']);
-    sheetData.push([]); // blank row
-
-    // Certificate data as key-value pairs
-    const summaryFields = [
-      ['ID', this.certificado.id || ''],
-      ['Equipment ID', this.certificado.equipment_id || ''],
-      ['Equipment Name', this.certificado.name_equipment || ''],
-      ['Folio / CC', this.certificado.cc || ''],
-      ['Calibration Date', this.certificado.date_cal || ''],
-      ['Certificate Date', this.certificado.date_cc || ''],
-      ['Issuing Entity', this.certificado.entity || ''],
-      ['Certificate Type', this.certificado.cert_type || ''],
-      ['Comments', this.certificado.comments || ''],
-      ['Active', this.certificado.active ? 'Yes' : 'No']
-    ];
-
-    summaryFields.forEach(([key, value]) => {
-      sheetData.push([key, value]);
-    });
-
-    // If there are result tables, add them
-    if (this.resultTables.length > 0) {
-      sheetData.push([]); // blank row
-      sheetData.push(['RESULT TABLES']);
-      sheetData.push([]); // blank row
-
-      this.resultTables.forEach((table, idx) => {
-        // Table title
-        const title = table.title || `Table ${idx + 1}`;
-        sheetData.push([`${title}`]);
-        sheetData.push([]); // blank row
-
-        // Metadata as key-value pairs
-        const metadata = [
-          ['Parameter', table.parameter || ''],
-          ['Unit', table.unit || ''],
-          ['Range', table.range || ''],
-          ['Calibration Equation', table.calibration_equation || ''],
-          ['Comments', table.comments || '']
-        ];
-        metadata.forEach(([key, value]) => {
-          sheetData.push([key, value]);
-        });
-
-        sheetData.push([]); // blank row before column headers
-
-        // Column headers
-        const headers = table.columns.map(col => col.label + (col.unit ? ` (${col.unit})` : ''));
-        sheetData.push(headers);
-
-        // Data rows
-        if (table.rows.length > 0) {
-          table.rows.forEach(row => {
-            const rowData = table.columns.map(col => {
-              const val = row[col.key];
-              return val !== undefined && val !== null ? val : '';
-            });
-            sheetData.push(rowData);
-          });
-        } else {
-          sheetData.push(['No records']);
-        }
-
-        // Blank row between tables (except after the last one)
-        if (idx < this.resultTables.length - 1) {
-          sheetData.push([]);
-          sheetData.push([]); // double space for separation
-        }
-      });
-    } else {
+      // Resumen del certificado
+      sheetData.push(['RESUMEN DEL CERTIFICADO']);
       sheetData.push([]);
-      sheetData.push(['No result tables associated.']);
+
+      const c = this.certificado;
+
+      const summaryFields: Array<[string, any]> = [
+        ['ID', c.id ?? ''],
+        ['Equipment ID', c.equipment_id ?? ''],
+        ['Nombre del Equipo', c.name_equipment ?? ''],
+        ['Folio / CC', c.cc ?? ''],
+        ['Fecha de Calibración', c.date_cal ?? ''],
+        ['Fecha del Certificado', c.date_cc ?? ''],
+        ['Intervalo de Calibración', c.calibration_interval ?? ''],
+        ['Resolución', c.resolution ?? ''],
+        ['Entidad Emisora', c.entity ?? ''],
+        ['Tipo de Certificado', c.cert_type ?? ''],
+        ['Comentarios', c.comments ?? ''],
+        ['Activo', c.active ? 'Sí' : 'No'],
+      ];
+
+      summaryFields.forEach(([key, value]) => {
+        sheetData.push([key, value]);
+      });
+
+      // Tablas de resultados
+      if (this.resultTables.length > 0) {
+        sheetData.push([]);
+        sheetData.push([]);
+        sheetData.push(['TABLAS DE RESULTADOS']);
+        sheetData.push([]);
+
+        this.resultTables.forEach((table, idx) => {
+          const tableTitle = table.title || `Tabla ${idx + 1}`;
+          sheetData.push([`Tabla #${idx + 1}: ${tableTitle}`]);
+          sheetData.push([]);
+
+          const metadata: Array<[string, any]> = [
+            ['Table ID', table.table_id ?? ''],
+            ['CC ID', table.cc_id ?? ''],
+            ['Equipment ID', table.equipment_id ?? ''],
+            ['Título', table.title ?? ''],
+            ['Parámetro', table.parameter ?? ''],
+            ['Unidad', table.unit ?? ''],
+            ['Rango', table.range ?? ''],
+            ['Ecuación de Calibración', table.calibration_equation ?? ''],
+            ['Comentarios', table.comments ?? ''],
+          ];
+
+          metadata.forEach(([key, value]) => {
+            sheetData.push([key, value]);
+          });
+
+          sheetData.push([]);
+
+          const headers = table.columns.map(col => {
+            const label = col.label || col.key || '';
+            const unit = col.unit ? ` (${col.unit})` : '';
+            const type = col.type ? ` [${col.type}]` : '';
+            return `${label}${unit}${type}`;
+          });
+          sheetData.push(headers);
+
+          if (table.rows.length > 0) {
+            table.rows.forEach(row => {
+              const rowData = table.columns.map(col => {
+                const val = row[col.key];
+                return val !== undefined && val !== null ? val : '';
+              });
+              sheetData.push(rowData);
+            });
+          } else {
+            sheetData.push(['Sin registros']);
+          }
+
+          if (idx < this.resultTables.length - 1) {
+            sheetData.push([]);
+            sheetData.push([]);
+          }
+        });
+      } else {
+        sheetData.push([]);
+        sheetData.push(['No hay tablas de resultados asociadas.']);
+      }
+
+      const ws = XLSX.utils.aoa_to_sheet(sheetData);
+
+      const maxCols = Math.max(...sheetData.map(r => r.length), 0);
+      const colWidths: Array<{ wch: number }> = [];
+
+      for (let i = 0; i < maxCols; i++) {
+        let maxLen = 12;
+        sheetData.forEach(row => {
+          const cell = row[i];
+          if (cell === undefined || cell === null) return;
+          const len = String(cell).length;
+          if (len > maxLen) maxLen = Math.min(len, 50);
+        });
+        colWidths.push({ wch: maxLen + 2 });
+      }
+      ws['!cols'] = colWidths;
+
+      ws['!freeze'] = { xSplit: 0, ySplit: 3 };
+
+      XLSX.utils.book_append_sheet(wb, ws, 'Certificado');
+
+      const safeId = String(c.equipment_id || c.cc || c.id || 'cert').replace(/[^\w\-]+/g, '_');
+      const fileName = `Certificado_${safeId}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+
+      this.alert.success(`Certificado exportado como "${fileName}".`, 'Excel generado');
+
+    } catch (err: any) {
+      console.error('Error al exportar a Excel:', err);
+      this.alert.error('No se pudo generar el archivo Excel.', 'Error de exportación');
     }
-
-    // Create worksheet from the rows
-    const ws = XLSX.utils.aoa_to_sheet(sheetData);
-
-    // Adjust column widths (optional)
-    const maxCols = Math.max(...sheetData.map(row => row.length), 0);
-    const colWidths = Array(maxCols).fill({ wch: 25 });
-    ws['!cols'] = colWidths;
-
-    // Append the sheet to the workbook
-    XLSX.utils.book_append_sheet(wb, ws, 'Certificate');
-
-    // Save file
-    const fileName = `Certificate_${this.certificado.equipment_id || 'detail'}.xlsx`;
-    XLSX.writeFile(wb, fileName);
   }
 }

@@ -1,7 +1,305 @@
-<div class="d-flex flex-wrap gap-2 p-4">
-  <button class="btn btn-success" (click)="alert.success('Guardado', 'Éxito')">Success</button>
-  <button class="btn btn-danger"  (click)="alert.error('Falló', 'Error')">Error</button>
-  <button class="btn btn-warning" (click)="alert.warning('Cuidado', 'Atención')">Warning</button>
-  <button class="btn btn-info"    (click)="alert.info('Nuevo dato', 'Info')">Info</button>
-  <button class="btn btn-primary" (click)="preguntar()">Pregunta</button>
+<div class="container py-4">
+
+  <header class="mb-4">
+    <h1 class="h3 fw-bold mb-1">Demo · AlertService</h1>
+    <p class="text-body-secondary mb-0">
+      Todas las opciones del servicio de alertas en un solo lugar.
+    </p>
+  </header>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       SECCIÓN 1 · ATAJOS RÁPIDOS
+       ═══════════════════════════════════════════════════════════ -->
+  <section class="card mb-4">
+    <div class="card-header fw-semibold">1 · Atajos rápidos</div>
+    <div class="card-body d-flex flex-wrap gap-2">
+      <button class="btn btn-success" (click)="toastSuccess()">
+        <i class="bi bi-check-lg me-1"></i> success()
+      </button>
+      <button class="btn btn-danger" (click)="toastError()">error()</button>
+      <button class="btn btn-warning" (click)="toastWarning()">warning()</button>
+      <button class="btn btn-info" (click)="toastInfo()">info()</button>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       SECCIÓN 2 · CONFIGURACIÓN GLOBAL
+       ═══════════════════════════════════════════════════════════ -->
+  <section class="card mb-4">
+    <div class="card-header fw-semibold">2 · Configuración global</div>
+    <div class="card-body">
+
+      <div class="row g-3">
+
+        <div class="col-md-4">
+          <label class="form-label">Posición</label>
+          <select class="form-select" [(ngModel)]="config.position">
+            @for (p of positions; track p) {
+              <option [value]="p">{{ p }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="col-md-4">
+          <label class="form-label">
+            Duración <span class="text-body-secondary">(ms, 0 = sin auto-cierre)</span>
+          </label>
+          <input type="number" class="form-control"
+                 [(ngModel)]="config.duration" min="0" step="500">
+        </div>
+
+        <div class="col-md-4">
+          <label class="form-label">Máximo visible</label>
+          <input type="number" class="form-control"
+                 [(ngModel)]="config.maxVisible" min="1" max="10">
+        </div>
+
+        <div class="col-12">
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="cfgProgress"
+                   [(ngModel)]="config.showProgress">
+            <label class="form-check-label" for="cfgProgress">
+              Mostrar barra de progreso
+            </label>
+          </div>
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="cfgClose"
+                   [(ngModel)]="config.closeButton">
+            <label class="form-check-label" for="cfgClose">
+              Mostrar botón de cerrar
+            </label>
+          </div>
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="cfgPause"
+                   [(ngModel)]="config.pauseOnHover">
+            <label class="form-check-label" for="cfgPause">
+              Pausar al pasar el mouse
+            </label>
+          </div>
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="cfgDismiss"
+                   [(ngModel)]="config.dismissible">
+            <label class="form-check-label" for="cfgDismiss">
+              Modal: cerrar al hacer click fuera
+            </label>
+          </div>
+        </div>
+
+      </div>
+
+      <hr>
+
+      <div class="d-flex flex-wrap gap-2">
+        <button class="btn btn-primary" (click)="aplicarConfig()">
+          Aplicar configuración
+        </button>
+        <button class="btn btn-outline-secondary" (click)="limpiar()">
+          Limpiar todas las alertas
+        </button>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       SECCIÓN 3 · TOAST PERSONALIZADO
+       ═══════════════════════════════════════════════════════════ -->
+  <section class="card mb-4">
+    <div class="card-header fw-semibold">3 · Toast personalizado</div>
+    <div class="card-body">
+
+      <div class="row g-3">
+
+        <div class="col-md-3">
+          <label class="form-label">Tipo</label>
+          <select class="form-select" [(ngModel)]="toastForm.type">
+            @for (t of types; track t) {
+              <option [value]="t">{{ t }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="col-md-3">
+          <label class="form-label">Posición</label>
+          <select class="form-select" [(ngModel)]="toastForm.position">
+            @for (p of positions; track p) {
+              <option [value]="p">{{ p }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="col-md-3">
+          <label class="form-label">Duración (ms)</label>
+          <input type="number" class="form-control"
+                 [(ngModel)]="toastForm.duration" min="0" step="500">
+        </div>
+
+        <div class="col-md-3">
+          <label class="form-label">Título</label>
+          <input type="text" class="form-control" [(ngModel)]="toastForm.title">
+        </div>
+
+        <div class="col-12">
+          <label class="form-label">Mensaje</label>
+          <input type="text" class="form-control" [(ngModel)]="toastForm.message">
+        </div>
+
+        <div class="col-12">
+          <div class="d-flex flex-wrap gap-3">
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" id="tfProgress"
+                     [(ngModel)]="toastForm.showProgress">
+              <label class="form-check-label" for="tfProgress">Progress</label>
+            </div>
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" id="tfClose"
+                     [(ngModel)]="toastForm.closeButton">
+              <label class="form-check-label" for="tfClose">Close button</label>
+            </div>
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" id="tfPause"
+                     [(ngModel)]="toastForm.pauseOnHover">
+              <label class="form-check-label" for="tfPause">Pause on hover</label>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <hr>
+
+      <div class="d-flex flex-wrap gap-2">
+        <button class="btn btn-primary" (click)="lanzarToast()">
+          Lanzar toast
+        </button>
+        <button class="btn btn-outline-primary" (click)="lanzarVarios()">
+          Lanzar 5 toasts (probar stacking)
+        </button>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       SECCIÓN 4 · DIÁLOGOS — API DIRECTA
+       ═══════════════════════════════════════════════════════════ -->
+  <section class="card mb-4">
+    <div class="card-header fw-semibold">4 · Diálogos (API directa)</div>
+    <div class="card-body">
+      <div class="d-flex flex-wrap gap-2">
+        <button class="btn btn-outline-primary" (click)="mostrarAlert()">
+          await alert()
+        </button>
+        <button class="btn btn-outline-primary" (click)="mostrarConfirm()">
+          await confirm()
+        </button>
+        <button class="btn btn-outline-primary" (click)="mostrarPrompt()">
+          await prompt()
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       SECCIÓN 5 · DIÁLOGO PERSONALIZADO
+       ═══════════════════════════════════════════════════════════ -->
+  <section class="card mb-4">
+    <div class="card-header fw-semibold">5 · Diálogo personalizado</div>
+    <div class="card-body">
+
+      <div class="row g-3">
+
+        <div class="col-md-4">
+          <label class="form-label">Tipo</label>
+          <select class="form-select" [(ngModel)]="dialogForm.type">
+            @for (t of types; track t) {
+              <option [value]="t">{{ t }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="col-md-8">
+          <label class="form-label">Título</label>
+          <input type="text" class="form-control" [(ngModel)]="dialogForm.title">
+        </div>
+
+        <div class="col-12">
+          <label class="form-label">Mensaje</label>
+          <textarea class="form-control" rows="2"
+                    [(ngModel)]="dialogForm.message"></textarea>
+        </div>
+
+        <div class="col-md-6">
+          <label class="form-label">Texto confirmar</label>
+          <input type="text" class="form-control" [(ngModel)]="dialogForm.confirmText">
+        </div>
+
+        <div class="col-md-6">
+          <label class="form-label">Texto cancelar</label>
+          <input type="text" class="form-control" [(ngModel)]="dialogForm.cancelText">
+        </div>
+
+        <div class="col-md-6">
+          <label class="form-label">Prompt · valor por defecto</label>
+          <input type="text" class="form-control" [(ngModel)]="dialogForm.promptDefault">
+        </div>
+
+        <div class="col-md-6">
+          <label class="form-label">Prompt · placeholder</label>
+          <input type="text" class="form-control"
+                 [(ngModel)]="dialogForm.promptPlaceholder">
+        </div>
+
+        <div class="col-12">
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="dfDismiss"
+                   [(ngModel)]="dialogForm.dismissible">
+            <label class="form-check-label" for="dfDismiss">
+              Cerrar al hacer click fuera del modal
+            </label>
+          </div>
+        </div>
+
+      </div>
+
+      <hr>
+
+      <div class="d-flex flex-wrap gap-2">
+        <button class="btn btn-primary" (click)="lanzarDialogoCustom('alert')">
+          Alert
+        </button>
+        <button class="btn btn-primary" (click)="lanzarDialogoCustom('confirm')">
+          Confirm
+        </button>
+        <button class="btn btn-primary" (click)="lanzarDialogoCustom('prompt')">
+          Prompt
+        </button>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       SECCIÓN 6 · DEMO COMPLETO
+       ═══════════════════════════════════════════════════════════ -->
+  <section class="card mb-4">
+    <div class="card-header fw-semibold">6 · Demo completo (encadenado)</div>
+    <div class="card-body">
+      <button class="btn btn-dark" (click)="demoCompleto()">
+        Ejecutar flujo completo
+      </button>
+      <p class="text-body-secondary small mt-2 mb-0">
+        Muestra toasts + modal de confirmación con pausas entre pasos.
+      </p>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       RESULTADO DEL ÚLTIMO DIÁLOGO
+       ═══════════════════════════════════════════════════════════ -->
+  <section class="alert alert-secondary d-flex align-items-center gap-2 mb-0">
+    <strong class="me-1">Último resultado:</strong>
+    <code class="mb-0">{{ lastResult }}</code>
+  </section>
+
 </div>

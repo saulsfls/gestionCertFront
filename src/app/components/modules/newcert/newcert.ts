@@ -11,6 +11,7 @@ import { finalize, timeout } from 'rxjs/operators';
 import { Certificado, ResultTable, Column } from '../../../models/certificado.models';
 import { CertService } from '../../../services/cert.service';
 import { ImageService } from '../../../services/image.service';
+import { AlertService } from '../../../services/alert.service';
 import {
   ImageCropperComponent,
   ImageCroppedEvent,
@@ -39,6 +40,7 @@ interface TableImageState {
 export class Newcert implements OnInit {
   private platformId = inject(PLATFORM_ID);
   private imageService = inject(ImageService);
+  private alert = inject(AlertService);
   isBrowser: boolean = isPlatformBrowser(this.platformId);
 
   opcionesTitulo: string[] = [
@@ -97,16 +99,13 @@ export class Newcert implements OnInit {
   resultTables: ResultTable[] = [];
   direccionTab: DireccionTab = 'vertical';
   jsonInputText: string = '';
-  mensajeRespuesta: string | null = null;
-  mensajeAlerta: string | null = null;
-  esError: boolean = false;
   copiadoExitoso: boolean = false;
   guardando: boolean = false;
 
   imageStates: TableImageState[] = [];
 
-  // 🔑 id de timeout de alertas para poder cancelar el anterior
-  private alertTimeoutId: any = null;
+  /** 🚩 Bandera de terminado — evita dobles extracciones */
+  ocrEnProceso: boolean = false;
 
   constructor(
     private certificadoService: CertService,
@@ -116,28 +115,26 @@ export class Newcert implements OnInit {
   ngOnInit(): void {
     this.resultTables = [this.crearEstructuraTablaInicial()];
     this.imageStates = [this.crearEstadoImagenVacio()];
-    this.regenerarTableIds(); // 🔑 asigna {folio}-T1
+    this.regenerarTableIds();
     this.sincronizarJsonTexto();
+
+    // Configuración global del servicio de alertas
+    this.alert.configure({
+      position: 'top-right',
+      duration: 4500,
+      maxVisible: 5,
+      pauseOnHover: true,
+      showProgress: true,
+    });
   }
 
   // ========== 🔑 GENERACIÓN DE table_id ==========
-
-  /**
-   * Construye el id de una tabla a partir del folio del certificado.
-   * Formato: {cc}-T{n}  →  "CERT-2026-00123-T1"
-   * Si el cc aún está vacío, devuelve solo "T{n}".
-   */
   private construirTableId(indexTable: number): string {
     const folio = (this.certificado.cc || '').trim();
     const sufijo = `T${indexTable + 1}`;
     return folio ? `${folio}-${sufijo}` : sufijo;
   }
 
-  /**
-   * Recalcula table_id y cc_id en todas las tablas según su posición actual.
-   * Se llama cada vez que cambia el folio del certificado, o cuando se
-   * agrega / elimina / reordena una tabla.
-   */
   private regenerarTableIds(): void {
     const folio = (this.certificado.cc || '').trim();
     const equipo = this.certificado.equipment_id || '';
@@ -166,7 +163,7 @@ export class Newcert implements OnInit {
       title: 'DC Voltage',
       equipment_id: this.certificado.equipment_id || '',
       cc_id: this.certificado.cc || '',
-      table_id: '', // 🔑 se asignará con regenerarTableIds()
+      table_id: '',
       parameter: this.obtenerOpcionesParametro('DC Voltage')[0] || 'Voltage',
       unit: '',
       calibration_equation: '',
@@ -185,8 +182,6 @@ export class Newcert implements OnInit {
   }
 
   onTableChange(): void {
-    // 🔑 Al cambiar datos del certificado (cc, equipment_id, etc.)
-    // se regeneran los ids de todas las tablas.
     this.regenerarTableIds();
     this.sincronizarJsonTexto();
   }
@@ -244,8 +239,6 @@ export class Newcert implements OnInit {
           title: t.title || '',
           equipment_id: equipmentId,
           cc_id: ccId,
-          // 🔑 Se preserva el table_id del JSON solo si coincide con el folio actual;
-          // si no, se recalcula más abajo con regenerarTableIds().
           table_id: t.table_id || '',
           cmc: t.cmc || '',
           parameter: t.parameter || '',
@@ -265,12 +258,13 @@ export class Newcert implements OnInit {
       this.resultTables = tablasNuevas;
       this.imageStates = tablasNuevas.map(() => this.crearEstadoImagenVacio());
 
-      // 🔑 Normaliza los ids según el folio actual
       this.regenerarTableIds();
       this.sincronizarJsonTexto();
-      this.mostrarAlerta('Las tablas han sido actualizadas desde el JSON correctamente.', false);
+      this.cdr.detectChanges();
+
+      this.alert.success('Las tablas han sido actualizadas desde el JSON.', 'JSON aplicado');
     } catch (err: any) {
-      this.mostrarAlerta(`JSON Inválido: ${err.message}`, true);
+      this.alert.error(err?.message ?? 'JSON inválido', 'Error al parsear JSON');
     }
   }
 
@@ -293,7 +287,7 @@ export class Newcert implements OnInit {
   agregarTabla(): void {
     this.resultTables.push(this.crearEstructuraTablaInicial());
     this.imageStates.push(this.crearEstadoImagenVacio());
-    this.regenerarTableIds(); // 🔑 asigna {folio}-T{n+1}
+    this.regenerarTableIds();
     this.sincronizarJsonTexto();
   }
 
@@ -301,7 +295,6 @@ export class Newcert implements OnInit {
     if (this.resultTables.length > 1) {
       this.resultTables.splice(indexTable, 1);
       this.imageStates.splice(indexTable, 1);
-      // 🔑 Reindexamos T1..Tn para mantener la secuencia "hasta completar"
       this.regenerarTableIds();
       this.sincronizarJsonTexto();
     }
@@ -336,7 +329,7 @@ export class Newcert implements OnInit {
 
     const resultado = this.validarKey(nuevaKey, table, col);
     if (!resultado.valido) {
-      this.mostrarAlerta(`Key inválido: ${resultado.mensaje}`, true);
+      this.alert.error(resultado.mensaje ?? 'Key inválido', 'Key inválido');
       col.key = viejaKey;
       return;
     }
@@ -349,9 +342,7 @@ export class Newcert implements OnInit {
     this.sincronizarJsonTexto();
   }
 
-  cambiarTipoDato(col: Column, table: ResultTable): void {
-    // No borramos los valores: si el tipo pasa a 'number' y algún
-    // valor no es numérico, esValorInvalido() lo marcará en rojo.
+  cambiarTipoDato(_col: Column, _table: ResultTable): void {
     this.sincronizarJsonTexto();
   }
 
@@ -414,7 +405,7 @@ export class Newcert implements OnInit {
     }
 
     if (!imagenEncontrada) {
-      this.mostrarAlerta('El contenido pegado no es una imagen válida.', true);
+      this.alert.warning('El contenido pegado no es una imagen válida.');
     }
   }
 
@@ -447,7 +438,7 @@ export class Newcert implements OnInit {
   cropperReady(): void { /* listo */ }
 
   loadImageFailed(_tableIndex?: number): void {
-    this.mostrarAlerta('Error al cargar la imagen. Intenta con otra captura o archivo.', true);
+    this.alert.error('Error al cargar la imagen. Intenta con otra captura o archivo.');
   }
 
   cancelarImagen(tableIndex: number): void {
@@ -477,25 +468,37 @@ export class Newcert implements OnInit {
       );
   }
 
-  // ========== ENVIAR A BACKEND Y APLICAR DATOS ==========
+  // ================================================================
+  //  📤 ENVIAR A OCR  —  misma estructura que tu código original
+  // ================================================================
   enviarANode(tableIndex: number): void {
     const state = this.imageStates[tableIndex];
     const table = this.resultTables[tableIndex];
     if (!state || !table) return;
 
-    if (!state.pasteImageFile && !state.imageChangedEvent) {
-      this.mostrarAlerta('Por favor selecciona o pega una imagen primero.', true);
-      return;
-    }
-    if (!state.croppedImageBase64) {
-      this.mostrarAlerta('Ajusta el área de selección sobre la tabla antes de extraer.', true);
+    // 🚩 Guard: no ejecutar si ya hay uno corriendo
+    if (this.ocrEnProceso || state.cargando) {
+      this.alert.info('Ya hay un proceso de extracción en curso.');
       return;
     }
 
+    if (!state.pasteImageFile && !state.imageChangedEvent) {
+      this.alert.warning('Por favor selecciona o pega una imagen primero.');
+      return;
+    }
+    if (!state.croppedImageBase64) {
+      this.alert.warning('Ajusta el área de selección sobre la tabla antes de extraer.');
+      return;
+    }
+
+    // 🚩 activar banderas
+    this.ocrEnProceso = true;
     state.cargando = true;
     this.cdr.detectChanges();
 
     const terminar = () => {
+      // 🚩 liberar banderas SIEMPRE (éxito, error o complete)
+      this.ocrEnProceso = false;
       state.cargando = false;
       try { this.cdr.detectChanges(); } catch { /* noop */ }
     };
@@ -521,32 +524,47 @@ export class Newcert implements OnInit {
               }
 
               if (headers.length > 0 && rows.length > 0) {
+                // 1️⃣ Aplica los datos (mutación en sitio + CD — igual que tu original)
                 this.aplicarDatosExtraidos(
                   tableIndex,
                   headers,
                   rows,
                   state.tieneEncabezado
                 );
-                this.mostrarAlerta(
-                  'Tabla extraída correctamente. Completa título, mesurando, ecuación, rango y unidad.',
-                  false
-                );
+
+                // 2️⃣ Warning de confirmación (sin await — usamos .then)
+                this.alert.confirm(
+                  'La AI puede cometer errores. Verifica los valores extraídos antes de continuar.',
+                  '⚠ Revisa los datos',
+                  {
+                    type: 'warning',
+                    confirmText: 'Entendido, los reviso',
+                    cancelText: 'Cerrar',
+                    dismissible: false,
+                  }
+                ).then(revisar => {
+                  if (revisar) {
+                    this.alert.success('Los datos se vaciaron correctamente.', 'OCR completado');
+                  } else {
+                    this.alert.info('Puedes revisar los datos antes de guardar.');
+                  }
+                });
               } else {
-                this.mostrarAlerta('No se pudo extraer una tabla válida de la imagen.', true);
+                this.alert.error('No se pudo extraer una tabla válida de la imagen.', 'OCR');
               }
             } else {
-              this.mostrarAlerta('No se pudo extraer la tabla.', true);
+              this.alert.error('No se pudo extraer la tabla.', 'OCR');
             }
           } catch (e) {
             console.error('Error procesando la respuesta:', e);
-            this.mostrarAlerta('Error al procesar la respuesta del servidor.', true);
+            this.alert.error('Error al procesar la respuesta del servidor.', 'Error OCR');
           } finally {
             terminar();
           }
         },
         error: (err: any) => {
           console.error('Error en servidor:', err);
-          this.mostrarAlerta('Ocurrió un error al procesar la tabla en el servidor.', true);
+          this.alert.error('Ocurrió un error al procesar la tabla en el servidor.', 'Error OCR');
           terminar();
         },
         complete: () => terminar()
@@ -725,7 +743,10 @@ export class Newcert implements OnInit {
     return { headers, rows: finalRows };
   }
 
-  // ========== APLICAR DATOS EXTRAÍDOS ==========
+  // ================================================================
+  //  APLICAR DATOS EXTRAÍDOS  —  igual que tu código original
+  //  (mutación en sitio + cdr.detectChanges — patrón probado)
+  // ================================================================
   private aplicarDatosExtraidos(
     indexTable: number,
     headers: string[],
@@ -801,6 +822,7 @@ export class Newcert implements OnInit {
       return obj;
     });
 
+    // 🔑 MUTACIÓN EN SITIO — como tu código original (funciona)
     table.columns = newColumns;
     table.rows = newRows.length > 0 ? newRows : [{}];
 
@@ -810,7 +832,6 @@ export class Newcert implements OnInit {
 
   // ========== CONSTRUCCIÓN DEL JSON ==========
   obtenerJsonEstructurado(): object {
-    // 🔑 Nos aseguramos de que los ids estén al día antes de serializar
     this.regenerarTableIds();
 
     const tablasProcesadas = this.resultTables.map(table => {
@@ -838,10 +859,8 @@ export class Newcert implements OnInit {
       });
 
       return {
-        // 🔑 Identificadores compuestos
         table_id: table.table_id,
         cc_id: this.certificado.cc || '',
-        // Datos descriptivos
         title: table.title || '',
         equipment_id: this.certificado.equipment_id,
         parameter: table.parameter || '',
@@ -864,6 +883,7 @@ export class Newcert implements OnInit {
   copiarJson(): void {
     navigator.clipboard.writeText(this.jsonInputText).then(() => {
       this.copiadoExitoso = true;
+      this.alert.success('JSON copiado al portapapeles');
       setTimeout(() => {
         this.copiadoExitoso = false;
         this.cdr.detectChanges();
@@ -874,26 +894,22 @@ export class Newcert implements OnInit {
   // ========== VALIDACIONES ==========
   validarFormulario(): boolean {
     if (!this.certificado.equipment_id || !this.certificado.equipment_id.trim()) {
-      this.mostrarAlerta('El "ID del Equipo" es un campo obligatorio.', true);
+      this.alert.warning('El "ID del Equipo" es un campo obligatorio.');
       return false;
     }
     if (!this.certificado.name_equipment || !this.certificado.name_equipment.trim()) {
-      this.mostrarAlerta('El "Nombre del Equipo" es un campo obligatorio.', true);
+      this.alert.warning('El "Nombre del Equipo" es un campo obligatorio.');
       return false;
     }
-    // 🔑 El folio es necesario para construir table_id de forma trazable
     if (!this.certificado.cc || !this.certificado.cc.trim()) {
-      this.mostrarAlerta('El "Folio del Certificado (cc)" es un campo obligatorio.', true);
+      this.alert.warning('El "Folio del Certificado (cc)" es un campo obligatorio.');
       return false;
     }
     if (this.certificado.date_cal && this.certificado.date_cc) {
       const fechaCal = new Date(this.certificado.date_cal);
       const fechaCc = new Date(this.certificado.date_cc);
       if (fechaCc < fechaCal) {
-        this.mostrarAlerta(
-          'La "Fecha del Certificado" no puede ser anterior a la "Fecha de Calibración".',
-          true
-        );
+        this.alert.warning('La "Fecha del Certificado" no puede ser anterior a la "Fecha de Calibración".');
         return false;
       }
     }
@@ -903,18 +919,17 @@ export class Newcert implements OnInit {
       const numTable = i + 1;
 
       if (!table.title || !table.title.trim()) {
-        this.mostrarAlerta(`El título de la Tabla #${numTable} es obligatorio.`, true);
+        this.alert.warning(`El título de la Tabla #${numTable} es obligatorio.`);
         return false;
       }
       if (!table.parameter || !table.parameter.trim()) {
-        this.mostrarAlerta(`El parámetro de la Tabla #${numTable} es obligatorio.`, true);
+        this.alert.warning(`El parámetro de la Tabla #${numTable} es obligatorio.`);
         return false;
       }
-      // 🔑 table_id debe existir (se regenera antes de validar)
       if (!table.table_id) {
         this.regenerarTableIds();
         if (!table.table_id) {
-          this.mostrarAlerta(`No se pudo generar el ID de la Tabla #${numTable}.`, true);
+          this.alert.error(`No se pudo generar el ID de la Tabla #${numTable}.`);
           return false;
         }
       }
@@ -922,20 +937,17 @@ export class Newcert implements OnInit {
       const keys = table.columns.map(c => c.key.trim().toLowerCase().replace(/\s+/g, '_'));
       const uniqueKeys = new Set(keys);
       if (keys.length !== uniqueKeys.size) {
-        this.mostrarAlerta(`La Tabla #${numTable} tiene columnas con keys duplicados.`, true);
+        this.alert.error(`La Tabla #${numTable} tiene columnas con keys duplicados.`);
         return false;
       }
       for (const col of table.columns) {
         const keyLimpio = col.key.trim().toLowerCase().replace(/\s+/g, '_');
         if (!keyLimpio) {
-          this.mostrarAlerta(`La Tabla #${numTable} tiene una columna con key vacío.`, true);
+          this.alert.error(`La Tabla #${numTable} tiene una columna con key vacío.`);
           return false;
         }
         if (!/^[a-z0-9_]+$/.test(keyLimpio)) {
-          this.mostrarAlerta(
-            `La Tabla #${numTable} tiene un key con caracteres no permitidos: "${col.key}".`,
-            true
-          );
+          this.alert.error(`La Tabla #${numTable} tiene un key con caracteres no permitidos: "${col.key}".`);
           return false;
         }
 
@@ -943,9 +955,9 @@ export class Newcert implements OnInit {
           for (let r = 0; r < table.rows.length; r++) {
             const val = table.rows[r][col.key];
             if (this.esValorInvalido(val, col)) {
-              this.mostrarAlerta(
-                `La Tabla #${numTable}, columna "${col.label}" contiene un valor no numérico ("${val}"). Corrígelo para continuar.`,
-                true
+              this.alert.error(
+                `La Tabla #${numTable}, columna "${col.label}" contiene un valor no numérico ("${val}").`,
+                'Valor inválido'
               );
               return false;
             }
@@ -956,40 +968,14 @@ export class Newcert implements OnInit {
     return true;
   }
 
-  // ========== ALERTAS ==========
-  mostrarAlerta(mensaje: string, esError: boolean): void {
-    if (this.alertTimeoutId) {
-      clearTimeout(this.alertTimeoutId);
-      this.alertTimeoutId = null;
-    }
-
-    this.mensajeRespuesta = mensaje;
-    this.esError = esError;
-
-    this.mensajeAlerta = esError
-      ? 'Verifica los datos extraídos, la AI puede cometer errores.'
-      : null;
-
-    this.cdr.detectChanges();
-
-    this.alertTimeoutId = setTimeout(() => {
-      this.mensajeRespuesta = null;
-      this.mensajeAlerta = null;
-      this.alertTimeoutId = null;
-      this.cdr.detectChanges();
-    }, 8000);
-  }
-
   // ========== GUARDAR ==========
   guardarCertificado(): void {
     if (this.guardando) return;
     if (!this.validarFormulario()) return;
 
     this.guardando = true;
-    this.mensajeRespuesta = null;
     this.cdr.detectChanges();
 
-    // 🔑 Antes de serializar, aseguramos que los ids estén al día
     this.regenerarTableIds();
     this.sincronizarJsonTexto();
 
@@ -1008,7 +994,7 @@ export class Newcert implements OnInit {
       })
     ).subscribe({
       next: () => {
-        this.mostrarAlerta('¡Certificado guardado correctamente!', false);
+        this.alert.success('¡Certificado guardado correctamente!', 'Guardado');
         this.limpiarFormulario();
       },
       error: (err: any) => {
@@ -1017,7 +1003,7 @@ export class Newcert implements OnInit {
           err?.name === 'TimeoutError'
             ? 'El servidor tardó demasiado en responder. Intenta de nuevo.'
             : (err?.error?.message || 'Error al conectar con la API de PostgreSQL.');
-        this.mostrarAlerta(msg, true);
+        this.alert.error(msg, 'Error al guardar');
       }
     });
   }
@@ -1040,6 +1026,7 @@ export class Newcert implements OnInit {
     };
     this.resultTables = [this.crearEstructuraTablaInicial()];
     this.imageStates = [this.crearEstadoImagenVacio()];
+    this.ocrEnProceso = false;
     this.regenerarTableIds();
     this.sincronizarJsonTexto();
     this.cdr.detectChanges();
