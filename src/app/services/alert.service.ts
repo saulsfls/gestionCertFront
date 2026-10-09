@@ -10,14 +10,14 @@ import {
 } from '@angular/core';
 import { DOCUMENT, isPlatformBrowser } from '@angular/common';
 
-import { Alert } from '../components/core/alert/alert';
+import { Alert } from '../components/util/alert/alert';
 import {
   AlertData,
   AlertPosition,
   AlertResult,
   AlertServiceConfig,
   DialogMode,
-} from '../components/core/alert/alert.model';
+} from '../components/util/alert/alert.model';
 
 interface ToastEntry {
   ref: ComponentRef<Alert>;

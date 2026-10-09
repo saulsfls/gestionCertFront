@@ -7,7 +7,7 @@ import {
   AlertPosition,
   AlertServiceConfig,
   AlertType,
-} from '../../core/alert/alert.model';
+} from '../../util/alert/alert.model';
 
 @Component({
   selector: 'app-inicio',

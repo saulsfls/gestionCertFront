@@ -25,16 +25,10 @@ export type TipoDato = 'number' | 'string';
 })
 export class Editcert implements OnInit {
 
-  /* ══════════════════════════════════════════════════════════════
-   *  INYECCIONES
-   * ══════════════════════════════════════════════════════════════ */
   private readonly alert = inject(AlertService);
 
   @Input() id!: string | number;
 
-  /* ══════════════════════════════════════════════════════════════
-   *  OPCIONES DE TÍTULO Y PARÁMETRO
-   * ══════════════════════════════════════════════════════════════ */
   opcionesTitulo: string[] = [
     'DC Voltage',
     'AC Voltage',
@@ -73,9 +67,6 @@ export class Editcert implements OnInit {
     'Other': []
   };
 
-  /* ══════════════════════════════════════════════════════════════
-   *  ESTADO PRINCIPAL
-   * ══════════════════════════════════════════════════════════════ */
   certificado: Certificado = {
     equipment_id: '',
     name_equipment: '',
@@ -104,20 +95,14 @@ export class Editcert implements OnInit {
   columnasParaLimpiar: Set<string> = new Set();
 
   modoSepararSimbolo = false;
-  columnaParaSeparar: string | null = null;
+  columnasParaSeparar: Set<string> = new Set();
 
-  /** 🔑 Contador monótono de secuencia de tablas para este certificado */
   private lastTableSeq = 0;
 
-  /** 🚩 Bandera para el guard de navegación */
   private guardMostrando = false;
 
-  /** 🚩 Bandera para no disparar el guard tras guardar o cancelar */
   private salirSinConfirmar = false;
 
-  /* ══════════════════════════════════════════════════════════════
-   *  CONSTRUCTOR
-   * ══════════════════════════════════════════════════════════════ */
   constructor(
     private certificadoService: CertService,
     private route: ActivatedRoute,
@@ -125,9 +110,6 @@ export class Editcert implements OnInit {
     private cdr: ChangeDetectorRef
   ) {}
 
-  /* ══════════════════════════════════════════════════════════════
-   *  CICLO DE VIDA
-   * ══════════════════════════════════════════════════════════════ */
   ngOnInit(): void {
     const certId = this.id || this.route.snapshot.paramMap.get('id');
     if (certId) {
@@ -372,7 +354,6 @@ export class Editcert implements OnInit {
     if (this.resultTables.length > 1) {
       this.resultTables.splice(indexTable, 1);
 
-      // Re-indexar columnasParaLimpiar
       const nuevasSelecciones = new Set<string>();
       this.columnasParaLimpiar.forEach(id => {
         const [tIdx, cIdx] = id.split('-').map(Number);
@@ -381,11 +362,13 @@ export class Editcert implements OnInit {
       });
       this.columnasParaLimpiar = nuevasSelecciones;
 
-      if (this.columnaParaSeparar) {
-        const [tIdx, cIdx] = this.columnaParaSeparar.split('-').map(Number);
-        if (tIdx === indexTable) this.columnaParaSeparar = null;
-        else if (tIdx > indexTable) this.columnaParaSeparar = `${tIdx - 1}-${cIdx}`;
-      }
+      const nuevasSeparaciones = new Set<string>();
+      this.columnasParaSeparar.forEach(id => {
+        const [tIdx, cIdx] = id.split('-').map(Number);
+        if (tIdx < indexTable) nuevasSeparaciones.add(id);
+        else if (tIdx > indexTable) nuevasSeparaciones.add(`${tIdx - 1}-${cIdx}`);
+      });
+      this.columnasParaSeparar = nuevasSeparaciones;
 
       this.sincronizarJsonTexto();
       this.alert.warning(`Tabla #${indexTable + 1} eliminada.`, 'Tabla eliminada');
@@ -447,13 +430,13 @@ export class Editcert implements OnInit {
   }
 
   // ============================================================
-  // MODO 1: ELIMINAR TEXTO
+  // MODO 1: ELIMINAR TEXTO (soporta múltiples tablas/columnas)
   // ============================================================
   toggleModoEliminarTexto(): void {
     this.modoEliminarTexto = !this.modoEliminarTexto;
     if (this.modoEliminarTexto) {
       this.modoSepararSimbolo = false;
-      this.columnaParaSeparar = null;
+      this.columnasParaSeparar.clear();
     } else {
       this.columnasParaLimpiar.clear();
     }
@@ -478,8 +461,11 @@ export class Editcert implements OnInit {
     if (valor === null || valor === undefined) return null;
     if (typeof valor === 'number') return isNaN(valor) ? null : valor;
 
-    const str = String(valor).trim();
+    let str = String(valor).trim();
     if (str === '') return null;
+
+    // Normaliza coma decimal europea a punto
+    str = str.replace(/,/g, '.');
 
     const match = str.match(/-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/);
     if (!match) return null;
@@ -517,6 +503,7 @@ export class Editcert implements OnInit {
 
     this.sincronizarJsonTexto();
     this.modoEliminarTexto = false;
+    this.columnasParaLimpiar.clear();
     this.cdr.detectChanges();
 
     if (valoresLimpiados === 0) {
@@ -533,7 +520,7 @@ export class Editcert implements OnInit {
   }
 
   // ============================================================
-  // MODO 2: SEPARAR SÍMBOLO "±"
+  // MODO 2: SEPARAR SÍMBOLO "±" (soporta múltiples tablas/columnas)
   // ============================================================
   toggleModoSepararSimbolo(): void {
     this.modoSepararSimbolo = !this.modoSepararSimbolo;
@@ -541,106 +528,151 @@ export class Editcert implements OnInit {
       this.modoEliminarTexto = false;
       this.columnasParaLimpiar.clear();
     } else {
-      this.columnaParaSeparar = null;
+      this.columnasParaSeparar.clear();
     }
     this.cdr.detectChanges();
   }
 
   esColumnaParaSeparar(tableIndex: number, colIndex: number): boolean {
-    return this.columnaParaSeparar === `${tableIndex}-${colIndex}`;
+    return this.columnasParaSeparar.has(`${tableIndex}-${colIndex}`);
   }
 
-  seleccionarColumnaParaSeparar(tableIndex: number, colIndex: number): void {
+  toggleColumnaParaSeparar(tableIndex: number, colIndex: number): void {
     const id = `${tableIndex}-${colIndex}`;
-    this.columnaParaSeparar = this.columnaParaSeparar === id ? null : id;
+    if (this.columnasParaSeparar.has(id)) {
+      this.columnasParaSeparar.delete(id);
+    } else {
+      this.columnasParaSeparar.add(id);
+    }
     this.cdr.detectChanges();
   }
 
-  separarColumna(): void {
-    if (!this.columnaParaSeparar) {
-      this.alert.warning('Selecciona una columna para separar.', 'Sin columna');
+  private generarKeyUnica(table: ResultTable, keyBase: string): string {
+    const existentes = new Set(table.columns.map(c => c.key));
+    if (!existentes.has(keyBase)) return keyBase;
+    let sufijo = 1;
+    let candidato = `${keyBase}_${sufijo}`;
+    while (existentes.has(candidato)) {
+      sufijo++;
+      candidato = `${keyBase}_${sufijo}`;
+    }
+    return candidato;
+  }
+
+  separarColumnas(): void {
+    if (this.columnasParaSeparar.size === 0) {
+      this.alert.warning('Selecciona al menos una columna para separar.', 'Sin columnas');
       return;
     }
 
-    const [tIdx, cIdx] = this.columnaParaSeparar.split('-').map(Number);
-    const table = this.resultTables[tIdx];
-    if (!table) return;
+    let columnasProcesadas = 0;
+    let valoresConSimbolo = 0;
+    let columnasSinSimbolo = 0;
 
-    const colOriginal = table.columns[cIdx];
-    if (!colOriginal) return;
+    // Ordenar de mayor a menor índice para evitar problemas al reemplazar in-place
+    const seleccionadas = Array.from(this.columnasParaSeparar)
+      .map(id => {
+        const [tIdx, cIdx] = id.split('-').map(Number);
+        return { tIdx, cIdx };
+      })
+      .sort((a, b) => {
+        if (a.tIdx !== b.tIdx) return b.tIdx - a.tIdx;
+        return b.cIdx - a.cIdx;
+      });
 
-    let conSimbolo = 0;
-    const valoresSeparados: Array<{ a: number | null; b: number | null }> = [];
+    for (const { tIdx, cIdx } of seleccionadas) {
+      const table = this.resultTables[tIdx];
+      if (!table) continue;
+      const colOriginal = table.columns[cIdx];
+      if (!colOriginal) continue;
 
-    table.rows.forEach(row => {
-      const valor = row[colOriginal.key];
-      if (valor === null || valor === undefined || String(valor).trim() === '') {
-        valoresSeparados.push({ a: null, b: null });
-        return;
+      let conSimbolo = 0;
+      const valoresSeparados: Array<{ a: number | null; b: number | null }> = [];
+
+      table.rows.forEach(row => {
+        const valor = row[colOriginal.key];
+        if (valor === null || valor === undefined || String(valor).trim() === '') {
+          valoresSeparados.push({ a: null, b: null });
+          return;
+        }
+        const str = String(valor);
+        if (str.includes('±')) {
+          const partes = str.split('±');
+          const a = this.extraerNumeroDeTexto(partes[0]);
+          const b = this.extraerNumeroDeTexto(partes[1]);
+          valoresSeparados.push({ a, b });
+          conSimbolo++;
+        } else {
+          const a = this.extraerNumeroDeTexto(str);
+          valoresSeparados.push({ a, b: null });
+        }
+      });
+
+      if (conSimbolo === 0) {
+        columnasSinSimbolo++;
+        continue;
       }
-      const str = String(valor);
-      if (str.includes('±')) {
-        const partes = str.split('±');
-        const a = this.extraerNumeroDeTexto(partes[0]);
-        const b = this.extraerNumeroDeTexto(partes[1]);
-        valoresSeparados.push({ a, b });
-        conSimbolo++;
-      } else {
-        const a = this.extraerNumeroDeTexto(str);
-        valoresSeparados.push({ a, b: null });
-      }
-    });
 
-    if (conSimbolo === 0) {
+      const key1 = this.generarKeyUnica(table, 'error_relativo');
+      // Recalcular unicidad considerando que agregaremos key1 también
+      const existentesParaKey2 = new Set(table.columns.map(c => c.key));
+      existentesParaKey2.add(key1);
+      let key2 = 'incertidumbre';
+      if (existentesParaKey2.has(key2)) {
+        let sufijo = 1;
+        let candidato = `${key2}_${sufijo}`;
+        while (existentesParaKey2.has(candidato)) {
+          sufijo++;
+          candidato = `${key2}_${sufijo}`;
+        }
+        key2 = candidato;
+      }
+
+      const col1: Column = {
+        key: key1,
+        label: 'Error Relativo',
+        unit: colOriginal.unit,
+        type: 'number'
+      };
+      const col2: Column = {
+        key: key2,
+        label: 'Incertidumbre',
+        unit: colOriginal.unit,
+        type: 'number'
+      };
+
+      table.rows.forEach((row, idx) => {
+        const { a, b } = valoresSeparados[idx];
+        row[key1] = a;
+        row[key2] = b;
+        delete row[colOriginal.key];
+      });
+
+      table.columns.splice(cIdx, 1, col1, col2);
+
+      columnasProcesadas++;
+      valoresConSimbolo += conSimbolo;
+    }
+
+    this.columnasParaSeparar.clear();
+    this.modoSepararSimbolo = false;
+    this.sincronizarJsonTexto();
+    this.cdr.detectChanges();
+
+    if (columnasProcesadas === 0) {
       this.alert.error(
-        `La columna "${colOriginal.label || colOriginal.key}" no contiene el símbolo "±" en ningún valor.`,
+        'Ninguna de las columnas seleccionadas contiene el símbolo "±".',
         'No se puede separar'
       );
       return;
     }
 
-    const keyBase = colOriginal.key;
-    const existingKeys = table.columns.map(c => c.key);
-    let key1 = `${keyBase}_1`;
-    let key2 = `${keyBase}_2`;
-    let suffix = 1;
-    while (existingKeys.includes(key1) || existingKeys.includes(key2)) {
-      key1 = `${keyBase}_${suffix}_1`;
-      key2 = `${keyBase}_${suffix}_2`;
-      suffix++;
+    let mensaje = `Se separaron ${columnasProcesadas} columna${columnasProcesadas === 1 ? '' : 's'} (${valoresConSimbolo} valor${valoresConSimbolo === 1 ? '' : 'es'} con "±" procesado${valoresConSimbolo === 1 ? '' : 's'}).`;
+    if (columnasSinSimbolo > 0) {
+      mensaje += ` ${columnasSinSimbolo} columna${columnasSinSimbolo === 1 ? '' : 's'} sin "±" fue${columnasSinSimbolo === 1 ? '' : 'ron'} omitida${columnasSinSimbolo === 1 ? '' : 's'}.`;
     }
 
-    const col1: Column = {
-      key: key1,
-      label: 'col 1',
-      unit: colOriginal.unit,
-      type: 'number'
-    };
-    const col2: Column = {
-      key: key2,
-      label: 'col 2',
-      unit: colOriginal.unit,
-      type: 'number'
-    };
-
-    table.rows.forEach((row, idx) => {
-      const { a, b } = valoresSeparados[idx];
-      row[key1] = a;
-      row[key2] = b;
-      delete row[colOriginal.key];
-    });
-
-    table.columns.splice(cIdx, 1, col1, col2);
-
-    this.columnaParaSeparar = null;
-    this.modoSepararSimbolo = false;
-    this.sincronizarJsonTexto();
-    this.cdr.detectChanges();
-
-    this.alert.success(
-      `Columna separada en "col 1" y "col 2" (${conSimbolo} valor${conSimbolo === 1 ? '' : 'es'} con "±" procesado${conSimbolo === 1 ? '' : 's'}).`,
-      'Separación completa'
-    );
+    this.alert.success(mensaje, 'Separación completa');
   }
 
   // ========== GESTIÓN DE FILAS ==========
@@ -820,7 +852,7 @@ export class Editcert implements OnInit {
       next: () => {
         this.cargando = false;
         this.guardandoExitoso = true;
-        this.salirSinConfirmar = true;   // 🚩 no preguntar al guard
+        this.salirSinConfirmar = true;
         this.cdr.detectChanges();
 
         this.alert.success(
@@ -843,7 +875,6 @@ export class Editcert implements OnInit {
 
   // ========== CANCELAR ==========
   async cancelar(): Promise<void> {
-    // 🔑 Si hay cambios, confirmar antes de salir
     if (!this.salirSinConfirmar && this.tieneCambios()) {
       const ok = await this.alert.confirm(
         'Los cambios que no hayas guardado se perderán. ¿Deseas salir de todas formas?',
@@ -886,10 +917,6 @@ export class Editcert implements OnInit {
     return false;
   }
 
-  /**
-   * Invocado por `pendingChangesGuard`.
-   * Devuelve `true` para permitir la navegación, `false` para bloquearla.
-   */
   async puedeSalir(): Promise<boolean> {
     if (this.salirSinConfirmar) return true;
     if (this.guardMostrando) return false;

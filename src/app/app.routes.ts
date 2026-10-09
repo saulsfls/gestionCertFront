@@ -7,6 +7,7 @@ import { admincert } from './components/modules/admincert/admincert';
 import { Listcert } from './components/view/listcert/listcert';
 import { Calcmc } from './components/cmc/calcmc/calcmc';
 import { Inicio } from './components/view/inicio/inicio';
+import { Cmcparams } from './components/view/cmcparams/cmcparams';
 
 export const routes: Routes = [
   {path: '',redirectTo: 'inicio', pathMatch: 'full'},
@@ -18,4 +19,5 @@ export const routes: Routes = [
   {path: 'listcert', component: Listcert},
   {path: 'viewcert/:id', component: Viewcert},//Solo se puede acceder a la ruta con un id de certificado
   {path: 'calcmc', component: Calcmc},
+  {path: 'cmcparams', component: Cmcparams},
 ];

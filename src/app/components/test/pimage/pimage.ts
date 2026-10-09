@@ -34,7 +34,7 @@ export class Pimage implements OnInit {
   ) {}
 
   ngOnInit(): void {
-    console.log(this.imageService.getHealth());
+    //console.log(this.imageService.getHealth());
   }
 
   // ========== MÉTODOS EXISTENTES (sin cambios) ==========

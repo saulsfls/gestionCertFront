@@ -53,6 +53,7 @@ export class Newcert implements OnInit {
     'Lightning Impulse Voltage (LI)',
     'Switching Impulse Voltage (SI)',
     'Frequency',
+    'Capacitance',
     'Other'
   ];
 
@@ -78,6 +79,7 @@ export class Newcert implements OnInit {
       'Polarity Linearity Test'
     ],
     'Frequency': ['Frequency'],
+    'Capacitance': ['Capacitance'],
     'Other': []
   };
 
@@ -117,15 +119,8 @@ export class Newcert implements OnInit {
     this.imageStates = [this.crearEstadoImagenVacio()];
     this.regenerarTableIds();
     this.sincronizarJsonTexto();
-
+    this.alert.success('Se han cargado: ' + this.resultTables.length + ' tablas', 'Datos cargados');
     // Configuración global del servicio de alertas
-    this.alert.configure({
-      position: 'top-right',
-      duration: 4500,
-      maxVisible: 5,
-      pauseOnHover: true,
-      showProgress: true,
-    });
   }
 
   // ========== 🔑 GENERACIÓN DE table_id ==========

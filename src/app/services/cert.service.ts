@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { Certificado, ApiResponse } from '../models/certificado.models';
+import { Certificado, ApiResponse, ResultTable } from '../models/certificado.models';
 
 @Injectable({
   providedIn: 'root'
@@ -18,6 +18,10 @@ export class CertService {
   // Obtener todos los certificados
   obtenerCertificados(): Observable<ApiResponse<Certificado[]>> {
     return this.http.get<ApiResponse<Certificado[]>>(`${this.apiUrl}/certificados`);
+  }
+
+  obtenerCertificadoCc(cc: string): Observable<ApiResponse<Certificado>> {
+    return this.http.get<ApiResponse<Certificado>>(`${this.apiUrl}/certificados/cc/${encodeURIComponent(cc)}`);
   }
 
   // Obtener por ID o Equipment ID
@@ -48,4 +52,14 @@ export class CertService {
   eliminarCertificado(id: number | string): Observable<ApiResponse<Certificado>> {
     return this.http.delete<ApiResponse<Certificado>>(`${this.apiUrl}/certificados/${id}/eliminar`);
   }
+
+  obtenerEquipmentId(): Observable<ApiResponse<string[]>> {
+    return this.http.get<ApiResponse<string[]>>(`${this.apiUrl}/equipos`);
+  }
+
+  obtenerTablas(equipmentId: string): Observable<ApiResponse<ResultTable[]>> {
+    return this.http.get<ApiResponse<ResultTable[]>>(`${this.apiUrl}/equipos/${encodeURIComponent(equipmentId)}/tablas`
+    );
+  }
+
 }

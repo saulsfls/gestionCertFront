@@ -136,7 +136,7 @@
         [ngClass]="modoSepararSimbolo ? 'btn-info text-white' : 'btn-primary'"
         (click)="toggleModoSepararSimbolo()"
         [attr.aria-pressed]="modoSepararSimbolo"
-        title="Separa valores como 0.004±0.017 en dos columnas">
+        title="Separa valores como 0.226±0.21 en dos columnas (Error Relativo e Incertidumbre)">
         <span *ngIf="modoSepararSimbolo">✓ </span>Separar ±
       </button>
 
@@ -151,10 +151,10 @@
     <span class="fs-5">⚠️</span>
     <div>
       <strong>Modo "Eliminar Texto" activado.</strong>
-      Haz clic en las columnas que quieras procesar y presiona
+      Haz clic en las columnas que quieras procesar (en una o varias tablas) y presiona
       <strong>"🧹 Formatear Texto"</strong> al final. Ejemplo: <code>1.1A</code> → <code>1.1</code>.
       <br>
-      <small class="text-muted">Se pueden seleccionar varias columnas a la vez.</small>
+      <small class="text-muted">Puedes seleccionar varias columnas, incluso de tablas distintas.</small>
     </div>
   </div>
 
@@ -163,9 +163,11 @@
     <span class="fs-5">ℹ️</span>
     <div>
       <strong>Modo "Separar ±" activado.</strong>
-      Selecciona <strong>UNA sola columna</strong> que contenga valores como
-      <code>0.004±0.017</code> y presiona <strong>"✂️ Separar Columna"</strong>.
-      Se crearán dos columnas: <code>col 1</code> y <code>col 2</code>.
+      Selecciona <strong>una o varias columnas</strong> que contengan valores como
+      <code>0.226 ± 0.21</code> y presiona <strong>"✂️ Separar Columnas"</strong>.
+      Se crearán dos columnas por cada una: <code>Error Relativo</code> e <code>Incertidumbre</code>.
+      <br>
+      <small class="text-muted">Puedes seleccionar columnas de varias tablas a la vez.</small>
     </div>
   </div>
 
@@ -306,9 +308,7 @@
                         <option value="string">String</option>
                       </select>
 
-                      <!-- ============================================ -->
-                      <!-- Pill: Limpiar texto (más llamativa)          -->
-                      <!-- ============================================ -->
+                      <!-- Pill: Limpiar texto -->
                       <button
                         *ngIf="modoEliminarTexto"
                         type="button"
@@ -326,9 +326,7 @@
                         <span>{{ esColumnaSeleccionada(i, j) ? 'Seleccionada' : 'Limpiar texto' }}</span>
                       </button>
 
-                      <!-- ============================================ -->
-                      <!-- Pill: Separar ± (más llamativa)              -->
-                      <!-- ============================================ -->
+                      <!-- Pill: Separar ± -->
                       <button
                         *ngIf="modoSepararSimbolo"
                         type="button"
@@ -339,9 +337,9 @@
                         [style.border-style]="esColumnaParaSeparar(i, j) ? 'solid' : 'dashed'"
                         [style.transform]="esColumnaParaSeparar(i, j) ? 'scale(1.05)' : 'scale(1)'"
                         [style.box-shadow]="esColumnaParaSeparar(i, j) ? '0 0 0 3px rgba(13,202,240,.35)' : 'none'"
-                        (click)="seleccionarColumnaParaSeparar(i, j)"
+                        (click)="toggleColumnaParaSeparar(i, j)"
                         style="cursor: pointer; font-size: 0.85rem; transition: all .18s ease; letter-spacing: .3px;"
-                        title="Clic para seleccionar esta columna (solo una a la vez)">
+                        title="Clic para seleccionar/deseleccionar esta columna">
                         <span class="fs-6">{{ esColumnaParaSeparar(i, j) ? '✅' : '✂️' }}</span>
                         <span>{{ esColumnaParaSeparar(i, j) ? 'Seleccionada' : 'Separar ±' }}</span>
                       </button>
@@ -401,18 +399,22 @@
     <button class="btn btn-warning btn-lg shadow-sm fw-bold" type="button"
       (click)="formatearTexto()" [disabled]="columnasParaLimpiar.size === 0">
       🧹 Formatear Texto
-      <span class="badge bg-dark ms-2">{{ columnasParaLimpiar.size }} columna(s)</span>
+      <span class="badge bg-dark ms-2">
+        {{ columnasParaLimpiar.size }} columna{{ columnasParaLimpiar.size === 1 ? '' : 's' }}
+      </span>
     </button>
   </div>
 
   <!-- ============================================= -->
-  <!-- Botón global: Separar Columna                 -->
+  <!-- Botón global: Separar Columnas                -->
   <!-- ============================================= -->
   <div *ngIf="modoSepararSimbolo" class="d-flex justify-content-end mb-4">
     <button class="btn btn-info text-white btn-lg shadow-sm fw-bold" type="button"
-      (click)="separarColumna()" [disabled]="!columnaParaSeparar">
-      ✂️ Separar Columna
-      <span class="badge bg-dark ms-2" *ngIf="columnaParaSeparar">1 columna</span>
+      (click)="separarColumnas()" [disabled]="columnasParaSeparar.size === 0">
+      ✂️ Separar Columnas
+      <span class="badge bg-dark ms-2" *ngIf="columnasParaSeparar.size > 0">
+        {{ columnasParaSeparar.size }} columna{{ columnasParaSeparar.size === 1 ? '' : 's' }}
+      </span>
     </button>
   </div>
 
