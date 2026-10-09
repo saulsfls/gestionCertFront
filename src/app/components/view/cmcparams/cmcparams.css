@@ -1,0 +1,46 @@
+.cell-fila-seleccionada {
+  background-color: #f0f6ff;
+}
+
+.cell-rango {
+  background-color: #fff3cd !important;
+  border-left: 2px solid #ffc107 !important;
+  border-right: 2px solid #ffc107 !important;
+  font-weight: 600;
+}
+
+.cell-error {
+  background-color: #f8d7da !important;
+  border-left: 2px solid #dc3545 !important;
+  border-right: 2px solid #dc3545 !important;
+  font-weight: 600;
+}
+
+.cell-incertidumbre {
+  background-color: #d1e7dd !important;
+  border-left: 2px solid #198754 !important;
+  border-right: 2px solid #198754 !important;
+  font-weight: 600;
+}
+
+.leyenda-cmc .badge {
+  font-size: 0.75rem;
+}
+
+.cmc-badge-cell {
+  width: 70px;
+  padding: 2px 4px !important;
+  text-align: center;
+  vertical-align: middle;
+  background-color: #f8f9fa;
+}
+
+.cmc-badge-cell .badge {
+  font-size: 0.65rem;
+}
+
+.badge-invalido {
+  background-color: #dc3545 !important;
+  color: #fff !important;
+  border: 1px solid #a71e2a !important;
+}

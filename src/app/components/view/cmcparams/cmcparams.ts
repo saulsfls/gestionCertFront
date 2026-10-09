@@ -11,6 +11,13 @@ import { catchError, finalize } from 'rxjs/operators';
 import { CertService } from '../../../services/cert.service';
 import { AlertService } from '../../../services/alert.service';
 import { ApiResponse, Column, ResultTable } from '../../../models/certificado.models';
+import {
+  CmcPayload,
+  CmcTablaSeleccion,
+  CmcFilaDetalle,
+  CmcConfiguracion,
+  CmcMultiPayload,
+} from '../../../models/cmc.model';
 
 @Component({
   selector: 'app-cmcparams',
@@ -35,9 +42,16 @@ export class Cmcparams implements OnInit {
 
   cargando = false;
 
-  // Banderas de proceso
   certificadosEnProceso = false;
   certificadosPorCc: Record<string, any> = {};
+
+  mostrarPanelCmc = false;
+  panelCmcColapsado = false;
+
+  cmcs: CmcConfiguracion[] = [];
+  cmcActivoId = 1;
+
+  copiadoCmc = false;
 
   private readonly opcionesParametroPorTitulo: Record<string, string[]> = {
     'DC Voltage': ['Voltage'],
@@ -79,6 +93,88 @@ export class Cmcparams implements OnInit {
     this.cargarEquipos();
   }
 
+  // ============================================================
+  //   GETTERS DE ESTADO
+  // ============================================================
+
+  get cmcActivo(): CmcConfiguracion | undefined {
+    return this.cmcs.find(c => c.id === this.cmcActivoId);
+  }
+
+  get seleccionCmc(): Record<number, CmcTablaSeleccion> {
+    return this.cmcActivo?.selecciones ?? {};
+  }
+
+  get payloadCompleto(): CmcMultiPayload {
+    return {
+      cmcs: this.cmcs
+        .filter(c => c.payload !== null)
+        .map(c => c.payload as CmcPayload)
+    };
+  }
+
+  get textoPayloadCompleto(): string {
+    const partes = this.cmcs
+      .filter(c => c.payloadTexto)
+      .map(c => c.payloadTexto);
+    return partes.length ? partes.join('\n\n') : '';
+  }
+
+  /** ¿El CMC activo tiene alguna fila con datos no numéricos en Error/Incertidumbre? */
+  get cmcActivoTieneErrores(): boolean {
+    return Object.keys(this.seleccionCmc).some(idx => {
+      const i = Number(idx);
+      return this.tieneErrorInvalido(i) || this.tieneIncertidumbreInvalida(i);
+    });
+  }
+
+  // ============================================================
+  //   HELPERS DE UNIDAD
+  // ============================================================
+
+  formatColumnLabel(col: Column | undefined): string {
+    if (!col) return '';
+    const label = col.label || col.key || '';
+    const unit = (col as any)?.unit;
+    const unitStr = unit === null || unit === undefined ? '' : String(unit).trim();
+    if (!unitStr || unitStr.toUpperCase() === 'N/A') return label;
+    return `${label} (${unitStr})`;
+  }
+
+  // ============================================================
+  //   VALIDACIÓN NUMÉRICA
+  // ============================================================
+
+  esNumeroValido(val: any): boolean {
+    if (val === null || val === undefined) return true;
+    const s = String(val).trim();
+    if (s === '') return true;
+    return /^-?(?:\d+[.,]?\d*|[.,]\d+)(?:[eE][+-]?\d+)?$/.test(s);
+  }
+
+  tieneErrorInvalido(index: number): boolean {
+    const sel = this.seleccionCmc[index];
+    if (!sel || !sel.seleccionada) return false;
+    const tabla = this.filteredTablas[index];
+    if (!tabla) return false;
+    const val = this.getValorCelda(tabla, sel.filaIndex, sel.columnaErrorKey);
+    if (val === null || val === undefined || String(val).trim() === '') return false;
+    return !this.esNumeroValido(val);
+  }
+
+  tieneIncertidumbreInvalida(index: number): boolean {
+    const sel = this.seleccionCmc[index];
+    if (!sel || !sel.seleccionada) return false;
+    const tabla = this.filteredTablas[index];
+    if (!tabla) return false;
+    const val = this.getValorCelda(tabla, sel.filaIndex, sel.columnaIncertidumbreKey);
+    if (val === null || val === undefined || String(val).trim() === '') return false;
+    return !this.esNumeroValido(val);
+  }
+
+  // ============================================================
+  //   CARGA DE EQUIPOS
+  // ============================================================
 
   private cargarEquipos(): void {
     this.cert.obtenerEquipmentId().subscribe({
@@ -98,9 +194,6 @@ export class Cmcparams implements OnInit {
     });
   }
 
-  // ================================================================
-  // CAMBIO DE EQUIPO
-  // ================================================================
   onEquipmentChange(): void {
     this.selectedTitle = '';
     this.selectedParameter = '';
@@ -110,6 +203,7 @@ export class Cmcparams implements OnInit {
     this.availableParameters = [];
     this.certificadosPorCc = {};
     this.certificadosEnProceso = false;
+    this.cerrarPanelCmc();
 
     if (!this.selectedEquipmentId) {
       this.refresh();
@@ -153,7 +247,6 @@ export class Cmcparams implements OnInit {
         }
       });
   }
-
 
   private construirTitulos(): void {
     const titulosPresentes = new Set(this.tablas.map(t => t.title));
@@ -200,9 +293,6 @@ export class Cmcparams implements OnInit {
     this.aplicarFiltros();
   }
 
-  // ================================================================
-  // FILTROS
-  // ================================================================
   private aplicarFiltros(): void {
     this.filteredTablas = this.tablas.filter(t => {
       if (this.selectedTitle === 'Other') {
@@ -231,7 +321,6 @@ export class Cmcparams implements OnInit {
       this.refresh();
     }
   }
-
 
   private cargarCertificadosDeTablas(): void {
     if (!this.selectedTitle) return;
@@ -292,7 +381,6 @@ export class Cmcparams implements OnInit {
       });
   }
 
-  /** Helper para el template */
   getCertificado(tabla: ResultTable): any {
     const cc = tabla?.cc_id;
     if (!cc) return null;
@@ -312,10 +400,503 @@ export class Cmcparams implements OnInit {
     this.filteredTablas = [...this.tablas];
     this.certificadosPorCc = {};
     this.certificadosEnProceso = false;
+    this.cerrarPanelCmc();
     this.refresh();
     this.alert.info('Filtros restablecidos.', 'Sin filtros');
   }
 
+  // ============================================================
+  //   PANEL CMC
+  // ============================================================
+
+  abrirPanelCmc(): void {
+    if (!this.selectedTitle) {
+      this.alert.warning('Selecciona un título (mensurando) antes de calcular el CMC.');
+      return;
+    }
+    if (!this.filteredTablas.length) {
+      this.alert.warning('No hay tablas filtradas para el título seleccionado.');
+      return;
+    }
+
+    if (this.cmcs.length === 0) {
+      const primera = this.crearCmcConfig(1);
+      this.cmcs = [primera];
+      this.cmcActivoId = 1;
+    }
+
+    this.mostrarPanelCmc = true;
+    this.panelCmcColapsado = false;
+    this.refresh();
+  }
+
+  cerrarPanelCmc(): void {
+    this.mostrarPanelCmc = false;
+    this.panelCmcColapsado = false;
+    this.cmcs = [];
+    this.cmcActivoId = 1;
+    this.refresh();
+  }
+
+  togglePanelCmc(): void {
+    this.panelCmcColapsado = !this.panelCmcColapsado;
+    this.refresh();
+  }
+
+  private crearCmcConfig(id: number): CmcConfiguracion {
+    const selecciones: Record<number, CmcTablaSeleccion> = {};
+
+    this.filteredTablas.forEach((tabla, idx) => {
+      const colError = this.detectarColumnaError(tabla);
+      const colInc = this.detectarColumnaIncertidumbre(tabla);
+      const primeraColKey = tabla.columns[0]?.key ?? '';
+
+      selecciones[idx] = {
+        seleccionada: false,
+        filaIndex: 0,
+        columnaErrorKey: colError?.key ?? primeraColKey,
+        columnaIncertidumbreKey: colInc?.key ?? primeraColKey
+      };
+    });
+
+    return {
+      id,
+      intervaloCalibracion: 24,
+      selecciones,
+      payload: null,
+      payloadTexto: ''
+    };
+  }
+
+  nuevoCmc(): void {
+    const nextId = this.cmcs.length ? Math.max(...this.cmcs.map(c => c.id)) + 1 : 1;
+    this.cmcs.push(this.crearCmcConfig(nextId));
+    this.cmcActivoId = nextId;
+    this.refresh();
+    this.alert.success(
+      `Se creó el CMC #${nextId}. Configura las tablas y presiona "Calcular CMC".`,
+      'Nuevo CMC'
+    );
+  }
+
+  seleccionarCmc(id: number): void {
+    this.cmcActivoId = id;
+    this.refresh();
+  }
+
+  eliminarCmc(id: number, event?: Event): void {
+    event?.stopPropagation();
+    if (this.cmcs.length <= 1) {
+      this.alert.warning('Debe existir al menos un cálculo de CMC.');
+      return;
+    }
+    this.cmcs = this.cmcs.filter(c => c.id !== id);
+    if (this.cmcActivoId === id) {
+      this.cmcActivoId = this.cmcs[0].id;
+    }
+    this.refresh();
+    this.alert.info(`CMC #${id} eliminado.`, 'Eliminado');
+  }
+
+  private detectarColumnaError(tabla: ResultTable): Column | undefined {
+    return tabla.columns.find(c =>
+      /error|err\b|desviaci|sesgo/i.test(c.key) || /error|err\b|desviaci|sesgo/i.test(c.label ?? '')
+    );
+  }
+
+  private detectarColumnaIncertidumbre(tabla: ResultTable): Column | undefined {
+    return tabla.columns.find(c =>
+      /incert|uncert|^u(_|$)/i.test(c.key) || /incert|uncert/i.test(c.label ?? '')
+    );
+  }
+
+  toggleTablaCmc(index: number): void {
+    const sel = this.seleccionCmc[index];
+    if (!sel) return;
+    sel.seleccionada = !sel.seleccionada;
+    this.refresh();
+  }
+
+  onSelectionChange(): void {
+    this.refresh();
+  }
+
+  seleccionarTodas(): void {
+    Object.values(this.seleccionCmc).forEach(s => (s.seleccionada = true));
+    this.refresh();
+  }
+
+  deseleccionarTodas(): void {
+    Object.values(this.seleccionCmc).forEach(s => (s.seleccionada = false));
+    this.refresh();
+  }
+
+  sincronizarFilaCmc(): void {
+    const primera = Object.values(this.seleccionCmc)[0];
+    if (!primera) return;
+    const fila = primera.filaIndex;
+    Object.values(this.seleccionCmc).forEach(s => (s.filaIndex = fila));
+    this.refresh();
+    this.alert.info(`Fila ${fila + 1} sincronizada en todas las tablas.`, 'Rango aplicado');
+  }
+
+  // ============================================================
+  //   HELPERS DE VISUALIZACIÓN
+  // ============================================================
+
+  private getValorCelda(
+    tabla: ResultTable | undefined,
+    filaIndex: number,
+    colKey: string
+  ): any {
+    if (!tabla) return null;
+    const row = tabla.rows?.[filaIndex];
+    if (!row) return null;
+    const val = row[colKey];
+    if (val === null || val === undefined || String(val).trim() === '') return null;
+    return val;
+  }
+
+  formatearValor(val: any): string {
+    if (val === null || val === undefined || String(val).trim() === '') return '—';
+    return String(val);
+  }
+
+  formatearFecha(fecha: string | Date | null | undefined): string {
+    if (!fecha) return 'N/A';
+    const d = fecha instanceof Date ? fecha : new Date(fecha);
+    if (isNaN(d.getTime())) return 'N/A';
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    return `${dd}/${mm}/${d.getFullYear()}`;
+  }
+
+  getRowDisplayLabel(tabla: ResultTable, row: Record<string, any>): string {
+    if (!tabla || !row) return '(sin datos)';
+
+    const firstCol = tabla.columns?.[0];
+    const firstColKey = firstCol?.key;
+
+    if (firstColKey) {
+      const val = row[firstColKey];
+      if (val !== null && val !== undefined && String(val).trim() !== '') {
+        const unit = (firstCol as any)?.unit;
+        const unitStr = unit === null || unit === undefined ? '' : String(unit).trim();
+        const sufijo = unitStr && unitStr.toUpperCase() !== 'N/A' ? ` ${unitStr}` : '';
+        return `${String(val)}${sufijo}`;
+      }
+    }
+
+    for (const key of Object.keys(row)) {
+      const val = row[key];
+      if (val !== null && val !== undefined && String(val).trim() !== '') {
+        return String(val);
+      }
+    }
+
+    return '(sin valor)';
+  }
+
+  getRangoSeleccionado(index: number): string {
+    const sel = this.seleccionCmc[index];
+    if (!sel) return '';
+    const tabla = this.filteredTablas[index];
+    if (!tabla) return '';
+    const firstColKey = tabla.columns[0]?.key ?? '';
+    return this.formatearValor(this.getValorCelda(tabla, sel.filaIndex, firstColKey));
+  }
+
+  getErrorSeleccionado(index: number): string {
+    const sel = this.seleccionCmc[index];
+    if (!sel) return '';
+    return this.formatearValor(
+      this.getValorCelda(this.filteredTablas[index], sel.filaIndex, sel.columnaErrorKey)
+    );
+  }
+
+  getIncertidumbreSeleccionada(index: number): string {
+    const sel = this.seleccionCmc[index];
+    if (!sel) return '';
+    return this.formatearValor(
+      this.getValorCelda(this.filteredTablas[index], sel.filaIndex, sel.columnaIncertidumbreKey)
+    );
+  }
+
+  // ============================================================
+  //   MARCADO EN LAS TABLAS DE RESULTADOS
+  // ============================================================
+
+  getCmcsDeFila(tableIndex: number, rowIndex: number): number[] {
+    const ids: number[] = [];
+    for (const cmc of this.cmcs) {
+      const sel = cmc.selecciones[tableIndex];
+      if (sel?.seleccionada && sel.filaIndex === rowIndex) {
+        ids.push(cmc.id);
+      }
+    }
+    return ids;
+  }
+
+  getCellClasses(tableIndex: number, rowIndex: number, colKey: string): Record<string, boolean> {
+    const classes: Record<string, boolean> = {};
+
+    for (const cmc of this.cmcs) {
+      const sel = cmc.selecciones[tableIndex];
+      if (!sel?.seleccionada || sel.filaIndex !== rowIndex) continue;
+
+      classes['cell-fila-seleccionada'] = true;
+
+      const tabla = this.filteredTablas[tableIndex];
+      const firstColKey = tabla?.columns[0]?.key ?? '';
+
+      if (colKey === firstColKey) classes['cell-rango'] = true;
+      if (colKey === sel.columnaErrorKey) classes['cell-error'] = true;
+      if (colKey === sel.columnaIncertidumbreKey) classes['cell-incertidumbre'] = true;
+    }
+
+    return classes;
+  }
+
+  estaEnModoCmc(tableIndex: number): boolean {
+    if (!this.mostrarPanelCmc) return false;
+    return this.cmcs.some(c => c.selecciones[tableIndex]?.seleccionada);
+  }
+
+  // ============================================================
+  //   CÁLCULO — TODOS LOS CMCS
+  // ============================================================
+
+  calcularTodosLosCmc(): void {
+    if (!this.cmcs.length) {
+      this.alert.warning('No hay cálculos de CMC creados.');
+      return;
+    }
+
+    const exitosos: number[] = [];
+    const fallidos: { id: number; motivo: string }[] = [];
+
+    for (const cmc of this.cmcs) {
+      const resultado = this.calcularCmcInterno(cmc);
+      if (resultado.ok) {
+        exitosos.push(cmc.id);
+      } else {
+        fallidos.push({ id: cmc.id, motivo: resultado.motivo ?? 'Error desconocido' });
+      }
+    }
+
+    this.refresh();
+
+    if (!fallidos.length) {
+      this.alert.success(
+        `Se calcularon correctamente ${exitosos.length} CMC${exitosos.length === 1 ? '' : 's'}.`,
+        'Cálculo completado'
+      );
+      return;
+    }
+
+    if (!exitosos.length) {
+      const hayInvalidos = fallidos.some(f => f.motivo.includes('datos inválidos'));
+      this.alert.error(
+        hayInvalidos
+          ? `No se puede calcular el CMC: los datos ingresados son inválidos. Detalle: ${fallidos.map(f => `CMC #${f.id}: ${f.motivo}`).join(' | ')}`
+          : `No se pudo calcular ningún CMC. Detalle: ${fallidos.map(f => `CMC #${f.id}: ${f.motivo}`).join(' | ')}`,
+        hayInvalidos ? 'Datos inválidos' : 'Error en todos los CMC'
+      );
+      return;
+    }
+
+    const hayInvalidos = fallidos.some(f => f.motivo.includes('datos inválidos'));
+    this.alert.warning(
+      `Se calcularon ${exitosos.length} de ${this.cmcs.length} CMC. ` +
+      `${hayInvalidos ? 'CMC con datos inválidos → ' : 'Pendientes → '}` +
+      `${fallidos.map(f => `#${f.id}: ${f.motivo}`).join(' | ')}.`,
+      'Cálculo parcial'
+    );
+  }
+
+  private calcularCmcInterno(cmc: CmcConfiguracion): { ok: boolean; motivo?: string } {
+    const limpiar = () => {
+      cmc.payload = null;
+      cmc.payloadTexto = '';
+    };
+
+    if (!cmc.intervaloCalibracion || cmc.intervaloCalibracion <= 0) {
+      limpiar();
+      return { ok: false, motivo: 'intervalo de calibración inválido' };
+    }
+
+    const entradas = Object.entries(cmc.selecciones)
+      .map(([idx, s]) => ({ idx: Number(idx), s }))
+      .filter(({ s }) => s.seleccionada);
+
+    if (entradas.length < 2) {
+      limpiar();
+      return { ok: false, motivo: 'menos de 2 tablas seleccionadas' };
+    }
+
+    const filasValidas: {
+      idx: number;
+      tabla: ResultTable;
+      cert: any;
+      fecha: Date;
+      error: number;
+      incertidumbre: number;
+      cc: string;
+      table_id: string;
+      rango: string;
+    }[] = [];
+
+    const invalidos: string[] = [];
+
+    for (const { idx, s } of entradas) {
+      const tabla = this.filteredTablas[idx];
+      const cert = this.getCertificado(tabla);
+
+      if (!cert) {
+        invalidos.push(`tabla #${idx + 1}: sin certificado asociado`);
+        continue;
+      }
+
+      const fechaRaw = cert.date_cal || cert.date_cc;
+      const fecha = fechaRaw ? new Date(fechaRaw) : null;
+      if (!fecha || isNaN(fecha.getTime())) {
+        invalidos.push(`tabla #${idx + 1}: sin fecha de calibración válida`);
+        continue;
+      }
+
+      const firstColKey = tabla.columns[0]?.key ?? '';
+      const rawError = this.getValorCelda(tabla, s.filaIndex, s.columnaErrorKey);
+      const rawInc = this.getValorCelda(tabla, s.filaIndex, s.columnaIncertidumbreKey);
+      const rango = this.formatearValor(
+        this.getValorCelda(tabla, s.filaIndex, firstColKey)
+      );
+
+      if (rawError !== null && !this.esNumeroValido(rawError)) {
+        invalidos.push(
+          `tabla #${idx + 1} → Error no numérico: "${rawError}"`
+        );
+        continue;
+      }
+
+      if (rawInc !== null && !this.esNumeroValido(rawInc)) {
+        invalidos.push(
+          `tabla #${idx + 1} → Incertidumbre no numérica: "${rawInc}"`
+        );
+        continue;
+      }
+
+      const error = Number(String(rawError ?? '').replace(',', '.'));
+      const incertidumbre = Number(String(rawInc ?? '').replace(',', '.'));
+
+      if (!isFinite(error) || !isFinite(incertidumbre)) {
+        invalidos.push(
+          `tabla #${idx + 1} → valores no numéricos en la fila/columna seleccionada`
+        );
+        continue;
+      }
+
+      filasValidas.push({
+        idx,
+        tabla,
+        cert,
+        fecha,
+        error,
+        incertidumbre,
+        cc: cert.cc || tabla.cc_id || '',
+        table_id: tabla.table_id || '',
+        rango
+      });
+    }
+
+    if (invalidos.length) {
+      limpiar();
+      return { ok: false, motivo: `datos inválidos → ${invalidos.join('; ')}` };
+    }
+
+    if (filasValidas.length < 2) {
+      limpiar();
+      return { ok: false, motivo: 'filas válidas insuficientes (mínimo 2)' };
+    }
+
+    filasValidas.sort((a, b) => a.fecha.getTime() - b.fecha.getTime());
+
+    const errores = filasValidas.map(x => x.error);
+    const incertidumbres = filasValidas.map(x => x.incertidumbre);
+    const fechasCalibracion = filasValidas.map(x => x.fecha.toISOString());
+    const certificados = filasValidas.map(x => x.cc);
+    const rangoReferencia = filasValidas[0].rango;
+
+    const tiempoIntermedio: number[] = [];
+    const detalle: CmcFilaDetalle[] = [];
+
+    filasValidas.forEach((x, i) => {
+      let dias: number | null = null;
+      if (i > 0) {
+        const ms = x.fecha.getTime() - filasValidas[i - 1].fecha.getTime();
+        dias = Math.round(ms / (1000 * 60 * 60 * 24));
+        tiempoIntermedio.push(dias);
+      }
+      detalle.push({
+        cc: x.cc,
+        table_id: x.table_id,
+        fechaCalibracion: x.fecha.toISOString(),
+        diasDesdeAnterior: dias,
+        error: x.error,
+        incertidumbre: x.incertidumbre,
+        rango: x.rango
+      });
+    });
+
+    const payload: CmcPayload = {
+      id: this.selectedEquipmentId,
+      cmcNumero: cmc.id,
+      errores,
+      incertidumbres,
+      tiempoIntermedio,
+      intervaloCalibracion: cmc.intervaloCalibracion,
+      fechasCalibracion,
+      certificados,
+      rangoReferencia,
+      detalle
+    };
+
+    cmc.payload = payload;
+    cmc.payloadTexto = this.construirTextoPayload(payload);
+
+    return { ok: true };
+  }
+
+  private construirTextoPayload(p: CmcPayload): string {
+    const fmt = (arr: number[]) => `c(${arr.map(n => n.toString()).join(',')})`;
+
+    return [
+      `# === CMC #${p.cmcNumero} ===`,
+      `#ID ${p.id}`,
+      `#Cálculo de la CMC para un valor de referencia en el intervalo de calibración`,
+      ``,
+      `#Certificados involucrados: ${p.certificados.join(', ')}`,
+      ``,
+      `#Entradas:`,
+      ``,
+      `errores=${fmt(p.errores)} #De los certificados de calibración, desde el más antiguo al más reciente`,
+      `incertidumbres=${fmt(p.incertidumbres)} #De los certificados de calibración, desde el más antiguo al más reciente`,
+      `tiempo.intermedio=${fmt(p.tiempoIntermedio)} #Días entre calibraciones, desde el más antiguo al más reciente`,
+      `intervalo.calibracion=${p.intervaloCalibracion} #Se reporta en meses`
+    ].join('\n');
+  }
+
+  copiarPayloadCmc(): void {
+    const texto = this.textoPayloadCompleto;
+    if (!texto) return;
+    navigator.clipboard.writeText(texto).then(() => {
+      this.copiadoCmc = true;
+      this.alert.success('Payload copiado al portapapeles.', 'Copiado');
+      setTimeout(() => {
+        this.copiadoCmc = false;
+        this.refresh();
+      }, 2000);
+    });
+  }
 
   private refresh(): void {
     this.cdr.markForCheck();

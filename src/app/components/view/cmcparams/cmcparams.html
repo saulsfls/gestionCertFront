@@ -1,6 +1,17 @@
 <div class="container-fluid py-4">
 
-  <h2 class="fw-bold mb-4">Tablas de Resultados</h2>
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="fw-bold mb-0">Tablas de Resultados</h2>
+
+    <button
+      type="button"
+      class="btn btn-success"
+      (click)="mostrarPanelCmc ? cerrarPanelCmc() : abrirPanelCmc()"
+      [disabled]="!selectedTitle || filteredTablas.length === 0">
+      <i class="bi bi-calculator me-1"></i>
+      {{ mostrarPanelCmc ? 'Cerrar CMC' : 'Calcular CMC' }}
+    </button>
+  </div>
 
   <div class="card shadow-sm mb-4">
     <div class="card-body">
@@ -60,7 +71,351 @@
     </div>
   </div>
 
-  <!-- Spinner principal: carga de tablas -->
+  <!-- ================== PANEL CMC COLAPSABLE ================== -->
+  <div *ngIf="mostrarPanelCmc" class="card shadow-sm mb-4 border-success">
+
+    <div class="card-header bg-success text-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <h5 class="mb-0 d-flex align-items-center flex-wrap gap-2">
+        <i class="bi bi-sliders"></i>
+        <span>Configuración del cálculo de CMC</span>
+        <span class="badge bg-light text-dark">
+          {{ cmcs.length }} cálculo{{ cmcs.length === 1 ? '' : 's' }}
+        </span>
+        <span *ngIf="panelCmcColapsado" class="badge bg-warning text-dark">
+          CMC activo: #{{ cmcActivoId }}
+        </span>
+      </h5>
+
+      <div class="d-flex gap-2">
+        <button
+          type="button"
+          class="btn btn-sm btn-light"
+          (click)="togglePanelCmc()"
+          [title]="panelCmcColapsado ? 'Mostrar configuración del CMC' : 'Ocultar configuración del CMC'">
+          <i class="bi me-1"
+             [ngClass]="panelCmcColapsado ? 'bi-chevron-down' : 'bi-chevron-up'"></i>
+          {{ panelCmcColapsado ? 'Mostrar configuración' : 'Ocultar configuración' }}
+        </button>
+
+        <button
+          type="button"
+          class="btn btn-sm btn-outline-light"
+          (click)="cerrarPanelCmc()"
+          title="Cerrar el panel de cálculo de CMC">
+          <i class="bi bi-x-lg me-1"></i>
+          Cerrar panel
+        </button>
+      </div>
+    </div>
+
+    <div *ngIf="!panelCmcColapsado" class="card-body">
+
+      <div class="d-flex flex-wrap align-items-center gap-2 mb-3 p-2 bg-light rounded border">
+        <span class="fw-bold small text-secondary me-1">
+          <i class="bi bi-diagram-3 me-1"></i>
+          Cálculos creados:
+        </span>
+
+        <button
+          *ngFor="let c of cmcs"
+          type="button"
+          class="btn btn-sm d-flex align-items-center gap-1"
+          [ngClass]="c.id === cmcActivoId ? 'btn-success' : 'btn-outline-success'"
+          (click)="seleccionarCmc(c.id)"
+          [title]="'Ver y editar el CMC #' + c.id">
+          <span>CMC #{{ c.id }}</span>
+          <i *ngIf="c.payload" class="bi bi-check-circle-fill" title="CMC ya calculado"></i>
+          <i *ngIf="!c.payload" class="bi bi-pencil-square" title="CMC pendiente de calcular"></i>
+        </button>
+
+        <button
+          type="button"
+          class="btn btn-sm btn-primary ms-auto d-flex align-items-center gap-1"
+          (click)="nuevoCmc()"
+          title="Crear un nuevo conjunto de parámetros para otro cálculo de CMC">
+          <i class="bi bi-plus-lg"></i>
+          <span>Agregar nuevo CMC</span>
+        </button>
+
+        <button
+          *ngIf="cmcs.length > 1"
+          type="button"
+          class="btn btn-sm btn-outline-danger d-flex align-items-center gap-1"
+          (click)="eliminarCmc(cmcActivoId, $event)"
+          [title]="'Eliminar el CMC #' + cmcActivoId">
+          <i class="bi bi-trash"></i>
+          <span>Eliminar CMC #{{ cmcActivoId }}</span>
+        </button>
+      </div>
+
+      <div class="row g-3 mb-3 align-items-end">
+        <div class="col-md-3">
+          <label class="form-label fw-bold small text-secondary">
+            Intervalo de calibración (meses)
+          </label>
+          <input
+            type="number"
+            class="form-control"
+            min="1"
+            [(ngModel)]="cmcActivo!.intervaloCalibracion">
+        </div>
+        <div class="col-md-3">
+          <button
+            class="btn btn-outline-secondary w-100"
+            (click)="seleccionarTodas()"
+            title="Marcar todas las tablas para este CMC">
+            <i class="bi bi-check2-square me-1"></i> Seleccionar todas
+          </button>
+        </div>
+        <div class="col-md-3">
+          <button
+            class="btn btn-outline-secondary w-100"
+            (click)="deseleccionarTodas()"
+            title="Desmarcar todas las tablas de este CMC">
+            <i class="bi bi-square me-1"></i> Deseleccionar todas
+          </button>
+        </div>
+        <div class="col-md-3">
+          <button
+            class="btn btn-outline-primary w-100"
+            (click)="sincronizarFilaCmc()"
+            title="Aplicar la misma fila en todas las tablas">
+            <i class="bi bi-arrow-repeat me-1"></i> Sincronizar fila
+          </button>
+        </div>
+      </div>
+
+      <div class="table-responsive">
+        <table class="table table-sm table-bordered align-middle">
+          <thead class="table-light">
+            <tr>
+              <th style="width:40px;">✔</th>
+              <th>#</th>
+              <th>CC</th>
+              <th>Fecha cal.</th>
+              <th style="min-width:200px;">Fila (intervalo)</th>
+              <th style="min-width:220px;">Columna Error</th>
+              <th style="min-width:220px;">Columna Incertidumbre</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              *ngFor="let tabla of filteredTablas; let i = index"
+              [ngClass]="{ 'table-success': seleccionCmc[i]?.seleccionada }">
+
+              <td class="text-center">
+                <input
+                  type="checkbox"
+                  class="form-check-input"
+                  [checked]="seleccionCmc[i]?.seleccionada"
+                  (change)="toggleTablaCmc(i)">
+              </td>
+
+              <td>{{ i + 1 }}</td>
+
+              <td>
+                <span class="badge bg-secondary">
+                  {{ tabla.cc_id || 'N/A' }}
+                </span>
+              </td>
+
+              <td>
+                {{ getCertificado(tabla) ? formatearFecha(getCertificado(tabla).date_cal || getCertificado(tabla).date_cc) : '—' }}
+              </td>
+
+              <td>
+                <select
+                  class="form-select form-select-sm"
+                  [(ngModel)]="seleccionCmc[i].filaIndex"
+                  (ngModelChange)="onSelectionChange()"
+                  [disabled]="!seleccionCmc[i]?.seleccionada">
+                  <option *ngFor="let row of tabla.rows; let r = index" [ngValue]="r">
+                    Fila {{ r + 1 }}: {{ getRowDisplayLabel(tabla, row) }}
+                  </option>
+                </select>
+              </td>
+
+              <td>
+                <select
+                  class="form-select form-select-sm"
+                  [(ngModel)]="seleccionCmc[i].columnaErrorKey"
+                  (ngModelChange)="onSelectionChange()"
+                  [disabled]="!seleccionCmc[i]?.seleccionada">
+                  <option *ngFor="let col of tabla.columns" [value]="col.key">
+                    {{ formatColumnLabel(col) }}
+                  </option>
+                </select>
+              </td>
+
+              <td>
+                <select
+                  class="form-select form-select-sm"
+                  [(ngModel)]="seleccionCmc[i].columnaIncertidumbreKey"
+                  (ngModelChange)="onSelectionChange()"
+                  [disabled]="!seleccionCmc[i]?.seleccionada">
+                  <option *ngFor="let col of tabla.columns" [value]="col.key">
+                    {{ formatColumnLabel(col) }}
+                  </option>
+                </select>
+              </td>
+
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div *ngIf="filteredTablas.length" class="mt-4">
+        <h6 class="fw-bold mb-2">
+          <i class="bi bi-list-check me-1"></i>
+          Valores seleccionados del CMC #{{ cmcActivoId }} (en tiempo real)
+        </h6>
+
+        <div class="table-responsive">
+          <table class="table table-sm table-bordered align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>#</th>
+                <th>CC</th>
+                <th>Fila</th>
+                <th>Intervalo</th>
+                <th>Sesgo (Error)</th>
+                <th>Incertidumbre</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                *ngFor="let tabla of filteredTablas; let i = index"
+                [ngClass]="{
+                  'table-success': seleccionCmc[i]?.seleccionada && !tieneErrorInvalido(i) && !tieneIncertidumbreInvalida(i),
+                  'table-danger': seleccionCmc[i]?.seleccionada && (tieneErrorInvalido(i) || tieneIncertidumbreInvalida(i)),
+                  'text-muted': !seleccionCmc[i]?.seleccionada
+                }">
+                <td>{{ i + 1 }}</td>
+                <td>{{ tabla.cc_id || '—' }}</td>
+                <td>{{ (seleccionCmc[i]?.filaIndex ?? 0) + 1 }}</td>
+                <td>
+                  <span class="badge" style="background:#fff3cd;color:#856404;border:1px solid #ffc107;">
+                    {{ getRangoSeleccionado(i) }}
+                  </span>
+                </td>
+                <td>
+                  <span
+                    class="badge"
+                    [ngClass]="tieneErrorInvalido(i) ? 'bg-danger' : ''"
+                    [style.background]="!tieneErrorInvalido(i) ? '#f8d7da' : null"
+                    [style.color]="!tieneErrorInvalido(i) ? '#842029' : null"
+                    [style.border]="!tieneErrorInvalido(i) ? '1px solid #dc3545' : null"
+                    [title]="tieneErrorInvalido(i) ? 'Valor no numérico: la fila no se puede usar para calcular el CMC' : ''">
+                    <i *ngIf="tieneErrorInvalido(i)" class="bi bi-exclamation-triangle-fill me-1"></i>
+                    {{ getErrorSeleccionado(i) }}
+                  </span>
+                </td>
+                <td>
+                  <span
+                    class="badge"
+                    [ngClass]="tieneIncertidumbreInvalida(i) ? 'bg-danger' : ''"
+                    [style.background]="!tieneIncertidumbreInvalida(i) ? '#d1e7dd' : null"
+                    [style.color]="!tieneIncertidumbreInvalida(i) ? '#0f5132' : null"
+                    [style.border]="!tieneIncertidumbreInvalida(i) ? '1px solid #198754' : null"
+                    [title]="tieneIncertidumbreInvalida(i) ? 'Valor no numérico: la fila no se puede usar para calcular el CMC' : ''">
+                    <i *ngIf="tieneIncertidumbreInvalida(i)" class="bi bi-exclamation-triangle-fill me-1"></i>
+                    {{ getIncertidumbreSeleccionada(i) }}
+                  </span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Aviso de filas inválidas en el CMC activo -->
+      <div *ngIf="cmcActivoTieneErrores" class="alert alert-danger d-flex align-items-center mt-3">
+        <i class="bi bi-exclamation-octagon-fill me-2 fs-4"></i>
+        <div>
+          <strong>No se puede calcular el CMC #{{ cmcActivoId }}.</strong>
+          <div class="small">
+            Hay valores no numéricos en las columnas <em>Error</em> o <em>Incertidumbre</em>.
+            Corrige la selección o elige otra fila/columna antes de continuar.
+          </div>
+        </div>
+      </div>
+
+      <div class="text-end mt-3">
+        <button
+          class="btn btn-primary"
+          (click)="calcularTodosLosCmc()"
+          [disabled]="!cmcs.length"
+          [title]="cmcActivoTieneErrores
+            ? 'Hay valores no numéricos en el CMC activo. Revisa el panel.'
+            : 'Calcular todos los CMC creados'">
+          <i class="bi bi-play-fill me-1"></i>
+          Calcular CMC
+          <span class="badge bg-light text-dark ms-1">
+            {{ cmcs.length }}
+          </span>
+        </button>
+      </div>
+
+      <div *ngIf="cmcActivo?.payload as p" class="mt-4">
+        <h6 class="fw-bold mb-2">
+          <i class="bi bi-clipboard-data me-1"></i>
+          Detalle del CMC #{{ p.cmcNumero }}
+        </h6>
+
+        <div class="table-responsive mb-3">
+          <table class="table table-sm table-striped">
+            <thead class="table-secondary">
+              <tr>
+                <th>#</th>
+                <th>CC</th>
+                <th>ID Tabla</th>
+                <th>Fecha de calibración</th>
+                <th>Días desde anterior</th>
+                <th>Rango</th>
+                <th>Error</th>
+                <th>Incertidumbre</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let d of p.detalle; let i = index">
+                <td>{{ i + 1 }}</td>
+                <td>{{ d.cc || '—' }}</td>
+                <td>{{ d.table_id || '—' }}</td>
+                <td>{{ formatearFecha(d.fechaCalibracion) }}</td>
+                <td>{{ d.diasDesdeAnterior ?? '—' }}</td>
+                <td><span class="badge" style="background:#fff3cd;color:#856404;border:1px solid #ffc107;">{{ d.rango }}</span></td>
+                <td><span class="badge" style="background:#f8d7da;color:#842029;border:1px solid #dc3545;">{{ d.error }}</span></td>
+                <td><span class="badge" style="background:#d1e7dd;color:#0f5132;border:1px solid #198754;">{{ d.incertidumbre }}</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div *ngIf="payloadCompleto.cmcs.length" class="mt-4">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h6 class="fw-bold mb-0">
+            Payload completo
+            <span class="badge bg-dark ms-2">
+              {{ payloadCompleto.cmcs.length }} CMC{{ payloadCompleto.cmcs.length === 1 ? '' : 's' }}
+            </span>
+          </h6>
+          <button
+            class="btn btn-sm btn-outline-primary"
+            (click)="copiarPayloadCmc()"
+            title="Copiar el payload completo al portapapeles">
+            <i class="bi bi-clipboard me-1"></i>
+            {{ copiadoCmc ? 'Copiado' : 'Copiar' }}
+          </button>
+        </div>
+
+        <pre class="bg-dark text-light p-3 rounded small mb-0">{{ textoPayloadCompleto }}</pre>
+      </div>
+
+    </div>
+  </div>
+  <!-- ================== FIN PANEL CMC ================== -->
+
   <div *ngIf="cargando" class="text-center my-5">
     <div class="spinner-border text-primary" role="status">
       <span class="visually-hidden">Cargando...</span>
@@ -84,7 +439,6 @@
 
     <div *ngFor="let table of filteredTablas; let i = index" class="mb-4">
 
-      <!-- ===== Info del certificado: solo si hay título seleccionado y existe ===== -->
       <ng-container *ngIf="selectedTitle && getCertificado(table) as certificado">
         <div class="card shadow-sm mb-3 border-dark">
           <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
@@ -115,9 +469,7 @@
           </div>
         </div>
       </ng-container>
-      <!-- ===== Fin info certificado ===== -->
 
-      <!-- ===== Tabla de resultados ===== -->
       <div class="card shadow-sm">
         <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
           <span class="fw-bold">Tabla #{{ i + 1 }}: {{ table.title || 'Sin título' }}</span>
@@ -137,24 +489,51 @@
             <div class="col-md-4"><strong>Ecuación:</strong> {{ table.calibration_equation || 'N/A' }}</div>
           </div>
 
+          <div *ngIf="estaEnModoCmc(i)"
+               class="alert alert-light border py-2 mb-3 leyenda-cmc d-flex flex-wrap align-items-center gap-3">
+            <span class="text-muted small">
+              <i class="bi bi-palette me-1"></i>
+              Celda marcada en el cálculo:
+            </span>
+            <span class="badge" style="background:#fff3cd;color:#856404;border:1px solid #ffc107;">
+              Rango
+            </span>
+            <span class="badge" style="background:#f8d7da;color:#842029;border:1px solid #dc3545;">
+              Sesgo (Error)
+            </span>
+            <span class="badge" style="background:#d1e7dd;color:#0f5132;border:1px solid #198754;">
+              Incertidumbre
+            </span>
+          </div>
+
           <div class="table-responsive">
             <table class="table table-bordered table-striped table-hover">
               <thead class="table-secondary">
                 <tr>
+                  <th class="cmc-badge-cell"></th>
                   <th *ngFor="let col of table.columns">
                     {{ col.label || col.key }}
-                    <span *ngIf="col.unit" class="text-muted">({{ col.unit }})</span>
+                    <span *ngIf="col.unit && col.unit !== 'N/A'" class="text-muted">({{ col.unit }})</span>
                   </th>
                 </tr>
               </thead>
               <tbody>
-                <tr *ngFor="let row of table.rows">
-                  <td *ngFor="let col of table.columns">
+                <tr *ngFor="let row of table.rows; let r = index">
+                  <td class="cmc-badge-cell">
+                    <span
+                      *ngFor="let id of getCmcsDeFila(i, r)"
+                      class="badge bg-dark d-block mb-1">
+                      CMC&nbsp;{{ id }}
+                    </span>
+                  </td>
+                  <td
+                    *ngFor="let col of table.columns"
+                    [ngClass]="getCellClasses(i, r, col.key)">
                     {{ row[col.key] !== undefined && row[col.key] !== null && row[col.key] !== '' ? row[col.key] : '-' }}
                   </td>
                 </tr>
                 <tr *ngIf="table.rows.length === 0">
-                  <td [attr.colspan]="table.columns.length" class="text-center text-muted">
+                  <td [attr.colspan]="table.columns.length + 1" class="text-center text-muted">
                     Sin registros
                   </td>
                 </tr>
@@ -170,7 +549,6 @@
 
         </div>
       </div>
-      <!-- ===== Fin tabla ===== -->
 
     </div>
   </div>
