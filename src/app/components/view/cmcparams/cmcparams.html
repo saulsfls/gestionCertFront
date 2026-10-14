@@ -340,22 +340,37 @@
         </div>
       </div>
 
-      <div class="text-end mt-3">
+      <!-- ============================================================ -->
+      <!--   BOTONES DE CÁLCULO Y VISUALIZACIÓN                          -->
+      <!-- ============================================================ -->
+      <div class="d-flex justify-content-end gap-2 mt-3 flex-wrap">
+        <button
+          class="btn btn-outline-secondary"
+          (click)="toggleResultadosCmc()"
+          [disabled]="!hayCmcCalculados"
+          [title]="hayCmcCalculados
+            ? 'Mostrar u ocultar el panel de resultados'
+            : 'Primero calcula al menos un CMC'">
+          <i class="bi bi-eye me-1"></i>
+          {{ mostrarResultadosCmc ? 'Ocultar resultados' : 'Ver resultados' }}
+        </button>
+
         <button
           class="btn btn-primary"
-          (click)="calcularTodosLosCmc()"
+          (click)="calcularYMostrarCmc()"
           [disabled]="!cmcs.length"
           [title]="cmcActivoTieneErrores
             ? 'Hay valores no numéricos en el CMC activo. Revisa el panel.'
-            : 'Calcular todos los CMC creados'">
+            : 'Calcular todos los CMC creados y mostrar resultados'">
           <i class="bi bi-play-fill me-1"></i>
-          Calcular CMC
+          Calcular y ver CMC
           <span class="badge bg-light text-dark ms-1">
             {{ cmcs.length }}
           </span>
         </button>
       </div>
 
+      <!-- Detalle del CMC activo (trazabilidad de los datos usados) -->
       <div *ngIf="cmcActivo?.payload as p" class="mt-4">
         <h6 class="fw-bold mb-2">
           <i class="bi bi-clipboard-data me-1"></i>
@@ -392,29 +407,22 @@
         </div>
       </div>
 
-      <div *ngIf="payloadCompleto.cmcs.length" class="mt-4">
-        <div class="d-flex justify-content-between align-items-center mb-2">
-          <h6 class="fw-bold mb-0">
-            Payload completo
-            <span class="badge bg-dark ms-2">
-              {{ payloadCompleto.cmcs.length }} CMC{{ payloadCompleto.cmcs.length === 1 ? '' : 's' }}
-            </span>
-          </h6>
-          <button
-            class="btn btn-sm btn-outline-primary"
-            (click)="copiarPayloadCmc()"
-            title="Copiar el payload completo al portapapeles">
-            <i class="bi bi-clipboard me-1"></i>
-            {{ copiadoCmc ? 'Copiado' : 'Copiar' }}
-          </button>
-        </div>
-
-        <pre class="bg-dark text-light p-3 rounded small mb-0">{{ textoPayloadCompleto }}</pre>
-      </div>
-
     </div>
   </div>
   <!-- ================== FIN PANEL CMC ================== -->
+
+  <!-- ============================================================ -->
+  <!--   PANEL DE RESULTADOS (componente Cmcsr)                      -->
+  <!-- ============================================================ -->
+  <div *ngIf="mostrarResultadosCmc" class="mb-4">
+    <app-cmcsr
+      [cmcs]="payloadCompleto.cmcs"
+      [titulo]="etiquetaMensurando"
+      [mostrarEncabezado]="true"
+      (calculado)="onResultadoCalculado($event)"
+      (cerrado)="cerrarResultadosCmc()">
+    </app-cmcsr>
+  </div>
 
   <div *ngIf="cargando" class="text-center my-5">
     <div class="spinner-border text-primary" role="status">

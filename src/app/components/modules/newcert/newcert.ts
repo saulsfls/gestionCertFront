@@ -120,7 +120,6 @@ export class Newcert implements OnInit {
     this.regenerarTableIds();
     this.sincronizarJsonTexto();
     this.alert.success('Se han cargado: ' + this.resultTables.length + ' tablas', 'Datos cargados');
-    // Configuración global del servicio de alertas
   }
 
   // ========== 🔑 GENERACIÓN DE table_id ==========
@@ -177,6 +176,12 @@ export class Newcert implements OnInit {
   }
 
   onTableChange(): void {
+    this.regenerarTableIds();
+    this.sincronizarJsonTexto();
+  }
+
+  /** Se dispara al cambiar el folio (cc). Solo regenera los table_id locales. */
+  onCcChange(): void {
     this.regenerarTableIds();
     this.sincronizarJsonTexto();
   }
@@ -371,6 +376,32 @@ export class Newcert implements OnInit {
     return !this.esNumeroValido(String(valor));
   }
 
+  // ========== HELPERS DE FECHA ==========
+  private parseFechaLocal(fecha: string | Date | null | undefined): Date | null {
+    if (!fecha) return null;
+    if (fecha instanceof Date) return isNaN(fecha.getTime()) ? null : fecha;
+
+    const str = String(fecha).trim();
+    const m = /^(\d{4})-(\d{2})-(\d{2})(?:[T\s].*)?$/.exec(str);
+    if (m) {
+      const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+      return isNaN(d.getTime()) ? null : d;
+    }
+    const d = new Date(str);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  private hoyLocal(): Date {
+    const h = new Date();
+    h.setHours(0, 0, 0, 0);
+    return h;
+  }
+
+  private diasEntre(a: Date, b: Date): number {
+    const MS = 1000 * 60 * 60 * 24;
+    return Math.round((b.getTime() - a.getTime()) / MS);
+  }
+
   // ========== MÉTODOS DE IMAGEN ==========
   onPaste(event: ClipboardEvent, tableIndex: number): void {
     if (!this.isBrowser) return;
@@ -464,14 +495,13 @@ export class Newcert implements OnInit {
   }
 
   // ================================================================
-  //  📤 ENVIAR A OCR  —  misma estructura que tu código original
+  //  📤 ENVIAR A OCR
   // ================================================================
   enviarANode(tableIndex: number): void {
     const state = this.imageStates[tableIndex];
     const table = this.resultTables[tableIndex];
     if (!state || !table) return;
 
-    // 🚩 Guard: no ejecutar si ya hay uno corriendo
     if (this.ocrEnProceso || state.cargando) {
       this.alert.info('Ya hay un proceso de extracción en curso.');
       return;
@@ -486,13 +516,11 @@ export class Newcert implements OnInit {
       return;
     }
 
-    // 🚩 activar banderas
     this.ocrEnProceso = true;
     state.cargando = true;
     this.cdr.detectChanges();
 
     const terminar = () => {
-      // 🚩 liberar banderas SIEMPRE (éxito, error o complete)
       this.ocrEnProceso = false;
       state.cargando = false;
       try { this.cdr.detectChanges(); } catch { /* noop */ }
@@ -519,7 +547,6 @@ export class Newcert implements OnInit {
               }
 
               if (headers.length > 0 && rows.length > 0) {
-                // 1️⃣ Aplica los datos (mutación en sitio + CD — igual que tu original)
                 this.aplicarDatosExtraidos(
                   tableIndex,
                   headers,
@@ -527,7 +554,6 @@ export class Newcert implements OnInit {
                   state.tieneEncabezado
                 );
 
-                // 2️⃣ Warning de confirmación (sin await — usamos .then)
                 this.alert.confirm(
                   'La AI puede cometer errores. Verifica los valores extraídos antes de continuar.',
                   '⚠ Revisa los datos',
@@ -739,8 +765,7 @@ export class Newcert implements OnInit {
   }
 
   // ================================================================
-  //  APLICAR DATOS EXTRAÍDOS  —  igual que tu código original
-  //  (mutación en sitio + cdr.detectChanges — patrón probado)
+  //  APLICAR DATOS EXTRAÍDOS
   // ================================================================
   private aplicarDatosExtraidos(
     indexTable: number,
@@ -817,7 +842,6 @@ export class Newcert implements OnInit {
       return obj;
     });
 
-    // 🔑 MUTACIÓN EN SITIO — como tu código original (funciona)
     table.columns = newColumns;
     table.rows = newRows.length > 0 ? newRows : [{}];
 
@@ -886,81 +910,256 @@ export class Newcert implements OnInit {
     });
   }
 
-  // ========== VALIDACIONES ==========
+  // ================================================================
+  //  ✅ VALIDACIONES DEL FORMULARIO
+  // ================================================================
   validarFormulario(): boolean {
-    if (!this.certificado.equipment_id || !this.certificado.equipment_id.trim()) {
-      this.alert.warning('El "ID del Equipo" es un campo obligatorio.');
-      return false;
+    const errores: string[] = [];
+    const c = this.certificado;
+
+    // ===== Campos obligatorios básicos =====
+    if (!c.equipment_id?.trim()) {
+      errores.push('• El "ID del Equipo" es obligatorio.');
+    } else if (c.equipment_id.trim().length < 2) {
+      errores.push('• El "ID del Equipo" debe tener al menos 2 caracteres.');
+    } else if (!/^[A-Za-z0-9_\-./]+$/.test(c.equipment_id.trim())) {
+      errores.push('• El "ID del Equipo" contiene caracteres no permitidos (usa letras, números, -, _, ., /).');
     }
-    if (!this.certificado.name_equipment || !this.certificado.name_equipment.trim()) {
-      this.alert.warning('El "Nombre del Equipo" es un campo obligatorio.');
-      return false;
+
+    if (!c.name_equipment?.trim()) {
+      errores.push('• El "Nombre del Equipo" es obligatorio.');
+    } else if (c.name_equipment.trim().length < 3) {
+      errores.push('• El "Nombre del Equipo" debe tener al menos 3 caracteres.');
     }
-    if (!this.certificado.cc || !this.certificado.cc.trim()) {
-      this.alert.warning('El "Folio del Certificado (cc)" es un campo obligatorio.');
-      return false;
+
+    if (!c.cc?.trim()) {
+      errores.push('• El "Folio del Certificado (cc)" es obligatorio.');
+    } else if (!/^[A-Za-z0-9\-_/]+$/.test(c.cc.trim())) {
+      errores.push('• El "Folio (cc)" contiene caracteres no permitidos.');
     }
-    if (this.certificado.date_cal && this.certificado.date_cc) {
-      const fechaCal = new Date(this.certificado.date_cal);
-      const fechaCc = new Date(this.certificado.date_cc);
+
+    if (!c.entity?.trim()) {
+      errores.push('• La "Entidad" es obligatoria.');
+    }
+
+    if (!c.cert_type?.trim()) {
+      errores.push('• El "Tipo de Certificado" es obligatorio.');
+    }
+
+    // ===== Fechas =====
+    const hoy = this.hoyLocal();
+    const fechaCal = this.parseFechaLocal(c.date_cal);
+    const fechaCc = this.parseFechaLocal(c.date_cc);
+
+    if (!c.date_cal) {
+      errores.push('• La "Fecha de Calibración" es obligatoria.');
+    } else if (!fechaCal) {
+      errores.push('• La "Fecha de Calibración" no tiene un formato válido.');
+    } else if (fechaCal > hoy) {
+      errores.push('• La "Fecha de Calibración" no puede ser una fecha futura.');
+    } else if (fechaCal.getFullYear() < 1950) {
+      errores.push('• La "Fecha de Calibración" parece demasiado antigua (anterior a 1950).');
+    }
+
+    if (!c.date_cc) {
+      errores.push('• La "Fecha del Certificado" es obligatoria.');
+    } else if (!fechaCc) {
+      errores.push('• La "Fecha del Certificado" no tiene un formato válido.');
+    } else if (fechaCc > hoy) {
+      errores.push('• La "Fecha del Certificado" no puede ser una fecha futura.');
+    }
+
+    if (fechaCal && fechaCc) {
       if (fechaCc < fechaCal) {
-        this.alert.warning('La "Fecha del Certificado" no puede ser anterior a la "Fecha de Calibración".');
-        return false;
+        errores.push('• La "Fecha del Certificado" no puede ser anterior a la "Fecha de Calibración".');
+      }
+      if (this.diasEntre(fechaCal, fechaCc) > 365 * 2) {
+        errores.push('• Hay más de 2 años entre la "Fecha de Calibración" y la "Fecha del Certificado". Verifica.');
       }
     }
 
+    // ===== Intervalo y resolución =====
+    const intervalo = Number(c.calibration_interval);
+    if (!Number.isFinite(intervalo) || intervalo <= 0) {
+      errores.push('• El "Intervalo de Calibración" debe ser un número mayor que 0.');
+    } else if (intervalo > 120) {
+      errores.push('• El "Intervalo de Calibración" parece inusualmente alto (> 120 meses).');
+    }
+
+    const resolucion = Number(c.resolution);
+    if (!Number.isFinite(resolucion) || resolucion < 0) {
+      errores.push('• La "Resolución" debe ser un número mayor o igual a 0.');
+    }
+
+    // ===== Validación de cada tabla =====
     for (let i = 0; i < this.resultTables.length; i++) {
       const table = this.resultTables[i];
-      const numTable = i + 1;
+      const n = i + 1;
 
-      if (!table.title || !table.title.trim()) {
-        this.alert.warning(`El título de la Tabla #${numTable} es obligatorio.`);
-        return false;
+      if (!table.title?.trim()) {
+        errores.push(`• Tabla #${n}: el título es obligatorio.`);
       }
-      if (!table.parameter || !table.parameter.trim()) {
-        this.alert.warning(`El parámetro de la Tabla #${numTable} es obligatorio.`);
-        return false;
+      if (!table.parameter?.trim()) {
+        errores.push(`• Tabla #${n}: el parámetro es obligatorio.`);
       }
-      if (!table.table_id) {
-        this.regenerarTableIds();
-        if (!table.table_id) {
-          this.alert.error(`No se pudo generar el ID de la Tabla #${numTable}.`);
-          return false;
-        }
+      if (!table.columns || table.columns.length === 0) {
+        errores.push(`• Tabla #${n}: debe tener al menos una columna.`);
+        continue;
       }
 
-      const keys = table.columns.map(c => c.key.trim().toLowerCase().replace(/\s+/g, '_'));
+      const keys = table.columns.map(k => k.key.trim().toLowerCase().replace(/\s+/g, '_'));
       const uniqueKeys = new Set(keys);
       if (keys.length !== uniqueKeys.size) {
-        this.alert.error(`La Tabla #${numTable} tiene columnas con keys duplicados.`);
-        return false;
+        errores.push(`• Tabla #${n}: hay columnas con "key" duplicado.`);
       }
       for (const col of table.columns) {
-        const keyLimpio = col.key.trim().toLowerCase().replace(/\s+/g, '_');
+        const keyLimpio = col.key?.trim().toLowerCase().replace(/\s+/g, '_') ?? '';
         if (!keyLimpio) {
-          this.alert.error(`La Tabla #${numTable} tiene una columna con key vacío.`);
-          return false;
+          errores.push(`• Tabla #${n}: hay una columna sin "key".`);
+        } else if (!/^[a-z0-9_]+$/.test(keyLimpio)) {
+          errores.push(`• Tabla #${n}: el key "${col.key}" contiene caracteres no permitidos.`);
         }
-        if (!/^[a-z0-9_]+$/.test(keyLimpio)) {
-          this.alert.error(`La Tabla #${numTable} tiene un key con caracteres no permitidos: "${col.key}".`);
-          return false;
-        }
+      }
 
-        if (col.type === 'number') {
-          for (let r = 0; r < table.rows.length; r++) {
+      const colsNumericas = table.columns.filter(col => col.type === 'number');
+      if (colsNumericas.length > 0) {
+        for (let r = 0; r < table.rows.length; r++) {
+          for (const col of colsNumericas) {
             const val = table.rows[r][col.key];
             if (this.esValorInvalido(val, col)) {
-              this.alert.error(
-                `La Tabla #${numTable}, columna "${col.label}" contiene un valor no numérico ("${val}").`,
-                'Valor inválido'
+              errores.push(
+                `• Tabla #${n}, fila ${r + 1}, columna "${col.label || col.key}": valor no numérico ("${val}").`
               );
-              return false;
             }
           }
         }
       }
     }
+
+    if (errores.length > 0) {
+      const visibles = errores.slice(0, 8);
+      const restantes = errores.length - visibles.length;
+      const detalle = visibles.join('\n') + (restantes > 0 ? `\n… y ${restantes} error(es) más.` : '');
+      this.alert.error(detalle, `Errores de validación (${errores.length})`);
+      return false;
+    }
     return true;
+  }
+
+  // ================================================================
+  //  🔁 TRADUCTOR DE ERRORES DEL BACKEND
+  // ================================================================
+  private traducirErrorBackend(err: any): { titulo: string; mensaje: string } {
+    // Timeout de RxJS
+    if (err?.name === 'TimeoutError') {
+      return {
+        titulo: 'Tiempo de espera agotado',
+        mensaje: 'El servidor tardó más de 30 s en responder. Verifica tu conexión e inténtalo de nuevo.'
+      };
+    }
+
+    // Sin conexión / error de red
+    if (err?.status === 0 || (err?.name === 'HttpErrorResponse' && !err?.status)) {
+      return {
+        titulo: 'Sin conexión',
+        mensaje: 'No se pudo contactar con el servidor. Revisa tu red o inténtalo más tarde.'
+      };
+    }
+
+    const status = err?.status ?? err?.error?.status ?? null;
+    const body = err?.error ?? {};
+    const code = body.code ?? err?.code ?? null;       // SQLSTATE PostgreSQL
+    const message = body.message ?? err?.message ?? '';
+    const detail = body.detail ?? err?.detail ?? '';
+    const constraint = body.constraint ?? err?.constraint ?? '';
+    const column = body.column ?? err?.column ?? '';
+
+    // 🔑 UNICIDAD: Folio duplicado u otro registro duplicado
+    if (code === '23505' || status === 409) {
+      const texto = `${message} ${detail} ${constraint}`.toLowerCase();
+      const folio = (this.certificado.cc || '').trim();
+
+      if (texto.includes('cc') || texto.includes('folio')) {
+        return {
+          titulo: 'Folio duplicado',
+          mensaje:
+            `Ya existe un certificado registrado con el folio "${folio}". ` +
+            `Verifica el número o genera uno nuevo antes de volver a guardar.`
+        };
+      }
+      if (texto.includes('equipment_id')) {
+        return {
+          titulo: 'Equipo duplicado',
+          mensaje:
+            `Ya existe un certificado para el equipo "${this.certificado.equipment_id}". ` +
+            `Verifica los datos antes de continuar.`
+        };
+      }
+      return {
+        titulo: 'Registro duplicado',
+        mensaje:
+          detail ||
+          message ||
+          'El registro ya existe en la base de datos. Verifica los datos e inténtalo de nuevo.'
+      };
+    }
+
+    // FK inexistente
+    if (code === '23503') {
+      return {
+        titulo: 'Referencia inválida',
+        mensaje: detail || 'La entidad o equipo referenciado no existe en el sistema.'
+      };
+    }
+
+    // NOT NULL
+    if (code === '23502') {
+      return {
+        titulo: 'Campo obligatorio faltante',
+        mensaje: `El campo "${column || detail || 'desconocido'}" es obligatorio en la base de datos.`
+      };
+    }
+
+    // CHECK constraint
+    if (code === '23514') {
+      return {
+        titulo: 'Valor fuera de rango',
+        mensaje: detail || `Un valor no cumple con las restricciones (${constraint}).`
+      };
+    }
+
+    // Formato de dato inválido (fechas / números)
+    if (code === '22P02' || code === '22007' || code === '22008' || code === '22003') {
+      return {
+        titulo: 'Formato de dato inválido',
+        mensaje: detail || 'Revisa el formato de fechas y valores numéricos antes de guardar.'
+      };
+    }
+
+    // HTTP genéricos
+    if (status === 400) {
+      return { titulo: 'Solicitud inválida', mensaje: message || detail || 'Revisa los datos enviados.' };
+    }
+    if (status === 401 || status === 403) {
+      return { titulo: 'Acceso denegado', mensaje: 'No tienes permisos para realizar esta acción.' };
+    }
+    if (status === 404) {
+      return { titulo: 'No encontrado', mensaje: message || 'El recurso solicitado no existe.' };
+    }
+    if (status === 413) {
+      return { titulo: 'Datos demasiado grandes', mensaje: 'El payload excede el tamaño permitido.' };
+    }
+    if (status >= 500) {
+      return {
+        titulo: `Error del servidor (${status})`,
+        mensaje: message || 'Ocurrió un error interno. Intenta más tarde o contacta al administrador.'
+      };
+    }
+
+    return {
+      titulo: 'Error al guardar',
+      mensaje: message || detail || 'Error desconocido al conectar con la API de PostgreSQL.'
+    };
   }
 
   // ========== GUARDAR ==========
@@ -974,10 +1173,14 @@ export class Newcert implements OnInit {
     this.regenerarTableIds();
     this.sincronizarJsonTexto();
 
+    // ✅ Construcción segura del payload (evita TS2532 "Object is possibly 'undefined'")
     const payload: Certificado = {
       ...this.certificado,
-      equipment_id: this.certificado.equipment_id.trim(),
-      name_equipment: this.certificado.name_equipment.trim(),
+      equipment_id: (this.certificado.equipment_id ?? '').trim(),
+      name_equipment: (this.certificado.name_equipment ?? '').trim(),
+      cc: (this.certificado.cc ?? '').trim(),
+      entity: (this.certificado.entity ?? '').trim(),
+      cert_type: (this.certificado.cert_type ?? '').trim(),
       data: this.obtenerJsonEstructurado()
     };
 
@@ -994,11 +1197,17 @@ export class Newcert implements OnInit {
       },
       error: (err: any) => {
         console.error('Error al guardar:', err);
-        const msg =
-          err?.name === 'TimeoutError'
-            ? 'El servidor tardó demasiado en responder. Intenta de nuevo.'
-            : (err?.error?.message || 'Error al conectar con la API de PostgreSQL.');
-        this.alert.error(msg, 'Error al guardar');
+        const { titulo, mensaje } = this.traducirErrorBackend(err);
+        this.alert.error(mensaje, titulo);
+
+        // Si fue folio duplicado, enfoca el input del folio para corregirlo rápido
+        if (titulo === 'Folio duplicado') {
+          setTimeout(() => {
+            const el = document.getElementById('cc') as HTMLInputElement | null;
+            el?.focus();
+            el?.select();
+          }, 0);
+        }
       }
     });
   }

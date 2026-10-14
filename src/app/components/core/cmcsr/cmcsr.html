@@ -1,1 +1,106 @@
-<p>cmcsr works!</p>
+<div class="cmc-resultado">
+  <header *ngIf="mostrarEncabezado" class="encabezado">
+    <div>
+      <h3>Resultados del CMC</h3>
+      <p *ngIf="titulo" class="subtitulo">{{ titulo }}</p>
+    </div>
+    <div class="acciones">
+      <button type="button" class="btn btn-sec" (click)="copiarResultados()">
+        {{ copiado ? '¡Copiado!' : 'Copiar' }}
+      </button>
+      <button type="button" class="btn btn-sec" (click)="exportarCsv()">
+        CSV
+      </button>
+      <button type="button" class="btn btn-cerrar" (click)="cerrar()">✕</button>
+    </div>
+  </header>
+
+  <div *ngIf="!resultados.length" class="vacio">
+    No hay resultados para mostrar.
+  </div>
+
+  <!-- Selector de CMC cuando hay varios -->
+  <div *ngIf="resultados.length > 1" class="tabs-cmc">
+    <button
+      *ngFor="let r of resultados"
+      type="button"
+      class="tab"
+      [class.activo]="r.payload.cmcNumero === cmcActivoId"
+      [class.error]="!!r.error"
+      (click)="seleccionarCmc(r.payload.cmcNumero)"
+    >
+      CMC #{{ r.payload.cmcNumero }}
+    </button>
+  </div>
+
+  <!-- Detalle del CMC activo -->
+  <ng-container *ngIf="cmcActivo as activo">
+    <div *ngIf="activo.error" class="error-box">
+      ⚠️ {{ activo.error }}
+    </div>
+
+    <ng-container *ngIf="activo.resultado as res">
+      <!-- Cabecera del CMC -->
+      <div class="meta">
+        <span><strong>Rango de referencia:</strong> {{ res.rangoReferencia }}</span>
+        <span><strong>Certificados:</strong> {{ res.certificados.join(', ') }}</span>
+      </div>
+
+      <!-- Resumen principal -->
+      <div class="tarjetas-resumen">
+        <div class="tarjeta">
+          <span class="label">u combinada</span>
+          <span class="valor">{{ fmt(res.incertidumbreCombinada) }}</span>
+        </div>
+        <div class="tarjeta">
+          <span class="label">Grados de libertad efectivos</span>
+          <span class="valor">{{ res.dofEfectivos }}</span>
+        </div>
+        <div class="tarjeta">
+          <span class="label">Coef. expansión (k)</span>
+          <span class="valor">{{ fmt(res.coefExpansion, 4) }}</span>
+        </div>
+        <div class="tarjeta destacada">
+          <span class="label">U expandida (k·u<sub>c</sub>)</span>
+          <span class="valor">{{ fmt(res.incertidumbreExpandida) }}</span>
+        </div>
+      </div>
+
+      <!-- Tabla de fuentes -->
+      <table class="tabla-fuentes">
+        <thead>
+          <tr>
+            <th>Fuente</th>
+            <th>Valor</th>
+            <th>ν (dof)</th>
+            <th>Peso</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let f of res.fuentes">
+            <td>{{ f.nombre }}</td>
+            <td class="num">{{ fmt(f.valor) }}</td>
+            <td class="num">{{ f.dof }}</td>
+            <td class="num">{{ fmtPct(f.pesoPct) }}</td>
+            <td class="barra-celda">
+              <div class="barra">
+                <div
+                  class="barra-relleno"
+                  [style.width.%]="f.pesoPct"
+                ></div>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="3"><strong>Incertidumbre combinada</strong></td>
+            <td class="num"><strong>{{ fmt(res.incertidumbreCombinada) }}</strong></td>
+            <td></td>
+          </tr>
+        </tfoot>
+      </table>
+    </ng-container>
+  </ng-container>
+</div>

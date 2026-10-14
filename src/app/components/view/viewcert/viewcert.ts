@@ -4,7 +4,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { CertService } from '../../../services/cert.service';
 import { FormsModule } from '@angular/forms';
 import { AlertService } from '../../../services/alert.service';
-import * as XLSX from 'xlsx';
+import { Workbook } from 'exceljs';
 import { Certificado, ResultTable } from '../../../models/certificado.models';
 import { finalize } from 'rxjs/operators';
 
@@ -99,14 +99,15 @@ export class Viewcert implements OnInit {
     this.router.navigate(['/listcert']);
   }
 
-  exportToExcel(): void {
+  async exportToExcel(): Promise<void> {
     if (!this.certificado) {
       this.alert.warning('No hay datos del certificado para exportar.', 'Sin datos');
       return;
     }
 
     try {
-      const wb = XLSX.utils.book_new();
+      const workbook = new Workbook();
+      const worksheet = workbook.addWorksheet('Certificado');
       const sheetData: any[][] = [];
 
       // Resumen del certificado
@@ -194,30 +195,51 @@ export class Viewcert implements OnInit {
         sheetData.push(['No hay tablas de resultados asociadas.']);
       }
 
-      const ws = XLSX.utils.aoa_to_sheet(sheetData);
+      // Volcar los datos al worksheet de ExcelJS
+      sheetData.forEach(row => {
+        worksheet.addRow(row);
+      });
 
-      const maxCols = Math.max(...sheetData.map(r => r.length), 0);
-      const colWidths: Array<{ wch: number }> = [];
+      // Calcular ancho automático de las columnas de forma segura
+      const colWidths: { [key: number]: number } = {};
 
-      for (let i = 0; i < maxCols; i++) {
-        let maxLen = 12;
-        sheetData.forEach(row => {
-          const cell = row[i];
-          if (cell === undefined || cell === null) return;
-          const len = String(cell).length;
-          if (len > maxLen) maxLen = Math.min(len, 50);
+      worksheet.eachRow({ includeEmpty: true }, (row) => {
+        row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+          const val = cell.value;
+          const len = val !== undefined && val !== null ? String(val).length : 0;
+          const currentMax = colWidths[colNumber] || 12;
+          if (len > currentMax) {
+            colWidths[colNumber] = Math.min(len, 50);
+          } else if (!colWidths[colNumber]) {
+            colWidths[colNumber] = 12;
+          }
         });
-        colWidths.push({ wch: maxLen + 2 });
+      });
+
+      Object.keys(colWidths).forEach(colNum => {
+        const column = worksheet.getColumn(Number(colNum));
+        column.width = colWidths[Number(colNum)] + 2;
+      });
+
+      // Congelar las primeras 3 filas
+      worksheet.views = [{ state: 'frozen', ySplit: 3 }];
+
+      // Generar archivo binario y descargar de manera segura
+      const buffer = await workbook.xlsx?.writeBuffer();
+      if (!buffer) {
+        throw new Error('No se pudo generar el buffer del archivo Excel.');
       }
-      ws['!cols'] = colWidths;
 
-      ws['!freeze'] = { xSplit: 0, ySplit: 3 };
-
-      XLSX.utils.book_append_sheet(wb, ws, 'Certificado');
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 
       const safeId = String(c.equipment_id || c.cc || c.id || 'cert').replace(/[^\w\-]+/g, '_');
       const fileName = `Certificado_${safeId}.xlsx`;
-      XLSX.writeFile(wb, fileName);
+
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = fileName;
+      link.click();
+      URL.revokeObjectURL(link.href);
 
       this.alert.success(`Certificado exportado como "${fileName}".`, 'Excel generado');
 

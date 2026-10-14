@@ -17,12 +17,14 @@ import {
   CmcFilaDetalle,
   CmcConfiguracion,
   CmcMultiPayload,
+  CmcResultado,
 } from '../../../models/cmc.model';
+import { Cmcsr } from '../../core/cmcsr/cmcsr';
 
 @Component({
   selector: 'app-cmcparams',
   standalone: true,
-  imports: [FormsModule, CommonModule],
+  imports: [FormsModule, CommonModule, Cmcsr],
   templateUrl: './cmcparams.html',
   styleUrl: './cmcparams.css',
 })
@@ -52,6 +54,16 @@ export class Cmcparams implements OnInit {
   cmcActivoId = 1;
 
   copiadoCmc = false;
+
+  // ============================================================
+  //   ESTADO DEL PANEL DE RESULTADOS (Cmcsr)
+  // ============================================================
+  mostrarResultadosCmc = false;
+  resultadosCmc: CmcResultado[] = [];
+
+  /** Caché para el binding [cmcs] del hijo. */
+  private _cmcsParaMostrarCache: CmcPayload[] = [];
+  private _claveCacheCmcs = '';
 
   private readonly opcionesParametroPorTitulo: Record<string, string[]> = {
     'DC Voltage': ['Voltage'],
@@ -105,12 +117,31 @@ export class Cmcparams implements OnInit {
     return this.cmcActivo?.selecciones ?? {};
   }
 
-  get payloadCompleto(): CmcMultiPayload {
-    return {
-      cmcs: this.cmcs
+  /**
+   * Array estable de payloads para bindear al hijo `<app-cmcsr>`.
+   * Sólo se regenera cuando el CONJUNTO de CMC con payload cambia
+   * (identificado por la concatenación de ids). Evita que el getter
+   * devuelva una referencia nueva en cada ciclo de CD.
+   */
+  get cmcsParaMostrar(): CmcPayload[] {
+    const clave = this.cmcs
+      .filter(c => c.payload !== null)
+      .map(c => c.id)
+      .join('|');
+
+    if (clave !== this._claveCacheCmcs) {
+      this._claveCacheCmcs = clave;
+      this._cmcsParaMostrarCache = this.cmcs
         .filter(c => c.payload !== null)
-        .map(c => c.payload as CmcPayload)
-    };
+        .map(c => c.payload as CmcPayload);
+    }
+
+    return this._cmcsParaMostrarCache;
+  }
+
+  /** Compatibilidad con el HTML viejo por si lo dejaste referenciado. */
+  get payloadCompleto(): CmcMultiPayload {
+    return { cmcs: this.cmcsParaMostrar };
   }
 
   get textoPayloadCompleto(): string {
@@ -120,12 +151,22 @@ export class Cmcparams implements OnInit {
     return partes.length ? partes.join('\n\n') : '';
   }
 
-  /** ¿El CMC activo tiene alguna fila con datos no numéricos en Error/Incertidumbre? */
   get cmcActivoTieneErrores(): boolean {
     return Object.keys(this.seleccionCmc).some(idx => {
       const i = Number(idx);
       return this.tieneErrorInvalido(i) || this.tieneIncertidumbreInvalida(i);
     });
+  }
+
+  get hayCmcCalculados(): boolean {
+    return this.cmcs.some(c => c.payload !== null);
+  }
+
+  get etiquetaMensurando(): string {
+    if (!this.selectedTitle) return '';
+    return this.selectedParameter
+      ? `${this.selectedTitle} — ${this.selectedParameter}`
+      : this.selectedTitle;
   }
 
   // ============================================================
@@ -204,6 +245,7 @@ export class Cmcparams implements OnInit {
     this.certificadosPorCc = {};
     this.certificadosEnProceso = false;
     this.cerrarPanelCmc();
+    this.cerrarResultadosCmc();
 
     if (!this.selectedEquipmentId) {
       this.refresh();
@@ -287,10 +329,12 @@ export class Cmcparams implements OnInit {
     this.selectedParameter = '';
     this.availableParameters = this.calcularParametros(this.selectedTitle);
     this.aplicarFiltros();
+    this.cerrarResultadosCmc();
   }
 
   onParameterChange(): void {
     this.aplicarFiltros();
+    this.cerrarResultadosCmc();
   }
 
   private aplicarFiltros(): void {
@@ -401,12 +445,13 @@ export class Cmcparams implements OnInit {
     this.certificadosPorCc = {};
     this.certificadosEnProceso = false;
     this.cerrarPanelCmc();
+    this.cerrarResultadosCmc();
     this.refresh();
     this.alert.info('Filtros restablecidos.', 'Sin filtros');
   }
 
   // ============================================================
-  //   PANEL CMC
+  //   PANEL CMC (configuración)
   // ============================================================
 
   abrirPanelCmc(): void {
@@ -435,6 +480,7 @@ export class Cmcparams implements OnInit {
     this.panelCmcColapsado = false;
     this.cmcs = [];
     this.cmcActivoId = 1;
+    this.cerrarResultadosCmc();
     this.refresh();
   }
 
@@ -493,6 +539,11 @@ export class Cmcparams implements OnInit {
     this.cmcs = this.cmcs.filter(c => c.id !== id);
     if (this.cmcActivoId === id) {
       this.cmcActivoId = this.cmcs[0].id;
+    }
+    if (!this.hayCmcCalculados) {
+      this.cerrarResultadosCmc();
+    } else {
+      this.resultadosCmc = this.resultadosCmc.filter(r => r.cmcNumero !== id);
     }
     this.refresh();
     this.alert.info(`CMC #${id} eliminado.`, 'Eliminado');
@@ -898,8 +949,80 @@ export class Cmcparams implements OnInit {
     });
   }
 
+  // ============================================================
+  //   INTEGRACIÓN CON EL COMPONENTE DE RESULTADOS (Cmcsr)
+  // ============================================================
+
+  calcularYMostrarCmc(): void {
+    try {
+      this.calcularTodosLosCmc();
+    } catch (e) {
+      console.error('[Cmcparams] Excepción en calcularTodosLosCmc:', e);
+      this.alert.error('Ocurrió un error inesperado al calcular los CMC. Revisa la consola.', 'Error');
+      return;
+    }
+
+    const payloads = this.cmcsParaMostrar;
+
+    console.log('[Cmcparams] calcularYMostrarCmc()', {
+      totalCmcs: this.cmcs.length,
+      payloadsListos: payloads.length,
+      detalle: this.cmcs.map(c => ({
+        id: c.id,
+        tienePayload: c.payload !== null,
+        intervalo: c.intervaloCalibracion,
+        tablasSeleccionadas: Object.values(c.selecciones).filter(s => s.seleccionada).length
+      })),
+      primerPayload: payloads[0]
+    });
+
+    if (!payloads.length) {
+      this.alert.warning(
+        'No hay ningún CMC válido calculado todavía. Revisa las tablas seleccionadas.',
+        'Sin resultados'
+      );
+      return;
+    }
+
+    this.mostrarResultadosCmc = true;
+    this.refresh();
+
+    // Segundo chequeo en el siguiente tick, por si el CD del click
+    // aún no propagó el cambio al *ngIf.
+    setTimeout(() => this.refresh());
+  }
+
+  onResultadoCalculado(resultados: CmcResultado[]): void {
+    this.resultadosCmc = resultados ?? [];
+    console.log('[Cmcparams] Resultados CMC recibidos:', this.resultadosCmc);
+    // ⚠️ NO llamar a refresh() aquí: el hijo emite durante su ngOnChanges,
+    // y forzar detectChanges en ese momento rompe el ciclo de CD.
+  }
+
+  cerrarResultadosCmc(): void {
+    this.mostrarResultadosCmc = false;
+    this.resultadosCmc = [];
+    this.refresh();
+  }
+
+  toggleResultadosCmc(): void {
+    if (!this.hayCmcCalculados) {
+      this.alert.info(
+        'Aún no hay CMC calculados. Presiona "Calcular y ver CMC".',
+        'Sin resultados'
+      );
+      return;
+    }
+    this.mostrarResultadosCmc = !this.mostrarResultadosCmc;
+    this.refresh();
+  }
+
+  // ============================================================
+  //   UTILIDADES
+  // ============================================================
+
+  /** Sólo marca para chequeo; NO fuerza detección. */
   private refresh(): void {
     this.cdr.markForCheck();
-    this.cdr.detectChanges();
   }
 }
