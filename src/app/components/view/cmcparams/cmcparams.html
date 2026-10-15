@@ -398,9 +398,9 @@
                 <td>{{ d.table_id || '—' }}</td>
                 <td>{{ formatearFecha(d.fechaCalibracion) }}</td>
                 <td>{{ d.diasDesdeAnterior ?? '—' }}</td>
-                <td><span class="badge" style="background:#fff3cd;color:#856404;border:1px solid #ffc107;">{{ d.rango }}</span></td>
-                <td><span class="badge" style="background:#f8d7da;color:#842029;border:1px solid #dc3545;">{{ d.error }}</span></td>
-                <td><span class="badge" style="background:#d1e7dd;color:#0f5132;border:1px solid #198754;">{{ d.incertidumbre }}</span></td>
+                <td><span class="badge badge-intervalo">{{ d.rango }}</span></td>
+                <td><span class="badge badge-error">{{ d.error }}</span></td>
+                <td><span class="badge badge-incertidumbre">{{ d.incertidumbre }}</span></td>
               </tr>
             </tbody>
           </table>
@@ -497,25 +497,26 @@
             <div class="col-md-4"><strong>Ecuación:</strong> {{ table.calibration_equation || 'N/A' }}</div>
           </div>
 
+          <!-- Leyenda de colores -->
           <div *ngIf="estaEnModoCmc(i)"
                class="alert alert-light border py-2 mb-3 leyenda-cmc d-flex flex-wrap align-items-center gap-3">
             <span class="text-muted small">
               <i class="bi bi-palette me-1"></i>
-              Celda marcada en el cálculo:
+              Celdas marcadas en el cálculo:
             </span>
-            <span class="badge" style="background:#fff3cd;color:#856404;border:1px solid #ffc107;">
-              Rango
+            <span class="badge badge-intervalo">
+              Intervalo
             </span>
-            <span class="badge" style="background:#f8d7da;color:#842029;border:1px solid #dc3545;">
+            <span class="badge badge-error">
               Sesgo (Error)
             </span>
-            <span class="badge" style="background:#d1e7dd;color:#0f5132;border:1px solid #198754;">
+            <span class="badge badge-incertidumbre">
               Incertidumbre
             </span>
           </div>
 
           <div class="table-responsive">
-            <table class="table table-bordered table-striped table-hover">
+            <table class="table table-bordered table-striped table-hover tabla-resultados">
               <thead class="table-secondary">
                 <tr>
                   <th class="cmc-badge-cell"></th>
@@ -526,19 +527,33 @@
                 </tr>
               </thead>
               <tbody>
-                <tr *ngFor="let row of table.rows; let r = index">
+                <tr
+                  *ngFor="let row of table.rows; let r = index"
+                  [ngClass]="{
+                    'fila-seleccionada': getCmcsDeFila(i, r).length > 0,
+                    'fila-atenuada': estaEnModoCmc(i) && getCmcsDeFila(i, r).length === 0
+                  }">
+
+                  <!-- Celda inicial: badge CMC solo en la fila seleccionada -->
                   <td class="cmc-badge-cell">
-                    <span
-                      *ngFor="let id of getCmcsDeFila(i, r)"
-                      class="badge bg-dark d-block mb-1">
-                      CMC&nbsp;{{ id }}
-                    </span>
+                    <ng-container *ngFor="let id of getCmcsDeFila(i, r)">
+                      <span
+                        *ngIf="esPrimeraFilaDelRango(i, r, id)"
+                        class="badge d-block mb-1"
+                        [ngStyle]="getBadgeStyle(id)">
+                        CMC&nbsp;{{ id }}
+                      </span>
+                    </ng-container>
                   </td>
+
+                  <!-- Celdas de datos con estilos por bloque -->
                   <td
                     *ngFor="let col of table.columns"
-                    [ngClass]="getCellClasses(i, r, col.key)">
+                    [ngClass]="getCellClasses(i, r, col.key)"
+                    [ngStyle]="getCellStyle(i, r, col.key)">
                     {{ row[col.key] !== undefined && row[col.key] !== null && row[col.key] !== '' ? row[col.key] : '-' }}
                   </td>
+
                 </tr>
                 <tr *ngIf="table.rows.length === 0">
                   <td [attr.colspan]="table.columns.length + 1" class="text-center text-muted">

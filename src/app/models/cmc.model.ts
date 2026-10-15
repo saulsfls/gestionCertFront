@@ -1,6 +1,7 @@
 export interface CmcTablaSeleccion {
   seleccionada: boolean;
   filaIndex: number;
+  columnaReferenciaKey: string;
   columnaErrorKey: string;
   columnaIncertidumbreKey: string;
 }
@@ -13,6 +14,7 @@ export interface CmcFilaDetalle {
   error: number;
   incertidumbre: number;
   rango: string;
+  nRegistros?: number;
 }
 
 export interface CmcPayload {
@@ -26,6 +28,9 @@ export interface CmcPayload {
   certificados: string[];
   rangoReferencia: string;
   detalle: CmcFilaDetalle[];
+  minReferencia?: string;
+  maxReferencia?: string;
+  nRegistrosPorCertificado?: number[];
 }
 
 export interface CmcMultiPayload {
@@ -40,33 +45,31 @@ export interface CmcConfiguracion {
   payloadTexto: string;
 }
 
-
 export interface CmcFuenteIncertidumbre {
-  clave: string;          // 'estabilidad', 'sesgo', ...
-  nombre: string;         // 'Estabilidad', 'Sesgo', ...
-  valor: number;          // incertidumbre estándar
-  dof: number;            // grados de libertad
-  pesoPct: number;        // % de contribución a u_c^2
+  clave: string;
+  nombre: string;
+  valor: number;
+  dof: number;
+  pesoPct: number;
 }
 
 export interface CmcResultado {
-  // Intermedios
   estabilidad: number;
   sesgo: number;
   deriva: number;
-  incertRefEstandar: number;         // incert.est.ref / 2
+  incertRefEstandar: number;
   estabilidadRefEstandar: number;
   repetibilidad: number;
   reproducibilidad: number;
-  // Combinada / expandida
   incertidumbreCombinada: number;
   dofEfectivos: number;
   coefExpansion: number;
   incertidumbreExpandida: number;
-  // Detalle
   fuentes: CmcFuenteIncertidumbre[];
-  // Metadatos
   cmcNumero: number;
   rangoReferencia: string;
   certificados: string[];
+  minReferencia?: string;
+  maxReferencia?: string;
+  nRegistrosPorCertificado?: number[];
 }

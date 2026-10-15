@@ -1,0 +1,113 @@
+
+/* ---- Celda inicial con el badge del CMC ---- */
+.cmc-badge-cell {
+  width: 90px;
+  min-width: 90px;
+  max-width: 90px;
+  text-align: center;
+  vertical-align: middle;
+  background-color: #f8f9fa;
+  border-right: 1px solid #dee2e6;
+}
+
+.cmc-badge-cell .badge {
+  font-size: 0.72rem;
+  padding: 0.35rem 0.5rem;
+  letter-spacing: 0.02em;
+}
+
+/* Filas que NO pertenecen al rango del CMC activo */
+tr.fila-atenuada td {
+  opacity: 0.4;
+  filter: grayscale(45%);
+  transition: opacity 0.2s ease, filter 0.2s ease;
+}
+
+tr.fila-atenuada td.cmc-badge-cell {
+  opacity: 0.3;
+  background-color: #f1f3f5;
+}
+
+/* Filas que SÍ pertenecen al rango del CMC activo */
+tr.fila-seleccionada td {
+  transition: background-color 0.2s ease;
+}
+
+/* Borde superior/inferior del bloque seleccionado */
+.cell-fila-seleccionada {
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+/* ---- COLUMNA INTERVALO (primera columna) → AMARILLO ---- */
+.cell-rango {
+  font-weight: 700;
+  font-size: 0.85rem;
+  background-color: #fff8e1 !important;
+  border-left: 4px solid #ffc107 !important;
+  border-right: 2px solid #ffc107 !important;
+  color: #856404 !important;
+}
+
+/* ---- COLUMNA VALOR DE REFERENCIA → LAVANDA/MORADO ---- */
+.cell-referencia {
+  font-weight: 600;
+  font-family: 'Courier New', monospace;
+  background-color: #e6e0f8 !important;
+  border-left: 3px solid #6f42c1 !important;
+  border-right: 3px solid #6f42c1 !important;
+  color: #4a2b8c !important;
+}
+
+/* ---- COLUMNA ERROR → ROJO ---- */
+.cell-error {
+  font-weight: 600;
+  background-color: #f8d7da !important;
+  border-left: 3px solid #dc3545 !important;
+  border-right: 3px solid #dc3545 !important;
+  color: #842029 !important;
+}
+
+/* ---- COLUMNA INCERTIDUMBRE → VERDE ---- */
+.cell-incertidumbre {
+  font-weight: 600;
+  background-color: #d1e7dd !important;
+  border-left: 3px solid #198754 !important;
+  border-right: 3px solid #198754 !important;
+  color: #0f5132 !important;
+}
+
+.cell-no-usada {
+  opacity: 0.45;
+  filter: grayscale(40%);
+  color: #8a8a8a !important;
+  transition: opacity 0.2s ease, filter 0.2s ease;
+}
+
+.leyenda-cmc {
+  background-color: #f8f9fa;
+}
+
+.badge-intervalo {
+  background-color: #fff8e1;
+  color: #856404;
+  border: 1px solid #ffc107;
+}
+
+.badge-referencia {
+  background-color: #e6e0f8;
+  color: #4a2b8c;
+  border: 1px solid #6f42c1;
+}
+
+.badge-error {
+  background-color: #f8d7da;
+  color: #842029;
+  border: 1px solid #dc3545;
+}
+
+.badge-incertidumbre {
+  background-color: #d1e7dd;
+  color: #0f5132;
+  border: 1px solid #198754;
+}

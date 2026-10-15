@@ -1,8 +1,8 @@
+//El componente actual se mantiene igual, este componente es una primera version de cmcparams, se calcula solo un registro de las tablas, donde se toma la incertidumbre error y datos de
 import {
   ChangeDetectorRef,
   Component,
   OnInit,
-  inject,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -11,15 +11,82 @@ import { catchError, finalize } from 'rxjs/operators';
 import { CertService } from '../../../services/cert.service';
 import { AlertService } from '../../../services/alert.service';
 import { ApiResponse, Column, ResultTable } from '../../../models/certificado.models';
-import {
-  CmcPayload,
-  CmcTablaSeleccion,
-  CmcFilaDetalle,
-  CmcConfiguracion,
-  CmcMultiPayload,
-  CmcResultado,
-} from '../../../models/cmc.model';
 import { Cmcsr } from '../../core/cmcsr/cmcsr';
+
+export interface CmcTablaSeleccion {
+  seleccionada: boolean;
+  filaIndex: number;
+  columnaErrorKey: string;
+  columnaIncertidumbreKey: string;
+}
+
+export interface CmcFilaDetalle {
+  cc: string;
+  table_id: string;
+  fechaCalibracion: string;
+  diasDesdeAnterior: number | null;
+  error: number;
+  incertidumbre: number;
+  rango: string;
+  nRegistros?: number;
+}
+
+export interface CmcPayload {
+  id: string;
+  cmcNumero: number;
+  errores: number[];
+  incertidumbres: number[];
+  tiempoIntermedio: number[];
+  intervaloCalibracion: number;
+  fechasCalibracion: string[];
+  certificados: string[];
+  rangoReferencia: string;
+  detalle: CmcFilaDetalle[];
+  minReferencia?: string;
+  maxReferencia?: string;
+  nRegistrosPorCertificado?: number[];
+}
+
+export interface CmcMultiPayload {
+  cmcs: CmcPayload[];
+}
+
+export interface CmcConfiguracion {
+  id: number;
+  intervaloCalibracion: number;
+  selecciones: Record<number, CmcTablaSeleccion>;
+  payload: CmcPayload | null;
+  payloadTexto: string;
+}
+
+export interface CmcFuenteIncertidumbre {
+  clave: string;
+  nombre: string;
+  valor: number;
+  dof: number;
+  pesoPct: number;
+}
+
+export interface CmcResultado {
+  estabilidad: number;
+  sesgo: number;
+  deriva: number;
+  incertRefEstandar: number;
+  estabilidadRefEstandar: number;
+  repetibilidad: number;
+  reproducibilidad: number;
+  incertidumbreCombinada: number;
+  dofEfectivos: number;
+  coefExpansion: number;
+  incertidumbreExpandida: number;
+  fuentes: CmcFuenteIncertidumbre[];
+  cmcNumero: number;
+  rangoReferencia: string;
+  certificados: string[];
+  minReferencia?: string;
+  maxReferencia?: string;
+  nRegistrosPorCertificado?: number[];
+}
 
 @Component({
   selector: 'app-cmcparams',
@@ -55,15 +122,23 @@ export class Cmcparams implements OnInit {
 
   copiadoCmc = false;
 
-  // ============================================================
-  //   ESTADO DEL PANEL DE RESULTADOS (Cmcsr)
-  // ============================================================
   mostrarResultadosCmc = false;
   resultadosCmc: CmcResultado[] = [];
 
   /** Caché para el binding [cmcs] del hijo. */
   private _cmcsParaMostrarCache: CmcPayload[] = [];
   private _claveCacheCmcs = '';
+
+  private readonly paletaCmc: { bg: string; border: string; badge: string }[] = [
+    { bg: 'rgba(13, 110, 253, 0.10)', border: '#0d6efd', badge: '#0d6efd' },
+    { bg: 'rgba(25, 135, 84, 0.10)',  border: '#198754', badge: '#198754' },
+    { bg: 'rgba(255, 193, 7, 0.15)',  border: '#ffc107', badge: '#ffc107' },
+    { bg: 'rgba(220, 53, 69, 0.10)',  border: '#dc3545', badge: '#dc3545' },
+    { bg: 'rgba(111, 66, 193, 0.10)', border: '#6f42c1', badge: '#6f42c1' },
+    { bg: 'rgba(13, 202, 240, 0.10)', border: '#0dcaf0', badge: '#0dcaf0' },
+    { bg: 'rgba(253, 126, 20, 0.10)', border: '#fd7e14', badge: '#fd7e14' },
+    { bg: 'rgba(214, 51, 132, 0.10)', border: '#d63384', badge: '#d63384' },
+  ];
 
   private readonly opcionesParametroPorTitulo: Record<string, string[]> = {
     'DC Voltage': ['Voltage'],
@@ -105,10 +180,6 @@ export class Cmcparams implements OnInit {
     this.cargarEquipos();
   }
 
-  // ============================================================
-  //   GETTERS DE ESTADO
-  // ============================================================
-
   get cmcActivo(): CmcConfiguracion | undefined {
     return this.cmcs.find(c => c.id === this.cmcActivoId);
   }
@@ -117,12 +188,6 @@ export class Cmcparams implements OnInit {
     return this.cmcActivo?.selecciones ?? {};
   }
 
-  /**
-   * Array estable de payloads para bindear al hijo `<app-cmcsr>`.
-   * Sólo se regenera cuando el CONJUNTO de CMC con payload cambia
-   * (identificado por la concatenación de ids). Evita que el getter
-   * devuelva una referencia nueva en cada ciclo de CD.
-   */
   get cmcsParaMostrar(): CmcPayload[] {
     const clave = this.cmcs
       .filter(c => c.payload !== null)
@@ -139,7 +204,6 @@ export class Cmcparams implements OnInit {
     return this._cmcsParaMostrarCache;
   }
 
-  /** Compatibilidad con el HTML viejo por si lo dejaste referenciado. */
   get payloadCompleto(): CmcMultiPayload {
     return { cmcs: this.cmcsParaMostrar };
   }
@@ -169,10 +233,6 @@ export class Cmcparams implements OnInit {
       : this.selectedTitle;
   }
 
-  // ============================================================
-  //   HELPERS DE UNIDAD
-  // ============================================================
-
   formatColumnLabel(col: Column | undefined): string {
     if (!col) return '';
     const label = col.label || col.key || '';
@@ -181,10 +241,6 @@ export class Cmcparams implements OnInit {
     if (!unitStr || unitStr.toUpperCase() === 'N/A') return label;
     return `${label} (${unitStr})`;
   }
-
-  // ============================================================
-  //   VALIDACIÓN NUMÉRICA
-  // ============================================================
 
   esNumeroValido(val: any): boolean {
     if (val === null || val === undefined) return true;
@@ -212,10 +268,6 @@ export class Cmcparams implements OnInit {
     if (val === null || val === undefined || String(val).trim() === '') return false;
     return !this.esNumeroValido(val);
   }
-
-  // ============================================================
-  //   CARGA DE EQUIPOS
-  // ============================================================
 
   private cargarEquipos(): void {
     this.cert.obtenerEquipmentId().subscribe({
@@ -450,10 +502,6 @@ export class Cmcparams implements OnInit {
     this.alert.info('Filtros restablecidos.', 'Sin filtros');
   }
 
-  // ============================================================
-  //   PANEL CMC (configuración)
-  // ============================================================
-
   abrirPanelCmc(): void {
     if (!this.selectedTitle) {
       this.alert.warning('Selecciona un título (mensurando) antes de calcular el CMC.');
@@ -591,9 +639,6 @@ export class Cmcparams implements OnInit {
     this.alert.info(`Fila ${fila + 1} sincronizada en todas las tablas.`, 'Rango aplicado');
   }
 
-  // ============================================================
-  //   HELPERS DE VISUALIZACIÓN
-  // ============================================================
 
   private getValorCelda(
     tabla: ResultTable | undefined,
@@ -673,9 +718,10 @@ export class Cmcparams implements OnInit {
     );
   }
 
-  // ============================================================
-  //   MARCADO EN LAS TABLAS DE RESULTADOS
-  // ============================================================
+  private getColorCmc(id: number): { bg: string; border: string; badge: string } {
+    if (id <= 0) return this.paletaCmc[0];
+    return this.paletaCmc[(id - 1) % this.paletaCmc.length];
+  }
 
   getCmcsDeFila(tableIndex: number, rowIndex: number): number[] {
     const ids: number[] = [];
@@ -688,34 +734,95 @@ export class Cmcparams implements OnInit {
     return ids;
   }
 
+  /**
+   * En esta versión (una sola fila por CMC), cada fila seleccionada
+   * es "la primera del rango". Se mantiene el helper para compatibilidad
+   * con el HTML compartido.
+   */
+  esPrimeraFilaDelRango(tableIndex: number, rowIndex: number, cmcId: number): boolean {
+    const cmc = this.cmcs.find(c => c.id === cmcId);
+    if (!cmc) return false;
+    const sel = cmc.selecciones[tableIndex];
+    if (!sel?.seleccionada) return false;
+    return sel.filaIndex === rowIndex;
+  }
+
   getCellClasses(tableIndex: number, rowIndex: number, colKey: string): Record<string, boolean> {
     const classes: Record<string, boolean> = {};
+    const tabla = this.filteredTablas[tableIndex];
+    if (!tabla) return classes;
 
-    for (const cmc of this.cmcs) {
+    const cmcsEnFila = this.getCmcsDeFila(tableIndex, rowIndex);
+    if (!cmcsEnFila.length) return classes;
+
+    classes['cell-fila-seleccionada'] = true;
+
+    const colIntervaloKey = tabla.columns[0]?.key ?? '';
+    const columnasUsadas = new Set<string>();
+    columnasUsadas.add(colIntervaloKey);
+
+    for (const cmcId of cmcsEnFila) {
+      const cmc = this.cmcs.find(c => c.id === cmcId);
+      if (!cmc) continue;
       const sel = cmc.selecciones[tableIndex];
-      if (!sel?.seleccionada || sel.filaIndex !== rowIndex) continue;
+      if (!sel?.seleccionada) continue;
 
-      classes['cell-fila-seleccionada'] = true;
+      if (colKey === colIntervaloKey)              classes['cell-intervalo'] = true;
+      if (colKey === sel.columnaErrorKey)          classes['cell-error'] = true;
+      if (colKey === sel.columnaIncertidumbreKey)  classes['cell-incertidumbre'] = true;
 
-      const tabla = this.filteredTablas[tableIndex];
-      const firstColKey = tabla?.columns[0]?.key ?? '';
+      columnasUsadas.add(sel.columnaErrorKey);
+      columnasUsadas.add(sel.columnaIncertidumbreKey);
+    }
 
-      if (colKey === firstColKey) classes['cell-rango'] = true;
-      if (colKey === sel.columnaErrorKey) classes['cell-error'] = true;
-      if (colKey === sel.columnaIncertidumbreKey) classes['cell-incertidumbre'] = true;
+    if (!columnasUsadas.has(colKey)) {
+      classes['cell-no-usada'] = true;
     }
 
     return classes;
+  }
+
+  getCellStyle(
+    tableIndex: number,
+    rowIndex: number,
+    colKey: string
+  ): Record<string, string> {
+    const tabla = this.filteredTablas[tableIndex];
+    if (!tabla) return {};
+
+    const cmcsEnFila = this.getCmcsDeFila(tableIndex, rowIndex);
+    if (!cmcsEnFila.length) return {};
+
+    const cmcPrincipal = Math.min(...cmcsEnFila);
+    const color = this.getColorCmc(cmcPrincipal);
+    const colIntervaloKey = tabla.columns[0]?.key ?? '';
+
+    for (const cmcId of cmcsEnFila) {
+      const cmc = this.cmcs.find(c => c.id === cmcId);
+      if (!cmc) continue;
+      const sel = cmc.selecciones[tableIndex];
+      if (!sel?.seleccionada) continue;
+
+      if (colKey === colIntervaloKey)              return {};
+      if (colKey === sel.columnaErrorKey)          return {};
+      if (colKey === sel.columnaIncertidumbreKey)  return {};
+    }
+
+    return { 'background-color': color.bg };
+  }
+
+  getBadgeStyle(cmcId: number): Record<string, string> {
+    const color = this.getColorCmc(cmcId);
+    return {
+      'background-color': color.badge,
+      'color': '#fff'
+    };
   }
 
   estaEnModoCmc(tableIndex: number): boolean {
     if (!this.mostrarPanelCmc) return false;
     return this.cmcs.some(c => c.selecciones[tableIndex]?.seleccionada);
   }
-
-  // ============================================================
-  //   CÁLCULO — TODOS LOS CMCS
-  // ============================================================
 
   calcularTodosLosCmc(): void {
     if (!this.cmcs.length) {
@@ -823,16 +930,12 @@ export class Cmcparams implements OnInit {
       );
 
       if (rawError !== null && !this.esNumeroValido(rawError)) {
-        invalidos.push(
-          `tabla #${idx + 1} → Error no numérico: "${rawError}"`
-        );
+        invalidos.push(`tabla #${idx + 1} → Error no numérico: "${rawError}"`);
         continue;
       }
 
       if (rawInc !== null && !this.esNumeroValido(rawInc)) {
-        invalidos.push(
-          `tabla #${idx + 1} → Incertidumbre no numérica: "${rawInc}"`
-        );
+        invalidos.push(`tabla #${idx + 1} → Incertidumbre no numérica: "${rawInc}"`);
         continue;
       }
 
@@ -949,10 +1052,6 @@ export class Cmcparams implements OnInit {
     });
   }
 
-  // ============================================================
-  //   INTEGRACIÓN CON EL COMPONENTE DE RESULTADOS (Cmcsr)
-  // ============================================================
-
   calcularYMostrarCmc(): void {
     try {
       this.calcularTodosLosCmc();
@@ -987,16 +1086,12 @@ export class Cmcparams implements OnInit {
     this.mostrarResultadosCmc = true;
     this.refresh();
 
-    // Segundo chequeo en el siguiente tick, por si el CD del click
-    // aún no propagó el cambio al *ngIf.
     setTimeout(() => this.refresh());
   }
 
   onResultadoCalculado(resultados: CmcResultado[]): void {
     this.resultadosCmc = resultados ?? [];
     console.log('[Cmcparams] Resultados CMC recibidos:', this.resultadosCmc);
-    // ⚠️ NO llamar a refresh() aquí: el hijo emite durante su ngOnChanges,
-    // y forzar detectChanges en ese momento rompe el ciclo de CD.
   }
 
   cerrarResultadosCmc(): void {
@@ -1017,11 +1112,6 @@ export class Cmcparams implements OnInit {
     this.refresh();
   }
 
-  // ============================================================
-  //   UTILIDADES
-  // ============================================================
-
-  /** Sólo marca para chequeo; NO fuerza detección. */
   private refresh(): void {
     this.cdr.markForCheck();
   }

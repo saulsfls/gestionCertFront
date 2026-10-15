@@ -1,0 +1,666 @@
+<div class="container-fluid py-4">
+
+  <div class="card shadow-sm mb-4">
+    <div class="card-body">
+      <div class="row g-3 align-items-center">
+
+        <div class="col-md-3">
+          <label class="form-label fw-bold small text-secondary">Equipo</label>
+          <select
+            class="form-select"
+            [(ngModel)]="selectedEquipmentId"
+            (ngModelChange)="onEquipmentChange()">
+            <option value="">— Seleccione un equipo —</option>
+            <option *ngFor="let id of equipmentIds" [value]="id">{{ id }}</option>
+          </select>
+        </div>
+
+        <div class="col-md-3">
+          <label class="form-label fw-bold small text-secondary">Título</label>
+          <select
+            class="form-select"
+            [(ngModel)]="selectedTitle"
+            (ngModelChange)="onTitleChange()"
+            [disabled]="!selectedEquipmentId || availableTitles.length === 0">
+            <option value="">— Todos los títulos —</option>
+            <option *ngFor="let t of availableTitles" [value]="t">
+              {{ t === 'Other' ? 'Otros (no reconocidos)' : t }}
+            </option>
+          </select>
+        </div>
+
+        <div class="col-md-3">
+          <label class="form-label fw-bold small text-secondary">Mensurando</label>
+          <select
+            class="form-select"
+            [(ngModel)]="selectedParameter"
+            (ngModelChange)="onParameterChange()"
+            [disabled]="!selectedTitle || availableParameters.length === 0">
+            <option value="">— Todos los mensurandos —</option>
+            <option *ngFor="let p of availableParameters" [value]="p">
+              {{ p === 'Other' ? 'Otros (no reconocidos)' : p }}
+            </option>
+          </select>
+        </div>
+
+        <div class="col-md-3">
+          <label class="form-label fw-bold small text-secondary d-block">Acciones</label>
+          <button
+            type="button"
+            class="btn btn-outline-secondary w-100"
+            (click)="resetFiltros()"
+            [disabled]="!selectedTitle && !selectedParameter">
+            Limpiar filtros
+          </button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <div class="d-grid gap-2 mb-4">
+    <button
+      type="button"
+      class="btn btn-lg"
+      [class.btn-danger]="mostrarPanelCmc"
+      [class.btn-success]="!mostrarPanelCmc"
+      (click)="mostrarPanelCmc ? cerrarPanelCmc() : abrirPanelCmc()"
+      [disabled]="!selectedTitle || filteredTablas.length === 0">
+      {{ mostrarPanelCmc ? 'Cerrar CMC' : 'Calcular CMC' }}
+    </button>
+  </div>
+
+  <!--Panel de configuracion del cmc-->
+  <div *ngIf="mostrarPanelCmc" class="card shadow-sm mb-4 border-success">
+
+    <div class="card-header bg-success text-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <h5 class="mb-0 d-flex align-items-center flex-wrap gap-2">
+        <i class="bi bi-sliders"></i>
+        <span>Configuración del cálculo de CMC</span>
+        <span class="badge bg-light text-dark">
+          {{ cmcs.length }} cálculo{{ cmcs.length === 1 ? '' : 's' }}
+        </span>
+        <span *ngIf="panelCmcColapsado" class="badge bg-warning text-dark">
+          CMC activo: #{{ cmcActivoId }}
+        </span>
+      </h5>
+
+      <div class="d-flex gap-2">
+        <button
+          type="button"
+          class="btn btn-sm btn-light"
+          (click)="togglePanelCmc()"
+          [title]="panelCmcColapsado ? 'Mostrar configuración del CMC' : 'Ocultar configuración del CMC'">
+          <i class="bi me-1"
+             [ngClass]="panelCmcColapsado ? 'bi-chevron-down' : 'bi-chevron-up'"></i>
+          {{ panelCmcColapsado ? 'Mostrar configuración' : 'Ocultar configuración' }}
+        </button>
+      </div>
+    </div>
+
+    <div *ngIf="!panelCmcColapsado" class="card-body">
+
+      <div class="d-flex flex-wrap align-items-center gap-2 mb-3 p-2 bg-light rounded border">
+        <span class="fw-bold small text-secondary me-1">
+          <i class="bi bi-diagram-3 me-1"></i>
+          Cálculos creados:
+        </span>
+
+        <button
+          *ngFor="let c of cmcs"
+          type="button"
+          class="btn btn-sm d-flex align-items-center gap-1"
+          [ngClass]="c.id === cmcActivoId ? 'btn-success' : 'btn-outline-success'"
+          (click)="seleccionarCmc(c.id)"
+          [title]="'Ver y editar el CMC #' + c.id">
+          <span>CMC #{{ c.id }}</span>
+          <i *ngIf="c.payload" class="bi bi-check-circle-fill" title="CMC ya calculado"></i>
+          <i *ngIf="!c.payload" class="bi bi-pencil-square" title="CMC pendiente de calcular"></i>
+        </button>
+
+        <button
+          type="button"
+          class="btn btn-sm btn-primary ms-auto d-flex align-items-center gap-1"
+          (click)="nuevoCmc()"
+          title="Crear un nuevo conjunto de parámetros para otro cálculo de CMC">
+          <i class="bi bi-plus-lg"></i>
+          <span>Agregar nuevo CMC</span>
+        </button>
+
+        <button
+          *ngIf="cmcs.length > 1"
+          type="button"
+          class="btn btn-sm btn-outline-danger d-flex align-items-center gap-1"
+          (click)="eliminarCmc(cmcActivoId, $event)"
+          [title]="'Eliminar el CMC #' + cmcActivoId">
+          <i class="bi bi-trash"></i>
+          <span>Eliminar CMC #{{ cmcActivoId }}</span>
+        </button>
+      </div>
+
+      <div class="row g-3 mb-3 align-items-end">
+        <div class="col-md-3">
+          <label class="form-label fw-bold small text-secondary">
+            Intervalo de calibración (meses)
+          </label>
+          <input
+            type="number"
+            class="form-control"
+            min="1"
+            [(ngModel)]="cmcActivo!.intervaloCalibracion">
+        </div>
+        <div class="col-md-3">
+          <button
+            class="btn btn-primary w-100"
+            (click)="seleccionarTodas()"
+            title="Marcar todas las tablas para este CMC">
+            <i class="bi bi-check2-square me-1"></i> Seleccionar todas
+          </button>
+        </div>
+        <div class="col-md-3">
+          <button
+            class="btn btn-danger w-100"
+            (click)="deseleccionarTodas()"
+            title="Desmarcar todas las tablas de este CMC">
+            <i class="bi bi-square me-1"></i> Deseleccionar todas
+          </button>
+        </div>
+        <div class="col-md-3">
+          <button
+            class="btn btn-outline-primary w-100"
+            (click)="sincronizarFilaCmc()"
+            title="Aplicar la misma fila en todas las tablas">
+            <i class="bi bi-arrow-repeat me-1"></i> Sincronizar fila
+          </button>
+        </div>
+      </div>
+
+      <!--Tabla de configuracion del cmc-->
+      <div class="table-responsive">
+        <table class="table table-sm table-bordered align-middle">
+          <thead class="table-light">
+            <tr>
+              <th style="width:40px;">✔</th>
+              <th>#</th>
+              <th>CC</th>
+              <th>Fecha cal.</th>
+              <th style="min-width:200px;">Fila (intervalo)</th>
+              <th style="min-width:220px;">
+                Columna Valor de Referencia
+                <i class="bi bi-bullseye text-primary ms-1"
+                   title="Columna del certificado que contiene el valor de referencia (Patrón)"></i>
+              </th>
+              <th style="min-width:220px;">Columna Error</th>
+              <th style="min-width:220px;">Columna Incertidumbre</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              *ngFor="let tabla of filteredTablas; let i = index"
+              [ngClass]="{ 'table-success': seleccionCmc[i]?.seleccionada }">
+
+              <td class="text-center">
+                <input
+                  type="checkbox"
+                  class="form-check-input"
+                  [checked]="seleccionCmc[i]?.seleccionada"
+                  (change)="toggleTablaCmc(i)">
+              </td>
+
+              <td>{{ i + 1 }}</td>
+
+              <td>
+                <span class="badge bg-secondary">
+                  {{ tabla.cc_id || 'N/A' }}
+                </span>
+              </td>
+
+              <td>
+                {{ getCertificado(tabla) ? formatearFecha(getCertificado(tabla).date_cal || getCertificado(tabla).date_cc) : '—' }}
+              </td>
+
+              <td>
+                <select
+                  class="form-select form-select-sm"
+                  [(ngModel)]="seleccionCmc[i].filaIndex"
+                  (ngModelChange)="onSelectionChange()"
+                  [disabled]="!seleccionCmc[i]?.seleccionada">
+                  <option *ngFor="let row of tabla.rows; let r = index" [ngValue]="r">
+                    Fila {{ r + 1 }}: {{ getRowDisplayLabel(tabla, row) }}
+                  </option>
+                </select>
+              </td>
+
+              <!-- Columna Valor de Referencia -->
+              <td>
+                <select
+                  class="form-select form-select-sm"
+                  [(ngModel)]="seleccionCmc[i].columnaReferenciaKey"
+                  (ngModelChange)="onSelectionChange()"
+                  [disabled]="!seleccionCmc[i]?.seleccionada">
+                  <option *ngFor="let col of tabla.columns" [value]="col.key">
+                    {{ formatColumnLabel(col) }}
+                  </option>
+                </select>
+              </td>
+
+              <td>
+                <select
+                  class="form-select form-select-sm"
+                  [(ngModel)]="seleccionCmc[i].columnaErrorKey"
+                  (ngModelChange)="onSelectionChange()"
+                  [disabled]="!seleccionCmc[i]?.seleccionada">
+                  <option *ngFor="let col of tabla.columns" [value]="col.key">
+                    {{ formatColumnLabel(col) }}
+                  </option>
+                </select>
+              </td>
+
+              <td>
+                <select
+                  class="form-select form-select-sm"
+                  [(ngModel)]="seleccionCmc[i].columnaIncertidumbreKey"
+                  (ngModelChange)="onSelectionChange()"
+                  [disabled]="!seleccionCmc[i]?.seleccionada">
+                  <option *ngFor="let col of tabla.columns" [value]="col.key">
+                    {{ formatColumnLabel(col) }}
+                  </option>
+                </select>
+              </td>
+
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!--Valores seleccionados por el usuario para el calculo del cmc-->
+      <div *ngIf="filteredTablas.length" class="mt-4">
+        <h6 class="fw-bold mb-2">
+          <i class="bi bi-list-check me-1"></i>
+          Valores seleccionados del CMC #{{ cmcActivoId }} (en tiempo real)
+        </h6>
+
+        <div class="table-responsive">
+          <table class="table table-sm table-bordered align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>#</th>
+                <th>CC</th>
+                <th>Fila</th>
+                <th>Intervalo</th>
+                <th>
+                  <i class="bi bi-arrow-down-up text-warning me-1"></i>
+                  Ref. Mín
+                </th>
+                <th>
+                  <i class="bi bi-arrow-down-up text-warning me-1"></i>
+                  Ref. Máx
+                </th>
+                <th>
+                  <i class="bi bi-calendar-event text-info me-1"></i>
+                  Días
+                </th>
+                <th>Sesgo (Error prom.)</th>
+                <th>Incertidumbre prom.</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                *ngFor="let tabla of filteredTablas; let i = index"
+                [ngClass]="{
+                  'table-success': seleccionCmc[i]?.seleccionada && !tieneErrorInvalido(i) && !tieneIncertidumbreInvalida(i),
+                  'table-danger': seleccionCmc[i]?.seleccionada && (tieneErrorInvalido(i) || tieneIncertidumbreInvalida(i)),
+                  'text-muted': !seleccionCmc[i]?.seleccionada
+                }">
+                <td>{{ i + 1 }}</td>
+                <td>{{ tabla.cc_id || '—' }}</td>
+                <td>{{ (seleccionCmc[i]?.filaIndex ?? 0) + 1 }}</td>
+                <td>
+                  <span class="badge" style="background:#fff3cd;color:#856404;border:1px solid #ffc107;">
+                    {{ getRangoSeleccionado(i) }}
+                  </span>
+                </td>
+
+                <!-- Ref. Mín -->
+                <td>
+                  <span class="badge"
+                        style="background:#e2e3e5;color:#383d41;border:1px solid #adb5bd;"
+                        title="Valor mínimo del patrón de referencia detectado en las filas del mismo rango">
+                    {{ getMinReferencia(i) }}
+                  </span>
+                </td>
+
+                <!-- Ref. Máx -->
+                <td>
+                  <span class="badge"
+                        style="background:#e2e3e5;color:#383d41;border:1px solid #adb5bd;"
+                        title="Valor máximo del patrón de referencia detectado en las filas del mismo rango">
+                    {{ getMaxReferencia(i) }}
+                  </span>
+                </td>
+
+                <!-- Días -->
+                <td>
+                  <span class="badge bg-info text-dark"
+                        title="Días transcurridos desde la calibración anterior (orden cronológico)">
+                    {{ getDiasDesdeAnterior(i) ?? '—' }}
+                  </span>
+                </td>
+
+                <td>
+                  <span
+                    class="badge"
+                    [ngClass]="tieneErrorInvalido(i) ? 'bg-danger' : ''"
+                    [style.background]="!tieneErrorInvalido(i) ? '#f8d7da' : null"
+                    [style.color]="!tieneErrorInvalido(i) ? '#842029' : null"
+                    [style.border]="!tieneErrorInvalido(i) ? '1px solid #dc3545' : null"
+                    [title]="tieneErrorInvalido(i) ? 'Valor no numérico: la fila no se puede usar para calcular el CMC' : 'Promedio de errores del mismo rango'">
+                    <i *ngIf="tieneErrorInvalido(i)" class="bi bi-exclamation-triangle-fill me-1"></i>
+                    {{ getErrorSeleccionado(i) }}
+                  </span>
+                </td>
+                <td>
+                  <span
+                    class="badge"
+                    [ngClass]="tieneIncertidumbreInvalida(i) ? 'bg-danger' : ''"
+                    [style.background]="!tieneIncertidumbreInvalida(i) ? '#d1e7dd' : null"
+                    [style.color]="!tieneIncertidumbreInvalida(i) ? '#0f5132' : null"
+                    [style.border]="!tieneIncertidumbreInvalida(i) ? '1px solid #198754' : null"
+                    [title]="tieneIncertidumbreInvalida(i) ? 'Valor no numérico: la fila no se puede usar para calcular el CMC' : 'Promedio de incertidumbres del mismo rango'">
+                    <i *ngIf="tieneIncertidumbreInvalida(i)" class="bi bi-exclamation-triangle-fill me-1"></i>
+                    {{ getIncertidumbreSeleccionada(i) }}
+                  </span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="alert alert-light border mt-2 py-2 small text-muted">
+          <i class="bi bi-info-circle me-1"></i>
+          Los valores de <strong>Ref. Mín</strong>, <strong>Ref. Máx</strong>, <strong>Días</strong>
+          y los <strong>promedios</strong> se calculan sobre <em>todas</em> las filas del mismo rango
+          dentro de cada certificado, usando la columna de <em>Valor de Referencia</em> seleccionada.
+          Presiona <strong>“Calcular y ver CMC”</strong> para refrescar los resultados finales.
+        </div>
+      </div>
+
+      <!-- Aviso de filas inválidas en el CMC activo -->
+      <div *ngIf="cmcActivoTieneErrores" class="alert alert-danger d-flex align-items-center mt-3">
+        <i class="bi bi-exclamation-octagon-fill me-2 fs-4"></i>
+        <div>
+          <strong>No se puede calcular el CMC #{{ cmcActivoId }}.</strong>
+          <div class="small">
+            Hay valores no numéricos en las columnas <em>Error</em> o <em>Incertidumbre</em>.
+            Corrige la selección o elige otra fila/columna antes de continuar.
+          </div>
+        </div>
+      </div>
+
+      <!--Controles de ver resultado y visualizacion-->
+      <div class="d-flex justify-content-end gap-2 mt-3 flex-wrap">
+        <button
+          class="btn btn-outline-secondary"
+          (click)="toggleResultadosCmc()"
+          [disabled]="!hayCmcCalculados"
+          [title]="hayCmcCalculados
+            ? 'Mostrar u ocultar el panel de resultados'
+            : 'Primero calcula al menos un CMC'">
+          <i class="bi bi-eye me-1"></i>
+          {{ mostrarResultadosCmc ? 'Ocultar resultados' : 'Ver resultados' }}
+        </button>
+
+        <button
+          class="btn btn-primary"
+          (click)="calcularYMostrarCmc()"
+          [disabled]="!cmcs.length"
+          [title]="cmcActivoTieneErrores
+            ? 'Hay valores no numéricos en el CMC activo. Revisa el panel.'
+            : 'Calcular todos los CMC creados y mostrar resultados'">
+          <i class="bi bi-play-fill me-1"></i>
+          Calcular y ver CMC
+          <span class="badge bg-light text-dark ms-1">
+            {{ cmcs.length }}
+          </span>
+        </button>
+      </div>
+
+      <!--Detalle del CMC-->
+      <div *ngIf="cmcActivo?.payload as p" class="mt-4">
+        <h6 class="fw-bold mb-2">
+          <i class="bi bi-clipboard-data me-1"></i>
+          Detalle del CMC #{{ p.cmcNumero }}
+        </h6>
+
+        <div class="table-responsive mb-3">
+          <table class="table table-sm table-striped">
+            <thead class="table-secondary">
+              <tr>
+                <th>#</th>
+                <th>CC</th>
+                <th>ID Tabla</th>
+                <th>Fecha de calibración</th>
+                <th>Días desde anterior</th>
+                <th>Intervalo</th>
+                <th>N° registros</th>
+                <th>Error</th>
+                <th>Incertidumbre</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let d of p.detalle; let i = index">
+                <td>{{ i + 1 }}</td>
+                <td>{{ d.cc || '—' }}</td>
+                <td>{{ d.table_id || '—' }}</td>
+                <td>{{ formatearFecha(d.fechaCalibracion) }}</td>
+                <td>
+                  <span class="badge bg-info text-dark">
+                    {{ d.diasDesdeAnterior ?? '—' }}
+                  </span>
+                </td>
+                <td>
+                  <span class="badge" style="background:#fff3cd;color:#856404;border:1px solid #ffc107;">
+                    {{ d.rango }}
+                  </span>
+                </td>
+                <td>
+                  <span class="badge bg-secondary">
+                    {{ d.nRegistros ?? '—' }}
+                  </span>
+                </td>
+                <td>
+                  <span class="badge" style="background:#f8d7da;color:#842029;border:1px solid #dc3545;">
+                    {{ d.error }}
+                  </span>
+                </td>
+                <td>
+                  <span class="badge" style="background:#d1e7dd;color:#0f5132;border:1px solid #198754;">
+                    {{ d.incertidumbre }}
+                  </span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Resumen min/max del rango -->
+        <div class="alert alert-info py-2 small">
+          <i class="bi bi-info-circle me-1"></i>
+          <strong>Intervalo:</strong> {{ p.rangoReferencia }}
+          &nbsp;|&nbsp;
+          <strong>Ref. Mín:</strong> {{ p.minReferencia || p.rangoReferencia }}
+          &nbsp;|&nbsp;
+          <strong>Ref. Máx:</strong> {{ p.maxReferencia || p.rangoReferencia }}
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!--Panel de resultados, asociado el componecte de cmcsr (Calcula sin solicitar la resolucion)-->
+  <div *ngIf="mostrarResultadosCmc" class="mb-4">
+    <app-cmcsr
+      [cmcs]="payloadCompleto.cmcs"
+      [titulo]="etiquetaMensurando"
+      [mostrarEncabezado]="true"
+      (calculado)="onResultadoCalculado($event)"
+      (cerrado)="cerrarResultadosCmc()">
+    </app-cmcsr>
+  </div>
+
+  <div *ngIf="cargando" class="text-center my-5">
+    <div class="spinner-border text-primary" role="status">
+      <span class="visually-hidden">Cargando...</span>
+    </div>
+    <p class="mt-2">Cargando tablas...</p>
+  </div>
+
+  <div *ngIf="!cargando && selectedEquipmentId && filteredTablas.length === 0"
+       class="alert alert-info">
+    No hay tablas que coincidan con los filtros seleccionados.
+  </div>
+
+  <div *ngIf="!cargando && filteredTablas.length > 0">
+
+    <h4 class="fw-bold mb-3">
+      Tablas de Resultados
+      <small class="text-muted fs-6">
+        ({{ filteredTablas.length }} tabla{{ filteredTablas.length === 1 ? '' : 's' }})
+      </small>
+    </h4>
+
+    <div *ngFor="let table of filteredTablas; let i = index" class="mb-4">
+
+      <ng-container *ngIf="selectedTitle && getCertificado(table) as certificado">
+        <div class="card shadow-sm mb-3 border-dark">
+          <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Información del Certificado</h5>
+            <span class="badge bg-light text-dark">CC: {{ certificado.cc || table.cc_id || 'N/A' }}</span>
+          </div>
+          <div class="card-body">
+            <div class="row g-2">
+              <div class="col-md-4"><strong>ID:</strong> {{ certificado.id }}</div>
+              <div class="col-md-4"><strong>Equipment ID:</strong> {{ certificado.equipment_id }}</div>
+              <div class="col-md-4"><strong>Nombre Equipo:</strong> {{ certificado.name_equipment }}</div>
+              <div class="col-md-4"><strong>Folio/CC:</strong> {{ certificado.cc || 'N/A' }}</div>
+              <div class="col-md-4"><strong>Intervalo de Calibración:</strong> {{ certificado.calibration_interval }}</div>
+              <div class="col-md-4"><strong>Fecha Calibración:</strong> {{ certificado.date_cal | date:'dd/MM/yyyy' }}</div>
+              <div class="col-md-4"><strong>Fecha Certificado:</strong> {{ certificado.date_cc | date:'dd/MM/yyyy' }}</div>
+              <div class="col-md-4"><strong>Entidad:</strong> {{ certificado.entity || 'N/A' }}</div>
+              <div class="col-md-4"><strong>Tipo:</strong> {{ certificado.cert_type || 'N/A' }}</div>
+              <div class="col-md-4">
+                <strong>Activo:</strong>
+                <span class="badge" [ngClass]="certificado.active ? 'bg-success' : 'bg-danger'">
+                  {{ certificado.active ? 'Sí' : 'No' }}
+                </span>
+              </div>
+              <div class="col-12">
+                <strong>Comentarios:</strong> {{ certificado.comments || 'Sin comentarios' }}
+              </div>
+            </div>
+          </div>
+        </div>
+      </ng-container>
+
+      <div class="card shadow-sm">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+          <span class="fw-bold">Tabla #{{ i + 1 }}: {{ table.title || 'Sin título' }}</span>
+          <span class="badge bg-light text-dark">
+            Equipment ID: {{ table.equipment_id || selectedEquipmentId }}
+          </span>
+        </div>
+
+        <div class="card-body">
+
+          <div class="row g-2 mb-3">
+            <div class="col-md-4"><strong>Parámetro:</strong> {{ table.parameter || 'N/A' }}</div>
+            <div class="col-md-4"><strong>Folio del certificado:</strong> {{ table.cc_id || 'N/A' }}</div>
+            <div class="col-md-4"><strong>ID de la tabla:</strong> {{ table.table_id || 'N/A' }}</div>
+            <div class="col-md-4"><strong>Unidad:</strong> {{ table.unit || 'N/A' }}</div>
+            <div class="col-md-4"><strong>Rango:</strong> {{ table.range || 'N/A' }}</div>
+            <div class="col-md-4"><strong>Ecuación:</strong> {{ table.calibration_equation || 'N/A' }}</div>
+          </div>
+
+          <!-- Leyenda de colores -->
+          <div *ngIf="estaEnModoCmc(i)"
+               class="alert alert-light border py-2 mb-3 leyenda-cmc d-flex flex-wrap align-items-center gap-3">
+            <span class="text-muted small">
+              <i class="bi bi-palette me-1"></i>
+              Celdas marcadas en el cálculo:
+            </span>
+            <span class="badge badge-intervalo">
+              Intervalo
+            </span>
+            <span class="badge badge-referencia">
+              Valor de referencia
+            </span>
+            <span class="badge badge-error">
+              Sesgo (Error)
+            </span>
+            <span class="badge badge-incertidumbre">
+              Incertidumbre
+            </span>
+          </div>
+
+          <div class="table-responsive">
+            <table class="table table-bordered table-striped table-hover tabla-resultados">
+              <thead class="table-secondary">
+                <tr>
+                  <th class="cmc-badge-cell"></th>
+                  <th *ngFor="let col of table.columns">
+                    {{ col.label || col.key }}
+                    <span *ngIf="col.unit && col.unit !== 'N/A'" class="text-muted">({{ col.unit }})</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  *ngFor="let row of table.rows; let r = index"
+                  [ngClass]="{
+                    'fila-seleccionada': getCmcsDeFila(i, r).length > 0,
+                    'fila-atenuada': estaEnModoCmc(i) && getCmcsDeFila(i, r).length === 0
+                  }">
+
+                  <!-- Celda inicial: badge CMC solo en la PRIMERA fila del bloque -->
+                  <td class="cmc-badge-cell">
+                    <ng-container *ngFor="let id of getCmcsDeFila(i, r)">
+                      <span
+                        *ngIf="esPrimeraFilaDelRango(i, r, id)"
+                        class="badge d-block mb-1"
+                        [ngStyle]="getBadgeStyle(id)">
+                        CMC&nbsp;{{ id }}
+                      </span>
+                    </ng-container>
+                  </td>
+
+                  <!-- Celdas de datos con color por bloque -->
+                  <td
+                    *ngFor="let col of table.columns"
+                    [ngClass]="getCellClasses(i, r, col.key)"
+                    [ngStyle]="getCellStyle(i, r, col.key)">
+                    {{ row[col.key] !== undefined && row[col.key] !== null && row[col.key] !== '' ? row[col.key] : '-' }}
+                  </td>
+
+                </tr>
+                <tr *ngIf="table.rows.length === 0">
+                  <td [attr.colspan]="table.columns.length + 1" class="text-center text-muted">
+                    Sin registros
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="mt-3 pt-2 border-top">
+            <i class="bi bi-chat text-secondary me-1"></i>
+            <strong class="text-secondary">Comentarios: </strong>
+            <span class="text-muted">{{ table.comments || 'Sin comentarios' }}</span>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
