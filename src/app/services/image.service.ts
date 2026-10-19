@@ -1,14 +1,14 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { environment } from '../../environment/environment';
 
 @Injectable({
   providedIn: 'root'
 })
 export class ImageService {
 
-  // Ahora la URL base incluye /api
-  private apiUrl = 'http://192.168.1.206:3000/api';
+  private apiUrl = environment.apiImagen;
 
   constructor(private http: HttpClient) { }
 

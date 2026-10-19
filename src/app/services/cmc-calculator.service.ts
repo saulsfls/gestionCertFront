@@ -5,7 +5,32 @@ import {
   CmcResultado,
 } from '../models/cmc.model';
 
-// El calculo del CMC no tiene el calculo de la resolucion integrado
+/**
+ * Estructura que representa una fila de la tabla "Valores seleccionados".
+ * Se utiliza para recibir los datos desde el configurador y mostrarlos en la vista.
+ */
+export interface ResumenTablaCmc {
+  index: number;
+  cc: string;
+  fila: string;
+  intervalo: string;
+  refMin: string;
+  refMax: string;
+  dias: number | null;
+  sesgo: string;
+  incertidumbre: string;
+}
+
+/**
+ * ViewModel unificado: contiene el payload original, el resultado del cálculo,
+ * el resumen de la tabla y un posible mensaje de error.
+ */
+export interface CmcVistaResultado {
+  payload: CmcPayload;
+  resultado: CmcResultado | null;
+  resumen: ResumenTablaCmc[];
+  error?: string;
+}
 
 @Injectable({ providedIn: 'root' })
 export class CmcCalculatorService {
@@ -13,18 +38,48 @@ export class CmcCalculatorService {
   private readonly REPETIBILIDAD_DEFAULT = 0.0005;
   private readonly REPRODUCIBILIDAD_DEFAULT = 0.0005;
 
-  /**
-   * Grados de libertad por defecto (los mismos que produce el script R
-   * cuando hay 10 mediciones por 3 operadores).
-   */
+  /** Grados de libertad por defecto */
   private readonly DOF_REPETIBILIDAD = 27;      // 9 * 3
   private readonly DOF_REPRODUCIBILIDAD = 2;    // 3 - 1
 
-  // ------------------------------------------------------------
-  //   API principal
-  // ------------------------------------------------------------
+  // ============================================================
+  //   API PRINCIPAL (Intermediario para la Vista)
+  // ============================================================
 
-  calcular(payload: CmcPayload): CmcResultado {
+  /**
+   * Procesa un arreglo de payloads y los cruza con sus resúmenes de tablas.
+   * Atrapa los errores de cálculo para que el componente no tenga que hacerlo.
+   */
+  procesarResultados(
+    payloads: CmcPayload[],
+    resumenes: Record<number, ResumenTablaCmc[]>
+  ): CmcVistaResultado[] {
+    return (payloads ?? []).map(payload => {
+      const resumen = resumenes?.[payload.cmcNumero] ?? [];
+      try {
+        const resultado = this.calcular(payload);
+        return { payload, resultado, resumen };
+      } catch (e: any) {
+        console.error(`[CmcCalculatorService] Error calculando CMC #${payload?.cmcNumero}:`, e);
+        return {
+          payload,
+          resultado: null,
+          resumen,
+          error: e?.message ?? 'Error desconocido en el cálculo',
+        };
+      }
+    });
+  }
+
+  // ============================================================
+  //   LÓGICA DE CÁLCULO INTERNA
+  // ============================================================
+
+  /**
+   * Calcula las incertidumbres y pesos para un solo CMC.
+   * Si los datos no son suficientes, lanza una excepción.
+   */
+  private calcular(payload: CmcPayload): CmcResultado {
     const {
       errores,
       incertidumbres,
@@ -63,14 +118,12 @@ export class CmcCalculatorService {
         Math.abs(errores[i + 1] - errores[i]) / tiempoIntermedio[i]
       );
     }
-    const deriva =
-      this.media(derivaIndividual) * intervaloCalibracion * (365 / 12);
+    const deriva = this.media(derivaIndividual) * intervaloCalibracion * (365 / 12);
 
     // --------------------------------------------------------
     //   Incertidumbre y estabilidad de la referencia
     // --------------------------------------------------------
-    const incertRefEstandar =
-      incertidumbres[incertidumbres.length - 1] / 2;
+    const incertRefEstandar = incertidumbres[incertidumbres.length - 1] / 2;
     const estabilidadRefEstandar = Math.sqrt(
       this.varianzaMuestral(incertidumbres)
     );
@@ -140,7 +193,6 @@ export class CmcCalculatorService {
 
     // --------------------------------------------------------
     //   Coeficiente de expansión (t de Student, 95% una cola)
-    //   Equivalente a qt(0.05, df, lower.tail = FALSE)
     // --------------------------------------------------------
     const coefExpansion = this.tQuantile(0.05, dofEfectivos);
 
@@ -179,22 +231,9 @@ export class CmcCalculatorService {
     };
   }
 
-  /** Calcula para múltiples CMC y devuelve sólo los que no fallan. */
-  calcularVarios(payloads: CmcPayload[]): CmcResultado[] {
-    const salida: CmcResultado[] = [];
-    for (const p of payloads) {
-      try {
-        salida.push(this.calcular(p));
-      } catch (e) {
-        console.error(`Error calculando CMC #${p.cmcNumero}`, e);
-      }
-    }
-    return salida;
-  }
-
-  // ------------------------------------------------------------
-  //   Helpers estadísticos
-  // ------------------------------------------------------------
+  // ============================================================
+  //   HELPERS ESTADÍSTICOS
+  // ============================================================
 
   private media(xs: number[]): number {
     if (!xs.length) return 0;
@@ -209,9 +248,9 @@ export class CmcCalculatorService {
     return xs.reduce((s, v) => s + (v - m) * (v - m), 0) / (n - 1);
   }
 
-  // ------------------------------------------------------------
-  //   t de Student: cuantil superior (equivalente a qt(...))
-  // ------------------------------------------------------------
+  // ============================================================
+  //   DISTRIBUCIÓN T DE STUDENT
+  // ============================================================
 
   /** Devuelve t tal que P(T > t) = p  (p.ej. p=0.05 → 95% una cola). */
   private tQuantile(p: number, df: number): number {

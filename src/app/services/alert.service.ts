@@ -9,7 +9,7 @@ import {
   inject,
 } from '@angular/core';
 import { DOCUMENT, isPlatformBrowser } from '@angular/common';
-
+//El servicio se encarga unicamente de mostrar las alertas y notificaciones en otros componentes
 import { Alert } from '../components/util/alert/alert';
 import {
   AlertData,

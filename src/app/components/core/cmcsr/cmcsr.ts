@@ -12,30 +12,12 @@ import {
 import { CommonModule, Location } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { CmcPayload, CmcResultado, CmcMultiPayload } from '../../../models/cmc.model';
-import { CmcCalculatorService } from '../../../services/cmc-calculator.service';
+import {
+  CmcCalculatorService,
+  CmcVistaResultado,
+  ResumenTablaCmc
+} from '../../../services/cmc-calculator.service';
 import { AlertService } from '../../../services/alert.service';
-
-interface CmcCalculado {
-  payload: CmcPayload;
-  resultado: CmcResultado;
-  error?: string;
-}
-
-/**
- * Estructura recibida desde cmcparamsvf.ts con los datos de la tabla
- * "Valores seleccionados del CMC".
- */
-export interface ResumenTablaCmc {
-  index: number;
-  cc: string;
-  fila: string;
-  intervalo: string;
-  refMin: string;
-  refMax: string;
-  dias: number | null;
-  sesgo: string;
-  incertidumbre: string;
-}
 
 interface EstadoNavegacionCmc {
   payload?: CmcMultiPayload;
@@ -52,7 +34,6 @@ interface EstadoNavegacionCmc {
 })
 export class Cmcsr implements OnChanges, OnInit {
 
-  /** Puede recibir uno o varios CMC. */
   @Input() cmcs: CmcPayload[] = [];
   @Input() titulo = '';
   @Input() mostrarEncabezado = true;
@@ -60,11 +41,12 @@ export class Cmcsr implements OnChanges, OnInit {
   @Output() calculado = new EventEmitter<CmcResultado[]>();
   @Output() cerrado = new EventEmitter<void>();
 
-  resultados: CmcCalculado[] = [];
+  /** El ViewModel ahora viene unificado desde el servicio */
+  resultados: CmcVistaResultado[] = [];
   cmcActivoId: number | null = null;
   copiado = false;
 
-  /** Guarda los resúmenes de tablas enviados desde el configurador */
+  /** Guarda los resúmenes crudos del router state */
   resumenTablas: Record<number, ResumenTablaCmc[]> = {};
 
   private readonly calc = inject(CmcCalculatorService);
@@ -72,14 +54,8 @@ export class Cmcsr implements OnChanges, OnInit {
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly location = inject(Location);
 
-  get cmcActivo(): CmcCalculado | undefined {
+  get cmcActivo(): CmcVistaResultado | undefined {
     return this.resultados.find(r => r.payload.cmcNumero === this.cmcActivoId);
-  }
-
-  /** Obtiene la tabla resumen del CMC que está activo en este momento */
-  get resumenActivo(): ResumenTablaCmc[] {
-    if (this.cmcActivoId === null) return [];
-    return this.resumenTablas[this.cmcActivoId] ?? [];
   }
 
   // ============================================================
@@ -97,89 +73,51 @@ export class Cmcsr implements OnChanges, OnInit {
   }
 
   ngOnInit(): void {
-    // 1) Fallback: leer del router state si no hay input
     if (!this.cmcs?.length) {
       const state = (this.location.getState() ?? {}) as EstadoNavegacionCmc;
 
       if (state.payload?.cmcs?.length) {
         this.cmcs = state.payload.cmcs;
-        if (!this.titulo) {
-          this.titulo = state.mensurando ?? '';
-        }
-        // Extraemos el resumen de las tablas enviado desde el configurador
-        if (state.resumenTablas) {
-          this.resumenTablas = state.resumenTablas;
-        }
-
-        console.log(
-          '[Cmcsr] CMCs cargados desde el router state:',
-          this.cmcs.length,
-          this.cmcs
-        );
-        console.log(
-          '[Cmcsr] Resumen de tablas cargado:',
-          this.resumenTablas
-        );
+        if (!this.titulo) this.titulo = state.mensurando ?? '';
+        if (state.resumenTablas) this.resumenTablas = state.resumenTablas;
       } else {
-        console.warn(
-          '[Cmcsr] No se recibieron CMCs ni por @Input ni por router state.',
-          state
-        );
+        console.warn('[Cmcsr] No se recibieron CMCs ni por @Input ni por router state.', state);
       }
     }
 
-    // 2) Calcular si hay algo que calcular
     if (this.cmcs?.length) {
       this.recalcular();
     }
   }
 
   // ============================================================
-  //   CÁLCULO
+  //   DELEGACIÓN AL SERVICIO
   // ============================================================
 
   recalcular(): void {
-    this.resultados = (this.cmcs ?? []).map(payload => {
-      try {
-        return { payload, resultado: this.calc.calcular(payload) };
-      } catch (e: any) {
-        console.error(
-          `[Cmcsr] Error al calcular CMC #${payload?.cmcNumero}:`,
-          e
-        );
-        return {
-          payload,
-          resultado: null as any,
-          error: e?.message ?? 'Error desconocido',
-        };
-      }
-    });
+    // El servicio hace el cálculo y los cruces; el componente solo recibe el resultado.
+    this.resultados = this.calc.procesarResultados(this.cmcs, this.resumenTablas);
 
-    // Diagnóstico: si hay errores, avisamos al usuario
+    // Diagnóstico visual
     const errores = this.resultados.filter(r => !!r.error);
     if (errores.length) {
-      console.error('[Cmcsr] Errores al calcular CMC:', errores);
       this.alert.warning(
         `No se pudieron calcular ${errores.length} CMC. Detalle en consola.`,
         'Errores en el cálculo'
       );
     }
 
-    // Mantener el CMC activo si sigue existiendo; si no, tomar el primero
+    // Mantener pestaña activa
     if (this.resultados.length) {
-      const actual = this.resultados.find(
-        r => r.payload.cmcNumero === this.cmcActivoId
-      );
-      this.cmcActivoId = actual
-        ? actual.payload.cmcNumero
-        : this.resultados[0].payload.cmcNumero;
+      const actual = this.resultados.find(r => r.payload.cmcNumero === this.cmcActivoId);
+      this.cmcActivoId = actual ? actual.payload.cmcNumero : this.resultados[0].payload.cmcNumero;
     } else {
       this.cmcActivoId = null;
     }
 
-    // Notificar al padre (si alguien escucha)
+    // Notificar al padre
     this.calculado.emit(
-      this.resultados.filter(r => !!r.resultado).map(r => r.resultado)
+      this.resultados.filter(r => !!r.resultado).map(r => r.resultado as CmcResultado)
     );
 
     this.refresh();
@@ -251,9 +189,7 @@ export class Cmcsr implements OnChanges, OnInit {
         ].join(',')
       );
     }
-    const blob = new Blob([filas.join('\n')], {
-      type: 'text/csv;charset=utf-8',
-    });
+    const blob = new Blob([filas.join('\n')], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -262,7 +198,7 @@ export class Cmcsr implements OnChanges, OnInit {
     URL.revokeObjectURL(url);
   }
 
-  private formatearTexto(r: CmcCalculado): string {
+  private formatearTexto(r: CmcVistaResultado): string {
     if (!r.resultado) return '';
     const x = r.resultado;
     return [

@@ -11,7 +11,7 @@
       <button type="button" class="btn btn-sec" (click)="exportarCsv()">
         CSV
       </button>
-      <!-- NUEVO BOTÓN VOLVER -->
+      <!-- BOTÓN VOLVER -->
       <button type="button" class="btn btn-cerrar" (click)="volver()" title="Regresar al configurador">
         ← Volver
       </button>
@@ -49,8 +49,9 @@
         <span><strong>Certificados:</strong> {{ res.certificados.join(', ') }}</span>
       </div>
 
-      <!-- NUEVO: Tabla de Valores Seleccionados enviada desde el configurador -->
-      <div *ngIf="resumenActivo.length > 0" class="card shadow-sm mb-4 mt-3">
+      <!-- Tabla de Valores Seleccionados enviada desde el configurador -->
+      <!-- CAMBIO AQUÍ: resumenActivo -> activo.resumen -->
+      <div *ngIf="activo.resumen.length > 0" class="card shadow-sm mb-4 mt-3">
         <div class="card-header bg-light d-flex justify-content-between align-items-center">
           <h6 class="mb-0 fw-bold">
             <i class="bi bi-list-check me-1 text-primary"></i>
@@ -83,7 +84,8 @@
                 </tr>
               </thead>
               <tbody>
-                <tr *ngFor="let fila of resumenActivo" class="table-success">
+                <!-- CAMBIO AQUÍ: resumenActivo -> activo.resumen -->
+                <tr *ngFor="let fila of activo.resumen" class="table-success">
                   <td>{{ fila.index }}</td>
                   <td>{{ fila.cc }}</td>
                   <td>{{ fila.fila }}</td>

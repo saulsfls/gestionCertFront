@@ -2,12 +2,14 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { Certificado, ApiResponse, ResultTable } from '../models/certificado.models';
+import { environment } from '../../environment/environment';
 
 @Injectable({
   providedIn: 'root'
 })
 export class CertService {
-  private apiUrl = 'http://192.168.1.187:3000/api'; // Ajusta según tu puerto/host
+  //El servicio se encarga de extraer certificados, tamto como creacion modificacion y eliminacion
+  private apiUrl = environment.apiCertificados; // Ajusta según tu puerto/host
 
   constructor(private http: HttpClient) {}
 
