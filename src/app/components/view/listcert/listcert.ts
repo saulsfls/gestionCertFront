@@ -5,7 +5,7 @@ import { CertService } from '../../../services/cert.service';
 import { FiltroEstado } from '../viewcert/viewcert';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { AlertService } from '../../../services/alert.service';
+import { AlertService } from '../../../services/core/alert.service';
 
 @Component({
   selector: 'app-listcert',

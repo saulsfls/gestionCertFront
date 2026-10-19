@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { CertService } from '../../../services/cert.service';
 import { FormsModule } from '@angular/forms';
-import { AlertService } from '../../../services/alert.service';
+import { AlertService } from '../../../services/core/alert.service';
 import { Workbook } from 'exceljs';
 import { Certificado, ResultTable } from '../../../models/certificado.models';
 import { finalize } from 'rxjs/operators';

@@ -1,7 +1,7 @@
 import { Component, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
-import { AlertService } from '../../../services/alert.service';
+import { AlertService } from '../../../services/core/alert.service';
 import {
   AlertData,
   AlertPosition,
