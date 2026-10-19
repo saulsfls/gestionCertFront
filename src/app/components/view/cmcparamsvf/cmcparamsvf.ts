@@ -6,6 +6,7 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
 import { forkJoin, of } from 'rxjs';
 import { catchError, finalize } from 'rxjs/operators';
 import { CertService } from '../../../services/cert.service';
@@ -19,7 +20,6 @@ import {
   CmcMultiPayload,
   CmcResultado,
 } from '../../../models/cmc.model';
-import { Cmcsr } from '../../core/cmcsr/cmcsr';
 
 /**
  * Resultado del parseo de un valor de referencia.
@@ -44,10 +44,26 @@ interface FilaRangoInfo {
   valorReferenciaUnidadTexto: string; // unidad original (mV, V, ...)
 }
 
+/**
+ * Estructura que representa una fila de la tabla "Valores seleccionados".
+ * Esta información se envía a la vista de resultados.
+ */
+export interface ResumenTablaCmc {
+  index: number;
+  cc: string;
+  fila: string;
+  intervalo: string;
+  refMin: string;
+  refMax: string;
+  dias: number | null;
+  sesgo: string;
+  incertidumbre: string;
+}
+
 @Component({
   selector: 'app-cmcparamsvf',
   standalone: true,
-  imports: [FormsModule, CommonModule, Cmcsr],
+  imports: [FormsModule, CommonModule],
   templateUrl: './cmcparamsvf.html',
   styleUrl: './cmcparamsvf.css',
 })
@@ -80,6 +96,12 @@ export class Cmcparamsvf implements OnInit {
 
   mostrarResultadosCmc = false;
   resultadosCmc: CmcResultado[] = [];
+
+  /**
+   * Ruta de la vista que muestra los resultados del CMC.
+   * Ajusta este valor al path real definido en tu enrutador.
+   */
+  private readonly rutaResultadosCmc = '/cmc-resultados';
 
   private _cmcsParaMostrarCache: CmcPayload[] = [];
   private _claveCacheCmcs = '';
@@ -143,7 +165,8 @@ export class Cmcparamsvf implements OnInit {
   constructor(
     private readonly cert: CertService,
     private readonly alert: AlertService,
-    private readonly cdr: ChangeDetectorRef
+    private readonly cdr: ChangeDetectorRef,
+    private readonly router: Router
   ) {}
 
   ngOnInit(): void {
@@ -738,7 +761,6 @@ export class Cmcparamsvf implements OnInit {
     const filas = this.obtenerFilasMismoRango(tabla, sel, colIntervaloKey, rangoObjetivo);
     if (!filas.length) return '—';
 
-    // Nos quedamos con el valor MÍNIMO considerando la unidad normalizada
     let mejor: FilaRangoInfo | null = null;
     for (const f of filas) {
       if (mejor === null || f.valorReferenciaNum < mejor.valorReferenciaNum) {
@@ -818,23 +840,15 @@ export class Cmcparamsvf implements OnInit {
   //   MARCADO EN LAS TABLAS DE RESULTADOS
   // ============================================================
 
-  // ============================================================
-  //   MARCADO EN LAS TABLAS DE RESULTADOS (por RANGO)
-  // ============================================================
-
-  /**
-   * Paleta de colores por CMC (índice = número de CMC - 1).
-   * Se usa para pintar por bloques los rangos de cada CMC.
-   */
   private readonly paletaCmc: { bg: string; border: string; badge: string }[] = [
-    { bg: 'rgba(13, 110, 253, 0.10)', border: '#0d6efd', badge: '#0d6efd' }, // azul
-    { bg: 'rgba(25, 135, 84, 0.10)',  border: '#198754', badge: '#198754' }, // verde
-    { bg: 'rgba(255, 193, 7, 0.15)',  border: '#ffc107', badge: '#ffc107' }, // amarillo
-    { bg: 'rgba(220, 53, 69, 0.10)',  border: '#dc3545', badge: '#dc3545' }, // rojo
-    { bg: 'rgba(111, 66, 193, 0.10)', border: '#6f42c1', badge: '#6f42c1' }, // morado
-    { bg: 'rgba(13, 202, 240, 0.10)', border: '#0dcaf0', badge: '#0dcaf0' }, // cyan
-    { bg: 'rgba(253, 126, 20, 0.10)', border: '#fd7e14', badge: '#fd7e14' }, // naranja
-    { bg: 'rgba(214, 51, 132, 0.10)', border: '#d63384', badge: '#d63384' }, // rosa
+    { bg: 'rgba(13, 110, 253, 0.10)', border: '#0d6efd', badge: '#0d6efd' },
+    { bg: 'rgba(25, 135, 84, 0.10)',  border: '#198754', badge: '#198754' },
+    { bg: 'rgba(255, 193, 7, 0.15)',  border: '#ffc107', badge: '#ffc107' },
+    { bg: 'rgba(220, 53, 69, 0.10)',  border: '#dc3545', badge: '#dc3545' },
+    { bg: 'rgba(111, 66, 193, 0.10)', border: '#6f42c1', badge: '#6f42c1' },
+    { bg: 'rgba(13, 202, 240, 0.10)', border: '#0dcaf0', badge: '#0dcaf0' },
+    { bg: 'rgba(253, 126, 20, 0.10)', border: '#fd7e14', badge: '#fd7e14' },
+    { bg: 'rgba(214, 51, 132, 0.10)', border: '#d63384', badge: '#d63384' },
   ];
 
   private getColorCmc(id: number): { bg: string; border: string; badge: string } {
@@ -842,10 +856,6 @@ export class Cmcparamsvf implements OnInit {
     return this.paletaCmc[(id - 1) % this.paletaCmc.length];
   }
 
-  /**
-   * Devuelve los CMC a los que pertenece una fila, considerando
-   * TODAS las filas del rango al que pertenece la fila seleccionada.
-   */
   getCmcsDeFila(tableIndex: number, rowIndex: number): number[] {
     const ids = new Set<number>();
     const tabla = this.filteredTablas[tableIndex];
@@ -857,13 +867,11 @@ export class Cmcparamsvf implements OnInit {
       const sel = cmc.selecciones[tableIndex];
       if (!sel?.seleccionada) continue;
 
-      // Rango objetivo del CMC (extraído de la fila seleccionada)
       const rangoObjetivo = String(
         this.getValorCelda(tabla, sel.filaIndex, colIntervaloKey) ?? ''
       ).trim();
       if (!rangoObjetivo) continue;
 
-      // Rango de la fila actual
       const rangoFila = String(
         this.getValorCelda(tabla, rowIndex, colIntervaloKey) ?? ''
       ).trim();
@@ -876,10 +884,6 @@ export class Cmcparamsvf implements OnInit {
     return Array.from(ids);
   }
 
-  /**
-   * Indica si una fila es la PRIMERA del rango activo (para dibujar
-   * el badge de CMC solo en la cabecera del bloque).
-   */
   esPrimeraFilaDelRango(tableIndex: number, rowIndex: number, cmcId: number): boolean {
     const tabla = this.filteredTablas[tableIndex];
     if (!tabla) return false;
@@ -903,7 +907,6 @@ export class Cmcparamsvf implements OnInit {
       return false;
     }
 
-    // Verificar que la fila ANTERIOR (rowIndex - 1) NO pertenezca al mismo rango
     if (rowIndex === 0) return true;
 
     const rangoAnterior = String(
@@ -913,12 +916,7 @@ export class Cmcparamsvf implements OnInit {
     return this.normalizarRango(rangoAnterior) !== this.normalizarRango(rangoObjetivo);
   }
 
-  /**
-   * Clases CSS que se aplican a cada celda de la tabla de resultados.
-   * Marca el rango completo (no solo la fila seleccionada) y colorea
-   * por CMC para formar bloques visuales.
-   */
- getCellClasses(tableIndex: number, rowIndex: number, colKey: string): Record<string, boolean> {
+  getCellClasses(tableIndex: number, rowIndex: number, colKey: string): Record<string, boolean> {
     const classes: Record<string, boolean> = {};
     const tabla = this.filteredTablas[tableIndex];
     if (!tabla) return classes;
@@ -930,11 +928,8 @@ export class Cmcparamsvf implements OnInit {
 
     const colIntervaloKey = tabla.columns[0]?.key ?? '';
 
-    // Acumulamos todas las columnas que SÍ participan (por si hay varios CMC)
     const columnasUsadas = new Set<string>();
     columnasUsadas.add(colIntervaloKey);
-
-    let hayColumnasEspeciales = false;
 
     for (const cmcId of cmcsEnFila) {
       const cmc = this.cmcs.find(c => c.id === cmcId);
@@ -942,24 +937,24 @@ export class Cmcparamsvf implements OnInit {
       const sel = cmc.selecciones[tableIndex];
       if (!sel?.seleccionada) continue;
 
-      if (colKey === colIntervaloKey)              { classes['cell-rango'] = true;          hayColumnasEspeciales = true; }
-      if (colKey === sel.columnaReferenciaKey)     { classes['cell-referencia'] = true;     hayColumnasEspeciales = true; }
-      if (colKey === sel.columnaErrorKey)          { classes['cell-error'] = true;          hayColumnasEspeciales = true; }
-      if (colKey === sel.columnaIncertidumbreKey)  { classes['cell-incertidumbre'] = true;  hayColumnasEspeciales = true; }
+      if (colKey === colIntervaloKey)              { classes['cell-rango'] = true; }
+      if (colKey === sel.columnaReferenciaKey)     { classes['cell-referencia'] = true; }
+      if (colKey === sel.columnaErrorKey)          { classes['cell-error'] = true; }
+      if (colKey === sel.columnaIncertidumbreKey)  { classes['cell-incertidumbre'] = true; }
 
       columnasUsadas.add(sel.columnaReferenciaKey);
       columnasUsadas.add(sel.columnaErrorKey);
       columnasUsadas.add(sel.columnaIncertidumbreKey);
     }
 
-    // 👇 Si la columna NO participa en el cálculo, la marcamos como "no usada"
     if (!columnasUsadas.has(colKey)) {
       classes['cell-no-usada'] = true;
     }
 
     return classes;
   }
-    getCellStyle(
+
+  getCellStyle(
     tableIndex: number,
     rowIndex: number,
     colKey: string
@@ -974,7 +969,6 @@ export class Cmcparamsvf implements OnInit {
     const color = this.getColorCmc(cmcPrincipal);
     const colIntervaloKey = tabla.columns[0]?.key ?? '';
 
-    // ¿La columna es "especial"? Si sí, el CSS se encarga del fondo.
     for (const cmcId of cmcsEnFila) {
       const cmc = this.cmcs.find(c => c.id === cmcId);
       if (!cmc) continue;
@@ -987,13 +981,9 @@ export class Cmcparamsvf implements OnInit {
       if (colKey === sel.columnaIncertidumbreKey)  return {};
     }
 
-    // Celda normal: tinte suave del color del CMC para reforzar el bloque
     return { 'background-color': color.bg };
   }
 
-  /**
-   * Devuelve el estilo del badge flotante (columna inicial).
-   */
   getBadgeStyle(cmcId: number): Record<string, string> {
     const color = this.getColorCmc(cmcId);
     return {
@@ -1011,20 +1001,9 @@ export class Cmcparamsvf implements OnInit {
   //   PARSER Y NORMALIZACIÓN DE VALORES DE REFERENCIA
   // ============================================================
 
-  /**
-   * Parsea un valor de referencia tipo "100 mV", "0.1V", "abc",
-   * "1,5 kV", "1e-3 mV", etc.
-   *
-   * Devuelve:
-   *  - numero: valor normalizado a unidad base (V, A, Ω, ...)
-   *  - texto:  texto original SIN el número
-   *  - unidadBase: factor de conversión aplicado
-   *  - unidadTexto: texto de la unidad (mV, V, ...)
-   */
   private parsearValorReferencia(raw: string): ValorReferenciaParseado {
     const original = String(raw ?? '').trim();
 
-    // Extraer número (con coma/punto y notación científica)
     const match = original.match(/-?\d+(?:[.,]\d+)?(?:[eE][+-]?\d+)?/);
 
     if (!match || match.index === undefined) {
@@ -1038,7 +1017,6 @@ export class Cmcparamsvf implements OnInit {
     const despues = original.slice(match.index + numStr.length);
     const textoCompleto = `${antes}${despues}`;
 
-    // Detectar unidad: buscar sufijo alfabético en el texto completo
     const unidadMatch = textoCompleto.match(/[a-zA-ZµΩω]+/);
     const unidadTexto = unidadMatch ? unidadMatch[0] : '';
 
@@ -1047,86 +1025,62 @@ export class Cmcparamsvf implements OnInit {
 
     return {
       numero,
-      texto: textoCompleto,      // guardamos el texto ORIGINAL (con unidad y espacios)
+      texto: textoCompleto,
       unidadBase: factor,
       unidadTexto
     };
   }
 
-  /**
-   * Obtiene el factor de conversión a unidad base.
-   * Si no se reconoce la unidad, devuelve 1.
-   */
   private obtenerFactorUnidad(unidadTexto: string): number {
     if (!unidadTexto) return 1;
 
-    const norm = unidadTexto
-      .trim()
-      .toLowerCase()
-      .replace(/μ/g, 'u')
-      .replace(/µ/g, 'u');
-
-    // Prefijos SI comunes (sensibles a mayúsculas en el texto original)
     const u = unidadTexto.trim();
     const uLower = u.toLowerCase();
 
-    // Prefijos con "k" o "K"
     if (/^k/i.test(u)) {
       const base = uLower.substring(1);
       const factorBase = this.factorUnidadBase(base);
       return 1e3 * factorBase;
     }
-    // Prefijos con "M" (mega) — ojo con "m" (mili) que va abajo
     if (/^M/.test(u) && !/^m/.test(u)) {
       const base = uLower.substring(1);
       const factorBase = this.factorUnidadBase(base);
       return 1e6 * factorBase;
     }
-    // Prefijos con "G"
     if (/^G/i.test(u)) {
       const base = uLower.substring(1);
       const factorBase = this.factorUnidadBase(base);
       return 1e9 * factorBase;
     }
-    // Prefijos con "m" (mili)
     if (/^m/.test(u)) {
       const base = uLower.substring(1);
       const factorBase = this.factorUnidadBase(base);
       return 1e-3 * factorBase;
     }
-    // Prefijos con "u" o "µ" (micro)
     if (/^u|^µ/i.test(u)) {
       const base = uLower.substring(1);
       const factorBase = this.factorUnidadBase(base);
       return 1e-6 * factorBase;
     }
-    // Prefijos con "n"
     if (/^n/i.test(u)) {
       const base = uLower.substring(1);
       const factorBase = this.factorUnidadBase(base);
       return 1e-9 * factorBase;
     }
-    // Prefijos con "p"
     if (/^p/i.test(u)) {
       const base = uLower.substring(1);
       const factorBase = this.factorUnidadBase(base);
       return 1e-12 * factorBase;
     }
 
-    // Sin prefijo: ver si es unidad base
     const baseDirecta = this.factorUnidadBase(uLower);
     if (baseDirecta !== 1 || this.esUnidadBase(uLower)) {
       return baseDirecta;
     }
 
-    // Unidad desconocida → factor 1 (no se puede normalizar)
     return 1;
   }
 
-  /**
-   * Devuelve el factor de la unidad base sin prefijo.
-   * V, A, Ω, Hz, F → 1
-   */
   private factorUnidadBase(unidad: string): number {
     const u = unidad
       .trim()
@@ -1134,7 +1088,6 @@ export class Cmcparamsvf implements OnInit {
       .replace(/μ/g, 'u')
       .replace(/µ/g, 'u');
 
-    // Quitar posibles caracteres residuales
     const uClean = u.replace(/[^a-z]/g, '');
 
     switch (uClean) {
@@ -1158,34 +1111,22 @@ export class Cmcparamsvf implements OnInit {
     return ['v', 'a', 'ohm', 'ω', 'hz', 'f'].includes(u);
   }
 
-  /**
-   * Reconstruye un valor de referencia para mostrarlo.
-   * - Si el valor ORIGINAL tenía texto (unidad), devuelve `numeroOriginal + texto`.
-   * - Si NO tenía texto, devuelve solo el número.
-   *
-   * ⚠️ El número que se muestra es el ORIGINAL (no el normalizado),
-   *    porque el usuario ve el valor tal como está en la tabla.
-   */
   private formatearValorConTexto(rawOriginal: string, numeroNormalizado: number): string {
     const original = String(rawOriginal ?? '').trim();
     const match = original.match(/-?\d+(?:[.,]\d+)?(?:[eE][+-]?\d+)?/);
 
     if (!match || match.index === undefined) {
-      // No hay número → devolvemos el texto tal cual
       return original;
     }
 
-    // Si el texto (quitando el número) está vacío, devolvemos solo el número
     const antes = original.slice(0, match.index);
     const despues = original.slice(match.index + match[0].length);
     const textoSinNumero = `${antes}${despues}`;
 
     if (textoSinNumero.trim() === '') {
-      // No tenía unidad → devolvemos solo el número tal cual apareció
       return match[0];
     }
 
-    // Tenía texto → devolvemos el valor ORIGINAL completo (número + unidad)
     return original;
   }
 
@@ -1315,10 +1256,6 @@ export class Cmcparamsvf implements OnInit {
       return { ok: false, motivo: 'menos de 2 tablas seleccionadas' };
     }
 
-    // ------------------------------------------------------------
-    // 1) Determinar rango objetivo por tabla desde la fila
-    //    seleccionada (columna Intervalo = primera columna)
-    // ------------------------------------------------------------
     const rangosNormalizados = new Set<string>();
     const colIntervaloPorTabla: Record<number, string> = {};
 
@@ -1361,9 +1298,6 @@ export class Cmcparamsvf implements OnInit {
       ).trim();
     })();
 
-    // ------------------------------------------------------------
-    // 2) Construir filas válidas (promediando por rango)
-    // ------------------------------------------------------------
     const filasValidas: {
       idx: number;
       tabla: ResultTable;
@@ -1416,11 +1350,6 @@ export class Cmcparamsvf implements OnInit {
       const errorProm = sumaError / n;
       const incertidumbreProm = sumaInc / n;
 
-      // ------------------------------------------------------------
-      // Min/Max sobre los VALORES DE REFERENCIA de las filas
-      // del mismo rango, comparando por unidad normalizada.
-      // Se preserva el texto/unidad del elemento ganador.
-      // ------------------------------------------------------------
       let filaMin: FilaRangoInfo | null = null;
       let filaMax: FilaRangoInfo | null = null;
 
@@ -1467,9 +1396,6 @@ export class Cmcparamsvf implements OnInit {
       return { ok: false, motivo: 'filas válidas insuficientes (mínimo 2)' };
     }
 
-    // ------------------------------------------------------------
-    // 3) Ordenar por fecha y calcular días intermedios
-    // ------------------------------------------------------------
     filasValidas.sort((a, b) => a.fecha.getTime() - b.fecha.getTime());
 
     const errores = filasValidas.map(x => x.error);
@@ -1503,9 +1429,6 @@ export class Cmcparamsvf implements OnInit {
       });
     });
 
-    // ------------------------------------------------------------
-    // 4) Payload
-    // ------------------------------------------------------------
     const payload: CmcPayload = {
       id: this.selectedEquipmentId,
       cmcNumero: cmc.id,
@@ -1570,29 +1493,76 @@ export class Cmcparamsvf implements OnInit {
   //   INTEGRACIÓN CON EL COMPONENTE DE RESULTADOS (Cmcsr)
   // ============================================================
 
-  calcularYMostrarCmc(): void {
+  /**
+   * Genera el resumen en tiempo real de las tablas seleccionadas para cada CMC.
+   * Esta data es exactamente la que se muestra en la tabla "Valores seleccionados".
+   */
+  public obtenerResumenValoresSeleccionados(): Record<number, ResumenTablaCmc[]> {
+    const resumenes: Record<number, ResumenTablaCmc[]> = {};
+    const anteriorId = this.cmcActivoId;
+
+    for (const cmc of this.cmcs) {
+      // Contextualizamos temporalmente el CMC para usar los getters existentes
+      this.cmcActivoId = cmc.id;
+      const filas: ResumenTablaCmc[] = [];
+
+      this.filteredTablas.forEach((tabla, i) => {
+        if (!cmc.selecciones[i]?.seleccionada) return;
+
+        filas.push({
+          index: i + 1,
+          cc: tabla.cc_id || '—',
+          fila: String((cmc.selecciones[i].filaIndex ?? 0) + 1),
+          intervalo: this.getRangoSeleccionado(i),
+          refMin: this.getMinReferencia(i),
+          refMax: this.getMaxReferencia(i),
+          dias: this.getDiasDesdeAnterior(i),
+          sesgo: this.getErrorSeleccionado(i),
+          incertidumbre: this.getIncertidumbreSeleccionada(i)
+        });
+      });
+
+      resumenes[cmc.id] = filas;
+    }
+
+    // Restauramos el estado original
+    this.cmcActivoId = anteriorId;
+    return resumenes;
+  }
+
+  /**
+   * Flujo principal al presionar "Calcular y ver CMC":
+   *   1. Pide confirmación al usuario recordándole revisar los parámetros.
+   *   2. Ejecuta el cálculo de todos los CMC.
+   *   3. Redirige a la vista de resultados enviando los parámetros
+   *      y el resumen de la tabla de valores seleccionados.
+   */
+  async calcularYMostrarCmc(): Promise<void> {
+    if (!this.cmcs.length) {
+      this.alert.warning('No hay cálculos de CMC creados.');
+      return;
+    }
+
+    // 1) Confirmación del usuario
+    const confirmado = await this.confirmarParametrosDelCalculo();
+    if (!confirmado) {
+      return;
+    }
+
+    // 2) Cálculo
     try {
       this.calcularTodosLosCmc();
     } catch (e) {
       console.error('[Cmcparamsvf] Excepción en calcularTodosLosCmc:', e);
-      this.alert.error('Ocurrió un error inesperado al calcular los CMC. Revisa la consola.', 'Error');
+      this.alert.error(
+        'Ocurrió un error inesperado al calcular los CMC. Revisa la consola.',
+        'Error'
+      );
       return;
     }
 
+    // 3) Verificar que exista al menos un payload válido
     const payloads = this.cmcsParaMostrar;
-
-    console.log('[Cmcparamsvf] calcularYMostrarCmc()', {
-      totalCmcs: this.cmcs.length,
-      payloadsListos: payloads.length,
-      detalle: this.cmcs.map(c => ({
-        id: c.id,
-        tienePayload: c.payload !== null,
-        intervalo: c.intervaloCalibracion,
-        tablasSeleccionadas: Object.values(c.selecciones).filter(s => s.seleccionada).length
-      })),
-      primerPayload: payloads[0]
-    });
-
     if (!payloads.length) {
       this.alert.warning(
         'No hay ningún CMC válido calculado todavía. Revisa las tablas seleccionadas.',
@@ -1601,10 +1571,43 @@ export class Cmcparamsvf implements OnInit {
       return;
     }
 
-    this.mostrarResultadosCmc = true;
-    this.refresh();
+    // 4) Redirección con parámetros al componente de resultados
+    const navegacionOk = await this.router.navigate([this.rutaResultadosCmc], {
+      state: {
+        payload: this.payloadCompleto,          // Parámetros calculados
+        equipmentId: this.selectedEquipmentId,
+        mensurando: this.etiquetaMensurando,
+        resumenTablas: this.obtenerResumenValoresSeleccionados() // Resumen de la tabla
+      }
+    });
 
-    setTimeout(() => this.refresh());
+    if (!navegacionOk) {
+      this.alert.error(
+        'No se pudo abrir la vista de resultados del CMC.',
+        'Error de navegación'
+      );
+    }
+  }
+
+  /**
+   * Muestra un diálogo de confirmación advirtiendo al usuario que
+   * debe revisar los parámetros antes de proceder con el cálculo.
+   */
+  private async confirmarParametrosDelCalculo(): Promise<boolean> {
+    try {
+      return await this.alert.confirm(
+        'Revise que los parámetros ingresados sean correctos antes de continuar:\n' +
+        '• Tablas seleccionadas\n' +
+        '• Fila / rango seleccionado\n' +
+        '• Columnas de error, incertidumbre y referencia\n' +
+        '• Intervalo de calibración (meses)\n\n' +
+        '¿Está seguro de proceder con el cálculo del CMC?',
+        'Confirmar cálculo del CMC'
+      );
+    } catch (e) {
+      console.error('[Cmcparamsvf] Error al mostrar la confirmación:', e);
+      return false;
+    }
   }
 
   onResultadoCalculado(resultados: CmcResultado[]): void {

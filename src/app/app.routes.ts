@@ -9,6 +9,7 @@ import { Calcmc } from './components/cmc/calcmc/calcmc';
 import { Inicio } from './components/view/inicio/inicio';
 import { Cmcparams } from './components/view/cmcparams/cmcparams';
 import { Cmcparamsvf } from './components/view/cmcparamsvf/cmcparamsvf';
+import { Cmcsr } from './components/core/cmcsr/cmcsr';
 
 export const routes: Routes = [
   {path: '',redirectTo: 'inicio', pathMatch: 'full'},
@@ -21,5 +22,6 @@ export const routes: Routes = [
   {path: 'viewcert/:id', component: Viewcert},//Solo se puede acceder a la ruta con un id de certificado
   {path: 'calcmc', component: Calcmc},
   {path: 'cmcparams', component: Cmcparams},
-  {path: 'cmcparamsvf', component: Cmcparamsvf}
+  {path: 'cmcparamsvf', component: Cmcparamsvf},
+  {path: 'cmc-resultados', component: Cmcsr }
 ];
