@@ -17,7 +17,7 @@ import {
   CmcVistaResultado,
   ResumenTablaCmc
 } from '../../../services/cmc-calculator.service';
-import { AlertService } from '../../../services/alert.service';
+import { AlertService } from '../../../services/core/alert.service';
 
 interface EstadoNavegacionCmc {
   payload?: CmcMultiPayload;

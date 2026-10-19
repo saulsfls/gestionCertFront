@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { CertService } from '../../../services/cert.service';
 import { Certificado, ApiResponse } from '../../../models/certificado.models';
-import { AlertService } from '../../../services/alert.service';
+import { AlertService } from '../../../services/core/alert.service';
 
 @Component({
   selector: 'app-admincert',
