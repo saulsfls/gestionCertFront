@@ -1,7 +1,7 @@
 import { Component, OnInit, ChangeDetectorRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
-import { CertService } from '../../../services/cert.service';
+import { CertService } from '../../../services/database/cert.service';
 import { FormsModule } from '@angular/forms';
 import { AlertService } from '../../../services/core/alert.service';
 import { Workbook } from 'exceljs';

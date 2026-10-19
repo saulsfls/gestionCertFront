@@ -3,7 +3,7 @@ import {
   CmcFuenteIncertidumbre,
   CmcPayload,
   CmcResultado,
-} from '../models/cmc.model';
+} from '../../models/cmc.model';
 
 /**
  * Estructura que representa una fila de la tabla "Valores seleccionados".

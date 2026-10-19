@@ -16,7 +16,7 @@ import {
   CmcCalculatorService,
   CmcVistaResultado,
   ResumenTablaCmc
-} from '../../../services/cmc-calculator.service';
+} from '../../../services/calc/cmc-calculator.service';
 import { AlertService } from '../../../services/core/alert.service';
 
 interface EstadoNavegacionCmc {

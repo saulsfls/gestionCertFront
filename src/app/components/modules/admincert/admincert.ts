@@ -2,7 +2,7 @@ import { ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { CertService } from '../../../services/cert.service';
+import { CertService } from '../../../services/database/cert.service';
 import { Certificado, ApiResponse } from '../../../models/certificado.models';
 import { AlertService } from '../../../services/core/alert.service';
 

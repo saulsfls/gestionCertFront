@@ -9,8 +9,8 @@ import { isPlatformBrowser, CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { finalize, timeout } from 'rxjs/operators';
 import { Certificado, ResultTable, Column } from '../../../models/certificado.models';
-import { CertService } from '../../../services/cert.service';
-import { ImageService } from '../../../services/image.service';
+import { CertService } from '../../../services/database/cert.service';
+import { ImageService } from '../../../services/database/image.service';
 import { AlertService } from '../../../services/core/alert.service';
 import {
   ImageCropperComponent,

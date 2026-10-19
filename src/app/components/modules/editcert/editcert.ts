@@ -9,7 +9,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Certificado, ResultTable, Column } from '../../../models/certificado.models';
-import { CertService } from '../../../services/cert.service';
+import { CertService } from '../../../services/database/cert.service';
 import { AlertService } from '../../../services/core/alert.service';
 
 export type DireccionTab = 'horizontal' | 'vertical';

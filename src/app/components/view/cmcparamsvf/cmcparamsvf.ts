@@ -9,7 +9,7 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { forkJoin, of } from 'rxjs';
 import { catchError, finalize } from 'rxjs/operators';
-import { CertService } from '../../../services/cert.service';
+import { CertService } from '../../../services/database/cert.service';
 import { AlertService } from '../../../services/core/alert.service';
 import { ApiResponse, Column, ResultTable } from '../../../models/certificado.models';
 import {
