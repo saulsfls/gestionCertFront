@@ -1,3 +1,29 @@
+export interface CmcData {
+  id?: number; //ID del calculo
+  id_equipment: string; //ID del equipo
+  created_at?: string; //Fecha de creacion
+  id_user?: string; //Usuario que crea y calcula el CMC
+  value_ref_min: string; //Valor de referencia maximo
+  value_ref_max: string; //Valor de referencia minimo
+  interval_value: string; //intevalo del cmc
+  cert_associate: string; //Certificados asociados
+  active?: number | boolean; //Certificado actual o obsoleto
+
+  u_combined: number; //incertidumbre combinada
+  degrees_freedom: number; //Grados de libertad
+  coefficient_expansion: number; //Coeficiente de expansion
+  u_expanded: number; //incertidumbre expandida
+
+  stability: number; //estabilidad
+  bias: number; //Sesgo
+  drift: number; //Deriba
+  u_reference: number; //incertidumbre de referencia
+  s_reference: number; //Estabilidad de referencia
+  repeatability: number; //Repetibilidad
+  reproducibility: number; //Reproducibilidad
+}
+
+
 export interface CmcTablaSeleccion {
   seleccionada: boolean;
   filaIndex: number;
@@ -74,28 +100,3 @@ export interface CmcResultado {
   nRegistrosPorCertificado?: number[];
 }
 
-export interface CmcData {
-  id?: number;
-  name_equipment: string;
-  created_at?: string;
-  value_ref_min: string;
-  value_ref_max: string;
-  interval_value: string;
-  cert_associate: string;
-  active?: number | boolean;
-
-  // Datos del cálculo
-  u_combined: number;
-  degrees_freedom: number;
-  coefficient_expansion: number;
-  u_expanded: number;
-
-  // Pesos de incertidumbre
-  stability: number;
-  bias: number;
-  drift: number;
-  u_reference: number;
-  s_reference: number;
-  repeatability: number;
-  reproducibility: number;
-}

@@ -8,6 +8,7 @@ import {
   AlertServiceConfig,
   AlertType,
 } from '../../util/alert/alert.model';
+import { AuthService } from '../../../services/auth/auth.service';
 
 @Component({
   selector: 'app-inicio',
@@ -19,10 +20,8 @@ import {
 export class Inicio {
 
   private alert = inject(AlertService);
+  private auth = inject(AuthService);
 
-  /* ══════════════════════════════════════════════════════════════
-   *  LISTAS PARA LOS SELECTS
-   * ══════════════════════════════════════════════════════════════ */
   readonly positions: AlertPosition[] = [
     'top-left', 'top-center', 'top-right',
     'bottom-left', 'bottom-center', 'bottom-right',
@@ -32,9 +31,6 @@ export class Inicio {
     'success', 'error', 'warning', 'info', 'question',
   ];
 
-  /* ══════════════════════════════════════════════════════════════
-   *  CONFIGURACIÓN GLOBAL DEL SERVICIO
-   * ══════════════════════════════════════════════════════════════ */
   config: AlertServiceConfig = {
     position: 'top-right',
     duration: 4000,
@@ -45,9 +41,7 @@ export class Inicio {
     dismissible: true,
   };
 
-  /* ══════════════════════════════════════════════════════════════
-   *  FORMULARIO TOAST
-   * ══════════════════════════════════════════════════════════════ */
+
   toastForm: {
     type: AlertType;
     title: string;
@@ -68,9 +62,6 @@ export class Inicio {
     pauseOnHover: true,
   };
 
-  /* ══════════════════════════════════════════════════════════════
-   *  FORMULARIO DIÁLOGO
-   * ══════════════════════════════════════════════════════════════ */
   dialogForm: {
     type: AlertType;
     title: string;
@@ -91,29 +82,19 @@ export class Inicio {
     promptPlaceholder: 'Escribe aquí…',
   };
 
-  /* ══════════════════════════════════════════════════════════════
-   *  ESTADO
-   * ══════════════════════════════════════════════════════════════ */
+
   lastResult = '—';
 
-  /* ══════════════════════════════════════════════════════════════
-   *  CICLO DE VIDA
-   * ══════════════════════════════════════════════════════════════ */
+
   ngOnInit(): void {
     this.aplicarConfig();
   }
 
-  /* ══════════════════════════════════════════════════════════════
-   *  CONFIGURACIÓN GLOBAL
-   * ══════════════════════════════════════════════════════════════ */
   aplicarConfig(): void {
     this.alert.configure({ ...this.config });
     this.alert.success('Configuración aplicada', 'AlertService');
   }
 
-  /* ══════════════════════════════════════════════════════════════
-   *  ATAJOS RÁPIDOS
-   * ══════════════════════════════════════════════════════════════ */
   toastSuccess(): void {
     this.alert.success('Operación completada correctamente', 'Éxito');
   }
@@ -127,9 +108,6 @@ export class Inicio {
     this.alert.info('Hay una nueva versión disponible', 'Información');
   }
 
-  /* ══════════════════════════════════════════════════════════════
-   *  TOAST PERSONALIZADO
-   * ══════════════════════════════════════════════════════════════ */
   lanzarToast(): void {
     this.alert.toast({
       type:         this.toastForm.type,
@@ -151,9 +129,6 @@ export class Inicio {
     setTimeout(() => this.alert.success('Sincronización completa'), 800);
   }
 
-  /* ══════════════════════════════════════════════════════════════
-   *  DIÁLOGOS — API DIRECTA
-   * ══════════════════════════════════════════════════════════════ */
   async mostrarAlert(): Promise<void> {
     await this.alert.alert(
       'Esta es una notificación tipo modal de solo lectura.',
@@ -186,9 +161,6 @@ export class Inicio {
     else this.alert.success(`Hola, ${nombre}!`);
   }
 
-  /* ══════════════════════════════════════════════════════════════
-   *  DIÁLOGO PERSONALIZADO
-   * ══════════════════════════════════════════════════════════════ */
   async lanzarDialogoCustom(mode: 'alert' | 'confirm' | 'prompt'): Promise<void> {
 
     const message = this.dialogForm.message;
@@ -224,17 +196,11 @@ export class Inicio {
     this.lastResult = `prompt → ${value === null ? 'null' : `"${value}"`}`;
   }
 
-  /* ══════════════════════════════════════════════════════════════
-   *  LIMPIAR  ← (el método que te faltaba)
-   * ══════════════════════════════════════════════════════════════ */
   limpiar(): void {
     this.alert.clear();
     this.lastResult = '—';
   }
 
-  /* ══════════════════════════════════════════════════════════════
-   *  DEMO COMPLETO  ← (el método que te faltaba)
-   * ══════════════════════════════════════════════════════════════ */
   async demoCompleto(): Promise<void> {
     this.alert.success('1. Producto creado', 'Paso 1/4');
     await this.delay(600);
@@ -256,10 +222,18 @@ export class Inicio {
     this.alert.success('4. Proceso completado con éxito', 'Paso 4/4');
   }
 
-  /* ══════════════════════════════════════════════════════════════
-   *  HELPER PRIVADO
-   * ══════════════════════════════════════════════════════════════ */
   private delay(ms: number): Promise<void> {
     return new Promise(r => setTimeout(r, ms));
+  }
+
+  login(){
+    if(this.auth.login()){
+      this.alert.success('Se ha inciado sesion correctamente','Bienvenido');
+    }
+  }
+
+  logout(){
+    this.auth.logout();
+    this.alert.warning('Se ha cerrado la sesion correctamente','Hasta luego');
   }
 }

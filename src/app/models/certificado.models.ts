@@ -5,6 +5,7 @@ export interface Certificado {
   cc?: string; // Certificate folio / number
   equipment_id: string; // Equipment ID
   name_equipment: string; // Equipment name
+  id_user: string; // ID del usuario que creeo o edito
   date_cal?: string; // Calibration date
   date_cc?: string; // Issue date
   calibration_interval?: number; // Intervalo de calibracion en meses

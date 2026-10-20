@@ -20,6 +20,7 @@ import {
 } from '../../../services/calc/cmc-calculator.service';
 import { CmcService } from '../../../services/database/cmc.service';
 import { AlertService } from '../../../services/core/alert.service';
+import { AuthService } from '../../../services/auth/auth.service';
 
 interface EstadoNavegacionCmc {
   payload?: CmcMultiPayload;
@@ -35,6 +36,8 @@ interface EstadoNavegacionCmc {
   styleUrl: './cmcsr.css',
 })
 export class Cmcsr implements OnChanges, OnInit {
+
+  private auth = inject(AuthService);
 
   @Input() cmcs: CmcPayload[] = [];
   @Input() titulo = '';
@@ -157,6 +160,14 @@ export class Cmcsr implements OnChanges, OnInit {
    */
   guardarResultados(): void {
     // Bloqueo total tras un guardado exitoso
+
+    const user = this.auth.getUser()?.id_user;
+
+    if (!user) {
+      this.alert.error('Debes iniciar sesión para guardar el cálculo.', 'Sesión requerida');
+      return;
+    }
+
     if (this.guardadoExitoso || this.guardando) return;
 
     const activo = this.cmcActivo;
@@ -173,7 +184,8 @@ export class Cmcsr implements OnChanges, OnInit {
     const res = activo.resultado;
 
     const dataAGuardar: CmcData = {
-      name_equipment: payload.id, // ID del equipo
+      id_equipment: payload.id, // ID del equipo
+      id_user: user,
       value_ref_min: payload.minReferencia || payload.rangoReferencia,
       value_ref_max: payload.maxReferencia || payload.rangoReferencia,
       interval_value: payload.rangoReferencia,

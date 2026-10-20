@@ -11,6 +11,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { Certificado, ResultTable, Column } from '../../../models/certificado.models';
 import { CertService } from '../../../services/database/cert.service';
 import { AlertService } from '../../../services/core/alert.service';
+import { AuthService } from '../../../services/auth/auth.service';
 
 export type DireccionTab = 'horizontal' | 'vertical';
 export type JsonPrimitiveType = 'string' | 'number' | 'boolean';
@@ -26,6 +27,7 @@ export type TipoDato = 'number' | 'string';
 export class Editcert implements OnInit {
 
   private readonly alert = inject(AlertService);
+  private auth = inject(AuthService);
 
   @Input() id!: string | number;
 
@@ -71,6 +73,7 @@ export class Editcert implements OnInit {
     equipment_id: '',
     name_equipment: '',
     cc: '',
+    id_user: '',
     date_cal: '',
     date_cc: '',
     calibration_interval: 0,
@@ -823,10 +826,17 @@ export class Editcert implements OnInit {
     return true;
   }
 
-  // ========== GUARDAR ==========
   guardarCertificado(): void {
     if (this.cargando) return;
     if (!this.validarFormulario()) return;
+    const user = this.auth.getUser();
+    if (!user) {
+      this.alert.error(
+        'Debes iniciar sesión para actualizar un certificado.',
+        'Sesión requerida'
+      );
+      return;
+    }
 
     this.regenerarTableIds();
     this.sincronizarJsonTexto();
@@ -835,6 +845,7 @@ export class Editcert implements OnInit {
       ...this.certificado,
       equipment_id: this.certificado.equipment_id.trim(),
       name_equipment: this.certificado.name_equipment.trim(),
+      id_user: String(user.id_user),           // ← añadido (sobrescribe)
       data: this.obtenerJsonEstructurado()
     };
 
@@ -867,12 +878,13 @@ export class Editcert implements OnInit {
       error: (err: any) => {
         this.cargando = false;
         this.cdr.detectChanges();
-        const msg = err.error?.message || 'Error al actualizar el certificado en la base de datos.';
+        const msg =
+          err.error?.message ||
+          'Error al actualizar el certificado en la base de datos.';
         this.alert.error(msg, 'Error al guardar');
       }
     });
   }
-
   // ========== CANCELAR ==========
   async cancelar(): Promise<void> {
     if (!this.salirSinConfirmar && this.tieneCambios()) {

@@ -17,6 +17,7 @@ import {
   ImageCroppedEvent,
   LoadedImage
 } from 'ngx-image-cropper';
+import { AuthService } from '../../../services/auth/auth.service';
 
 export type DireccionTab = 'horizontal' | 'vertical';
 export type JsonPrimitiveType = 'string' | 'number' | 'boolean';
@@ -41,6 +42,7 @@ export class Newcert implements OnInit {
   private platformId = inject(PLATFORM_ID);
   private imageService = inject(ImageService);
   private alert = inject(AlertService);
+  private auth = inject(AuthService);
   isBrowser: boolean = isPlatformBrowser(this.platformId);
 
   opcionesTitulo: string[] = [
@@ -87,6 +89,7 @@ export class Newcert implements OnInit {
     equipment_id: '',
     name_equipment: '',
     cc: '',
+    id_user: '',
     date_cal: '',
     date_cc: '',
     calibration_interval: 0,
@@ -1074,7 +1077,6 @@ export class Newcert implements OnInit {
     const constraint = body.constraint ?? err?.constraint ?? '';
     const column = body.column ?? err?.column ?? '';
 
-    // 🔑 UNICIDAD: Folio duplicado u otro registro duplicado
     if (code === '23505' || status === 409) {
       const texto = `${message} ${detail} ${constraint}`.toLowerCase();
       const folio = (this.certificado.cc || '').trim();
@@ -1162,23 +1164,33 @@ export class Newcert implements OnInit {
     };
   }
 
-  // ========== GUARDAR ==========
+    // ========== GUARDAR ==========
   guardarCertificado(): void {
     if (this.guardando) return;
     if (!this.validarFormulario()) return;
+    const user = this.auth.getUser();
+    if (!user) {
+      this.alert.error(
+        'Debes iniciar sesión para guardar un certificado.',
+        'Sesión requerida'
+      );
+      return;
+    }
 
+    // 2. Marcar estado y preparar datos
     this.guardando = true;
     this.cdr.detectChanges();
 
     this.regenerarTableIds();
     this.sincronizarJsonTexto();
 
-    // ✅ Construcción segura del payload (evita TS2532 "Object is possibly 'undefined'")
+    // 3. Payload con id_user correcto
     const payload: Certificado = {
       ...this.certificado,
       equipment_id: (this.certificado.equipment_id ?? '').trim(),
       name_equipment: (this.certificado.name_equipment ?? '').trim(),
       cc: (this.certificado.cc ?? '').trim(),
+      id_user: String(user.id_user),          // ← FIX: number → string
       entity: (this.certificado.entity ?? '').trim(),
       cert_type: (this.certificado.cert_type ?? '').trim(),
       data: this.obtenerJsonEstructurado()
@@ -1200,7 +1212,6 @@ export class Newcert implements OnInit {
         const { titulo, mensaje } = this.traducirErrorBackend(err);
         this.alert.error(mensaje, titulo);
 
-        // Si fue folio duplicado, enfoca el input del folio para corregirlo rápido
         if (titulo === 'Folio duplicado') {
           setTimeout(() => {
             const el = document.getElementById('cc') as HTMLInputElement | null;
@@ -1218,6 +1229,7 @@ export class Newcert implements OnInit {
       equipment_id: '',
       name_equipment: '',
       cc: '',
+      id_user: '',
       date_cal: '',
       date_cc: '',
       calibration_interval: 0,
