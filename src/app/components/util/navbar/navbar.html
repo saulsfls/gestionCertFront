@@ -1,11 +1,12 @@
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm">
   <div class="container">
-    <!-- Logotipo o Nombre de la App -->
-    <a class="navbar-brand d-flex align-items-center gap-2" routerLink="/">
+    <!-- Logotipo -->
+    <a class="navbar-brand d-flex align-items-center gap-2" routerLink="/inicio">
       <i class="bi bi-box-seam fs-4 text-primary"></i>
-      <span class="fw-bold">Gestion de certificados</span>
+      <span class="fw-bold">Gestión de certificados</span>
     </a>
-    <!-- Botón Hamburguesa (Móviles) -->
+
+    <!-- Botón Hamburguesa -->
     <button
       class="navbar-toggler"
       type="button"
@@ -14,10 +15,11 @@
       aria-label="Toggle navigation">
       <span class="navbar-toggler-icon"></span>
     </button>
-    <!-- Enlaces y Contenido del Navbar -->
+
     <div class="collapse navbar-collapse" [class.show]="!isCollapsed">
-      <!-- Menú Principal -->
       <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+
+        <!-- 🟢 Inicio: siempre visible -->
         <li class="nav-item">
           <a
             class="nav-link"
@@ -28,72 +30,94 @@
             Inicio
           </a>
         </li>
-        <li class="nav-item">
-          <a
-            class="nav-link"
-            routerLink="/newcert"
-            routerLinkActive="active"
-            [routerLinkActiveOptions]="{exact: true}"
-            (click)="isCollapsed = true">
-            Crear certificado
-          </a>
-        </li>
-        <li class="nav-item">
-          <a
-            class="nav-link"
-            routerLink="/pimage"
-            routerLinkActive="active"
-            [routerLinkActiveOptions]="{exact: true}"
-            (click)="isCollapsed = true">
-            Procesar imagen
-          </a>
-        </li>
-        <li class="nav-item">
-          <a
-            class="nav-link"
-            routerLink="/listcert"
-            routerLinkActive="active"
-            [routerLinkActiveOptions]="{exact: true}"
-            (click)="isCollapsed = true">
-            Lista de Certificados
-          </a>
 
-        </li>
-        <li class="nav-item">
-          <a
-            class="nav-link"
-            routerLink="/calcmc"
-            routerLinkActive="active"
-            [routerLinkActiveOptions]="{exact: true}"
-            (click)="isCollapsed = true">
-            Calculo de CMC
-          </a>
+        <!-- 🔴 Solo si hay sesión -->
+        @if (isLoggedIn()) {
 
-        </li>
+          <!-- Herramientas -->
+          <li class="nav-item dropdown" [class.show]="dropdowns.herramientas">
+            <a
+              class="nav-link dropdown-toggle"
+              href="javascript:void(0)"
+              role="button"
+              [attr.aria-expanded]="dropdowns.herramientas"
+              (click)="toggleDropdown($event, 'herramientas')">
+              Herramientas
+            </a>
+            <ul class="dropdown-menu" [class.show]="dropdowns.herramientas">
+              <li>
+                <a class="dropdown-item" routerLink="/pimage" routerLinkActive="active" (click)="isCollapsed = true">
+                  Procesar imagen
+                </a>
+              </li>
+            </ul>
+          </li>
 
-        <li class="nav-item">
-          <a
-            class="nav-link"
-            routerLink="/cmcparams"
-            routerLinkActive="active"
-            [routerLinkActiveOptions]="{exact: true}"
-            (click)="isCollapsed = true">
-            Parámetros de CMC
-          </a>
+          <!-- Certificados -->
+          <li class="nav-item dropdown" [class.show]="dropdowns.certificados">
+            <a
+              class="nav-link dropdown-toggle"
+              href="javascript:void(0)"
+              role="button"
+              [attr.aria-expanded]="dropdowns.certificados"
+              (click)="toggleDropdown($event, 'certificados')">
+              Certificados
+            </a>
+            <ul class="dropdown-menu" [class.show]="dropdowns.certificados">
+              <li>
+                <a class="dropdown-item" routerLink="/newcert" routerLinkActive="active" (click)="isCollapsed = true">
+                  Crear certificado
+                </a>
+              </li>
+              <li>
+                <a class="dropdown-item" routerLink="/listcert" routerLinkActive="active" (click)="isCollapsed = true">
+                  Lista de certificados
+                </a>
+              </li>
+              <li>
+                <a class="dropdown-item" routerLink="/admincert" routerLinkActive="active" (click)="isCollapsed = true">
+                  Administrar certificados
+                </a>
+              </li>
+            </ul>
+          </li>
 
-        </li>
+          <!-- CMC -->
+          <li class="nav-item dropdown" [class.show]="dropdowns.cmc">
+            <a
+              class="nav-link dropdown-toggle"
+              href="javascript:void(0)"
+              role="button"
+              [attr.aria-expanded]="dropdowns.cmc"
+              (click)="toggleDropdown($event, 'cmc')">
+              CMC
+            </a>
+            <ul class="dropdown-menu" [class.show]="dropdowns.cmc">
+              <li>
+                <a class="dropdown-item" routerLink="/calcmc" routerLinkActive="active" (click)="isCollapsed = true">
+                  Cálculo de CMC
+                </a>
+              </li>
+              <li>
+                <a class="dropdown-item" routerLink="/cmcparams" routerLinkActive="active" (click)="isCollapsed = true">
+                  Parámetros de CMC
+                </a>
+              </li>
+              <li>
+                <a class="dropdown-item" routerLink="/cmcparamsvf" routerLinkActive="active" (click)="isCollapsed = true">
+                  Parámetros de CMC por rangos
+                </a>
+              </li>
+              <li><hr class="dropdown-divider"></li>
+              <li>
+                <a class="dropdown-item" routerLink="/cmc-resultados" routerLinkActive="active" (click)="isCollapsed = true">
+                  Resultados CMC
+                </a>
+              </li>
+            </ul>
+          </li>
 
-        <li class="nav-item">
-          <a
-            class="nav-link"
-            routerLink="/cmcparamsvf"
-            routerLinkActive="active"
-            [routerLinkActiveOptions]="{exact: true}"
-            (click)="isCollapsed = true">
-            Parametros de CMC por Rangos
-          </a>
-
-        </li>
+        }
       </ul>
     </div>
   </div>
