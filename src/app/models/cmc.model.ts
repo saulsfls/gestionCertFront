@@ -73,3 +73,29 @@ export interface CmcResultado {
   maxReferencia?: string;
   nRegistrosPorCertificado?: number[];
 }
+
+export interface CmcData {
+  id?: number;
+  name_equipment: string;
+  created_at?: string;
+  value_ref_min: string;
+  value_ref_max: string;
+  interval_value: string;
+  cert_associate: string;
+  active?: number | boolean;
+
+  // Datos del cálculo
+  u_combined: number;
+  degrees_freedom: number;
+  coefficient_expansion: number;
+  u_expanded: number;
+
+  // Pesos de incertidumbre
+  stability: number;
+  bias: number;
+  drift: number;
+  u_reference: number;
+  s_reference: number;
+  repeatability: number;
+  reproducibility: number;
+}

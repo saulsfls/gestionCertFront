@@ -5,15 +5,28 @@
       <p *ngIf="titulo" class="subtitulo">{{ titulo }}</p>
     </div>
     <div class="acciones">
-      <button type="button" class="btn btn-sec" (click)="copiarResultados()">
+      <button type="button" class="btn btn-outline-danger mb-1" (click)="volver()" title="Regresar al configurador">
+        ← Volver
+      </button>
+      <button type="button" class="btn btn-outline-secondary mb-1" (click)="copiarResultados()">
         {{ copiado ? '¡Copiado!' : 'Copiar' }}
       </button>
-      <button type="button" class="btn btn-sec" (click)="exportarCsv()">
+      <button type="button" class="btn btn-outline-primary mb-1" (click)="copiarResultados()">
+        Mostar CMC Guardados
+      </button>
+      <button type="button" class="btn btn-outline-secondary mb-1" (click)="exportarCsv()">
         CSV
       </button>
-      <!-- BOTÓN VOLVER -->
-      <button type="button" class="btn btn-cerrar" (click)="volver()" title="Regresar al configurador">
-        ← Volver
+
+       <button
+        type="button"
+        class="btn btn-success mb-1"
+        (click)="guardarResultados()"
+        [disabled]="guardando || !resultados.length"
+        title="Guardar resultados en la base de datos">
+        <i class="bi" [ngClass]="guardando ? 'bi-hourglass-split' : 'bi-save'"></i>
+        {{ guardadoExitoso ? 'CMC Guardado con exito' : 'Guardar CMC' }}
+        <span *ngIf="guardando" class="spinner" aria-hidden="true"></span>
       </button>
     </div>
   </header>

@@ -20,15 +20,12 @@ h3 { margin: 0 0 4px; font-size: 1.05rem; }
 .acciones { display: flex; gap: 8px; }
 
 .btn {
-  border: 1px solid #d1d5db;
-  background: #f9fafb;
+
   padding: 6px 12px;
   border-radius: 6px;
   cursor: pointer;
   font-size: 0.85rem;
 }
-.btn:hover { background: #f3f4f6; }
-.btn-cerrar { color: #b91c1c; border-color: #fecaca; background: #fef2f2; }
 
 .tabs-cmc {
   display: flex;
