@@ -11,79 +11,118 @@
   <div class="card-body">
     <div class="row g-3">
 
+      <!-- ID del Equipo (bloqueado) -->
       <div class="col-md-3">
         <label for="equipment_id" class="form-label fw-bold">
           ID del Equipo <span class="text-danger">*</span>
         </label>
         <input type="text" id="equipment_id" class="form-control"
           [(ngModel)]="certificado.equipment_id"
+          [disabled]="estaBloqueado('equipment_id')"
           maxlength="30" (ngModelChange)="onTableChange()"
           placeholder="Ej: 849-0000" required>
       </div>
 
+      <!-- Nombre del Equipo (bloqueado) -->
       <div class="col-md-6">
         <label for="name_equipment" class="form-label fw-bold">
           Nombre del Equipo <span class="text-danger">*</span>
         </label>
-        <input type="text" id="name_equipment" class="form-control" maxlength="30"
+        <input type="text" id="name_equipment" class="form-control" maxlength="300"
           [(ngModel)]="certificado.name_equipment"
+          [disabled]="estaBloqueado('name_equipment')"
           placeholder="Ej: Multímetro Digital / Calibrador" required>
       </div>
 
+      <!-- Folio / CC (bloqueado) -->
       <div class="col-md-3">
         <label for="cc" class="form-label fw-bold">Folio / CC</label>
         <input type="text" id="cc" maxlength="50" class="form-control"
-          [(ngModel)]="certificado.cc" (ngModelChange)="onTableChange()"
+          [(ngModel)]="certificado.cc"
+          [disabled]="estaBloqueado('cc')"
+          (ngModelChange)="onTableChange()"
           placeholder="Ej: CC-89421">
       </div>
 
+      <!-- Fecha de Calibración (EDITABLE) -->
       <div class="col-md-3">
         <label for="date_cal" class="form-label fw-bold">Fecha de Calibración</label>
-        <input type="date" id="date_cal" class="form-control" [(ngModel)]="certificado.date_cal">
+        <input type="date" id="date_cal" class="form-control"
+          [(ngModel)]="certificado.date_cal"
+          [disabled]="estaBloqueado('date_cal')">
       </div>
 
+      <!-- Fecha del Certificado (EDITABLE) -->
       <div class="col-md-3">
         <label for="date_cc" class="form-label fw-bold">Fecha del Certificado</label>
-        <input type="date" id="date_cc" class="form-control" [(ngModel)]="certificado.date_cc">
+        <input type="date" id="date_cc" class="form-control"
+          [(ngModel)]="certificado.date_cc"
+          [disabled]="estaBloqueado('date_cc')">
       </div>
 
-      <div class="col-md-6">
+      <!-- PT / Procedimiento Técnico (bloqueado) -->
+      <div class="col-md-3">
+        <label for="pt" class="form-label fw-bold">Procedimiento Técnico</label>
+        <input type="text" id="pt" class="form-control" maxlength="50"
+          [(ngModel)]="certificado.pt"
+          [disabled]="estaBloqueado('pt')"
+          placeholder="PT-25">
+      </div>
+
+      <!-- Entidad Emisora (EDITABLE) -->
+      <div class="col-md-3">
         <label for="entity" class="form-label fw-bold">Entidad emisora</label>
         <input type="text" id="entity" class="form-control" maxlength="30"
-          [(ngModel)]="certificado.entity" placeholder="LECOE">
+          [(ngModel)]="certificado.entity"
+          [disabled]="estaBloqueado('entity')"
+          placeholder="LECOE">
       </div>
 
+      <!-- Tipo de Certificado (bloqueado) -->
       <div class="col-md-6">
         <label for="cert_type" class="form-label fw-bold">Tipo de certificado</label>
-        <select id="cert_type" class="form-select" [(ngModel)]="certificado.cert_type">
+        <select id="cert_type" class="form-select"
+          [(ngModel)]="certificado.cert_type"
+          [disabled]="estaBloqueado('cert_type')">
           <option value="" disabled>Seleccione una opción</option>
           <option value="Certificado">Certificado</option>
           <option value="Especificaciones del fabricante">Especificaciones del fabricante</option>
         </select>
       </div>
 
+      <!-- Intervalo de Calibración (bloqueado) -->
       <div class="col-md-3">
-        <label for="entity" class="form-label fw-bold">Intervalo de Calibración</label>
-        <input type="number" id="calibration_interval" class="form-control" maxlength="30"
-          [(ngModel)]="certificado.calibration_interval" placeholder="Meses Ej:12">
+        <label for="calibration_interval" class="form-label fw-bold">Intervalo de Calibración</label>
+        <input type="number" id="calibration_interval" class="form-control"
+          [(ngModel)]="certificado.calibration_interval"
+          [disabled]="estaBloqueado('calibration_interval')"
+          placeholder="Meses Ej:12">
       </div>
 
+      <!-- Resolución (EDITABLE) -->
       <div class="col-md-3">
         <label for="resolution" class="form-label fw-bold">Resolución</label>
-        <input type="number" id="resolution" class="form-control" maxlength="30"
-          [(ngModel)]="certificado.resolution" placeholder="Ej: 0.1">
+        <input type="number" id="resolution" class="form-control"
+          [(ngModel)]="certificado.resolution"
+          [disabled]="estaBloqueado('resolution')"
+          placeholder="Ej: 0.1">
       </div>
 
+      <!-- Comentarios (EDITABLE) -->
       <div class="col-md-12">
         <label for="comments" class="form-label fw-bold">Comentarios</label>
         <input type="text" id="comments" class="form-control" maxlength="100"
-          [(ngModel)]="certificado.comments" placeholder="Comments">
+          [(ngModel)]="certificado.comments"
+          [disabled]="estaBloqueado('comments')"
+          placeholder="Comments">
       </div>
 
+      <!-- Switch Activo (bloqueado) -->
       <div class="col-12 mt-3">
         <div class="form-check form-switch">
           <input class="form-check-input" type="checkbox" role="switch" id="active"
-            [(ngModel)]="certificado.active">
+            [(ngModel)]="certificado.active"
+            [disabled]="estaBloqueado('active')">
           <label class="form-check-label fw-bold" for="active">
             Certificado Activo {{ certificado.active ? '(Habilitado)' : '(Inactivo)' }}
           </label>

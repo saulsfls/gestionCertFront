@@ -8,23 +8,34 @@
   <div class="card-body">
     <div class="row g-3">
 
-      <!-- ID / Código del Equipo -->
+      <!-- Selector de Patrón (reemplaza al ID del Equipo) -->
       <div class="col-md-3">
         <label for="equipment_id" class="form-label fw-bold">
-          ID del Equipo <span class="text-danger">*</span>
+          Patrón / ID del Equipo <span class="text-danger">*</span>
         </label>
-        <input
-          type="text"
+        <select
           id="equipment_id"
-          class="form-control"
+          class="form-select"
           [(ngModel)]="certificado.equipment_id"
-          maxlength="30"
-          (ngModelChange)="onTableChange()"
-          placeholder="Ej: 849-0000"
+          (ngModelChange)="onPatronChange()"
+          [disabled]="cargandoPatrones"
           required>
+          <option [ngValue]="''" disabled>
+            {{ cargandoPatrones ? 'Cargando patrones…' : '-- Selecciona un patrón --' }}
+          </option>
+          @for (p of patrones; track p.id) {
+            <option [ngValue]="p.id">{{ p.id }}</option>
+          }
+        </select>
+        @if (cargandoPatrones) {
+          <small class="text-muted d-flex align-items-center gap-1 mt-1">
+            <span class="spinner-border spinner-border-sm"></span>
+            Cargando catálogo…
+          </small>
+        }
       </div>
 
-      <!-- Nombre del Equipo -->
+      <!-- Nombre del Equipo (autollenado, disabled) -->
       <div class="col-md-6">
         <label for="name_equipment" class="form-label fw-bold">
           Nombre del Equipo <span class="text-danger">*</span>
@@ -33,15 +44,17 @@
           type="text"
           id="name_equipment"
           class="form-control"
-          maxlength="30"
+          maxlength="300"
           [(ngModel)]="certificado.name_equipment"
-          placeholder="Ej: Multímetro Digital / Calibrador"
-          required>
+          [disabled]="hayPatronSeleccionado"
+          placeholder="Se autollena al seleccionar un patrón">
       </div>
 
       <!-- Folio / CC -->
       <div class="col-md-3">
-        <label for="cc" class="form-label fw-bold">Folio / CC <span class="text-danger">*</span></label>
+        <label for="cc" class="form-label fw-bold">
+          Folio / CC <span class="text-danger">*</span>
+        </label>
         <input
           type="text"
           id="cc"
@@ -52,9 +65,11 @@
           placeholder="Ej: CC-89421">
       </div>
 
-      <!-- Fecha de Calibración -->
+      <!-- Fecha de Calibración (autollenada, EDITABLE) -->
       <div class="col-md-3">
-        <label for="date_cal" class="form-label fw-bold">Fecha de Calibración</label>
+        <label for="date_cal" class="form-label fw-bold">
+          Fecha de Calibración
+        </label>
         <input
           type="date"
           id="date_cal"
@@ -62,9 +77,11 @@
           [(ngModel)]="certificado.date_cal">
       </div>
 
-      <!-- Fecha del Certificado -->
+      <!-- Fecha del Certificado (vacía, la llena el usuario) -->
       <div class="col-md-3">
-        <label for="date_cc" class="form-label fw-bold">Fecha del Certificado</label>
+        <label for="date_cc" class="form-label fw-bold">
+          Fecha del Certificado
+        </label>
         <input
           type="date"
           id="date_cc"
@@ -72,9 +89,26 @@
           [(ngModel)]="certificado.date_cc">
       </div>
 
+      <!-- Procedimiento Técnico (PT) — autollenado, disabled -->
+      <div class="col-md-3">
+        <label for="pt" class="form-label fw-bold">
+          Procedimiento Técnico
+        </label>
+        <input
+          type="text"
+          id="pt"
+          class="form-control"
+          maxlength="50"
+          [(ngModel)]="certificado.pt"
+          [disabled]="hayPatronSeleccionado"
+          placeholder="Se autollena al seleccionar un patrón">
+      </div>
+
       <!-- Entidad Emisora -->
-      <div class="col-md-6">
-        <label for="entity" class="form-label fw-bold">Entidad emisora</label>
+      <div class="col-md-3">
+        <label for="entity" class="form-label fw-bold">
+          Entidad emisora
+        </label>
         <input
           type="text"
           id="entity"
@@ -86,7 +120,9 @@
 
       <!-- Tipo de Certificado -->
       <div class="col-md-6">
-        <label for="cert_type" class="form-label fw-bold">Tipo de certificado</label>
+        <label for="cert_type" class="form-label fw-bold">
+          Tipo de certificado
+        </label>
         <select
           id="cert_type"
           class="form-select"
@@ -97,7 +133,7 @@
         </select>
       </div>
 
-      <!-- Intervalo de calibración -->
+      <!-- Intervalo de calibración (autollenado, disabled) -->
       <div class="col-md-3">
         <label for="calibration_interval" class="form-label fw-bold">
           Intervalo de Calibración (meses)
@@ -107,7 +143,8 @@
           id="calibration_interval"
           class="form-control"
           [(ngModel)]="certificado.calibration_interval"
-          placeholder="Ej: 12">
+          [disabled]="hayPatronSeleccionado"
+          placeholder="Se autollena al seleccionar un patrón">
       </div>
 
       <!-- Resolución del instrumento -->
@@ -134,7 +171,6 @@
           [(ngModel)]="certificado.comments"
           placeholder="Comments">
       </div>
-
 
       <!-- Switch Activo -->
       <div class="col-12 mt-3">
@@ -275,7 +311,6 @@
                   placeholder="Especifique el mesurando">
               </ng-template>
             </div>
-
 
             <div class="col-md-3">
               <label class="form-label fw-semibold small">CC ID:</label>
@@ -599,6 +634,7 @@
       </div>
     </div>
   </div>
+
   <!-- Botón de Guardado -->
   <div class="d-flex justify-content-end my-4">
     <button

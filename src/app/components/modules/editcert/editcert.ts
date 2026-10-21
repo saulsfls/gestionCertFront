@@ -31,6 +31,21 @@ export class Editcert implements OnInit {
 
   @Input() id!: string | number;
 
+  /**
+   * Campos generales del certificado que NO se pueden editar en esta vista.
+   * Solo `resolution`, `entity`, `comments`, `date_cal` y `date_cc`
+   * quedan habilitados para el usuario.
+   */
+  readonly camposBloqueados: ReadonlyArray<keyof Certificado> = [
+    'equipment_id',
+    'name_equipment',
+    'cc',
+    'pt',
+    'calibration_interval',
+    'cert_type',
+    'active',
+  ];
+
   opcionesTitulo: string[] = [
     'DC Voltage',
     'AC Voltage',
@@ -66,6 +81,7 @@ export class Editcert implements OnInit {
       'Polarity Linearity Test'
     ],
     'Frequency': ['Frequency'],
+    'Capacitance': ['Capacitance'],
     'Other': []
   };
 
@@ -74,6 +90,7 @@ export class Editcert implements OnInit {
     name_equipment: '',
     cc: '',
     id_user: '',
+    pt: '',
     date_cal: '',
     date_cc: '',
     calibration_interval: 0,
@@ -120,6 +137,15 @@ export class Editcert implements OnInit {
     } else {
       this.alert.error('No se proporcionó un ID de certificado válido.', 'Error de navegación');
     }
+  }
+
+  /**
+   * Devuelve `true` si el campo del certificado NO se puede editar
+   * en esta vista (solo lectura).
+   * Úsalo en el template: `[disabled]="estaBloqueado('equipment_id')"`.
+   */
+  estaBloqueado(campo: keyof Certificado): boolean {
+    return this.camposBloqueados.includes(campo);
   }
 
   // ========== 🔑 GENERACIÓN / PRESERVACIÓN DE table_id ==========
@@ -885,6 +911,7 @@ export class Editcert implements OnInit {
       }
     });
   }
+
   // ========== CANCELAR ==========
   async cancelar(): Promise<void> {
     if (!this.salirSinConfirmar && this.tieneCambios()) {

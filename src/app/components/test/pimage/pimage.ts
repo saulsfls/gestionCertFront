@@ -1,7 +1,23 @@
-import { Component, ChangeDetectorRef, inject, PLATFORM_ID, OnInit } from '@angular/core';
+import {
+  Component,
+  ChangeDetectorRef,
+  inject,
+  PLATFORM_ID,
+  OnInit,
+  OnDestroy,
+} from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
-import { ImageCropperComponent, ImageCroppedEvent, LoadedImage } from 'ngx-image-cropper';
+import {
+  ImageCropperComponent,
+  ImageCroppedEvent,
+  LoadedImage,
+} from 'ngx-image-cropper';
+import { Subscription } from 'rxjs';
+
 import { ImageService } from '../../../services/database/image.service';
+import {
+  EquipmentService
+} from '../../../services/database/equipment.service';
 
 @Component({
   selector: 'app-pimage',
@@ -10,34 +26,95 @@ import { ImageService } from '../../../services/database/image.service';
   templateUrl: './pimage.html',
   styleUrl: './pimage.css',
 })
-export class Pimage implements OnInit {
+export class Pimage implements OnInit, OnDestroy {
   private platformId = inject(PLATFORM_ID);
   isBrowser: boolean = isPlatformBrowser(this.platformId);
+  private equipment = inject(EquipmentService);
 
+  // ========== TABLA CRUZADA PATRÓN / EQUIPO ==========
+  cargandoCruzada: boolean = false;
+  errorCruzada: string = '';
+  private subCruzada?: Subscription;
+
+  // ========== CROPPER / IMAGEN ==========
   imageChangedEvent: Event | null = null;
   pasteImageFile: File | undefined = undefined;
   croppedImageBase64: string = '';
   cargando: boolean = false;
 
-  // Propiedades para la tabla
+  // Propiedades para la tabla extraída por OCR
   tablaHeaders: string[] = [];
   tablaRows: string[][] = [];
   mostrarTabla: boolean = false;
-  tablaTexto: string = ''; // para depuración
+  tablaTexto: string = '';
 
   mensajeError: string = '';
   mensajeExito: string = '';
+  patrones: any;
+  equipos: any;
 
   constructor(
     private imageService: ImageService,
     private cdr: ChangeDetectorRef
   ) {}
 
+  // ============================================================
+  //  CICLO DE VIDA
+  // ============================================================
   ngOnInit(): void {
-    //console.log(this.imageService.getHealth());
+    this.cargaPatronesCruzados();
   }
 
-  // ========== MÉTODOS EXISTENTES (sin cambios) ==========
+  ngOnDestroy(): void {
+
+  }
+
+  cargaPatronesCruzados():void{
+    this.equipment.getPatronesCruzados().subscribe({
+      next: (res) =>{
+        console.log(res);
+      }
+    })
+  }
+
+  cargarPatrones(): void {
+    //this.cargandoPatrones = true;
+    this.equipment.getDatosPatron().subscribe({
+      next: (res) => {
+        this.patrones = res;
+        console.log(res)
+        //this.cargandoPatrones = false;
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        console.error('Error patrones:', err);
+        //this.cargandoPatrones = false;
+        this.cdr.detectChanges();
+      },
+    });
+  }
+
+  cargarEquipos(): void {
+    //this.cargandoEquipos = true;
+    this.equipment.getDatosEquipos().subscribe({
+      next: (res) => {
+        this.equipos = res;
+        console.log(res);
+        //this.cargandoEquipos = false;
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        console.error('Error equipos:', err);
+        //this.cargandoEquipos = false;
+        this.cdr.detectChanges();
+      },
+    });
+  }
+
+
+  // ============================================================
+  //  MÉTODOS DEL CROPPER / IMAGEN
+  // ============================================================
   onPaste(event: ClipboardEvent): void {
     if (!this.isBrowser) return;
     this.limpiarMensajes();
@@ -51,7 +128,11 @@ export class Pimage implements OnInit {
         if (file) {
           this.imageChangedEvent = null;
           this.croppedImageBase64 = '';
-          this.pasteImageFile = new File([file], `pasted_image_${Date.now()}.png`, { type: file.type });
+          this.pasteImageFile = new File(
+            [file],
+            `pasted_image_${Date.now()}.png`,
+            { type: file.type }
+          );
           this.cdr.detectChanges();
           imagenEncontrada = true;
         }
@@ -75,7 +156,7 @@ export class Pimage implements OnInit {
     if (event.base64) {
       this.croppedImageBase64 = event.base64;
     } else if (event.objectUrl && this.isBrowser) {
-      this.blobToBase64(event.objectUrl).then(base64 => {
+      this.blobToBase64(event.objectUrl).then((base64) => {
         this.croppedImageBase64 = base64;
       });
     }
@@ -90,22 +171,28 @@ export class Pimage implements OnInit {
   }
 
   loadImageFailed(): void {
-    this.mensajeError = 'Error al cargar la imagen. Intenta con otra captura o archivo.';
+    this.mensajeError =
+      'Error al cargar la imagen. Intenta con otra captura o archivo.';
   }
 
   private blobToBase64(blobUrl: string): Promise<string> {
     if (!this.isBrowser) return Promise.resolve('');
     return fetch(blobUrl)
-      .then(r => r.blob())
-      .then(blob => new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-      }));
+      .then((r) => r.blob())
+      .then(
+        (blob) =>
+          new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          })
+      );
   }
 
-  // ========== ENVIAR Y PROCESAR RESPUESTA ==========
+  // ============================================================
+  //  ENVIAR IMAGEN AL SERVIDOR Y PROCESAR RESPUESTA
+  // ============================================================
   enviarANode(): void {
     this.limpiarMensajes();
 
@@ -115,7 +202,8 @@ export class Pimage implements OnInit {
     }
 
     if (!this.croppedImageBase64) {
-      this.mensajeError = 'Ajusta el área de selección sobre la tabla antes de extraer.';
+      this.mensajeError =
+        'Ajusta el área de selección sobre la tabla antes de extraer.';
       return;
     }
 
@@ -126,39 +214,46 @@ export class Pimage implements OnInit {
     this.tablaTexto = '';
     this.cdr.detectChanges();
 
-    this.imageService.procesarTabla(this.croppedImageBase64).subscribe({
-      next: (res) => {
-        if (res.success && res.table) {
-          this.tablaTexto = res.table;
-          const tableText = res.table.trim();
-          // Detectar si es HTML
-          if (tableText.startsWith('<table')) {
-            this.parseTableHtml(tableText);
+    this.imageService
+      .procesarTabla(this.croppedImageBase64)
+      .subscribe({
+        next: (res) => {
+          if (res.success && res.table) {
+            this.tablaTexto = res.table;
+            const tableText = res.table.trim();
+            // Detectar si es HTML
+            if (tableText.startsWith('<table')) {
+              this.parseTableHtml(tableText);
+            } else {
+              this.parseTableText(tableText);
+            }
+            this.mostrarTabla = true;
+            this.mensajeExito = 'Tabla extraída correctamente.';
           } else {
-            this.parseTableText(tableText);
+            this.mensajeError = 'No se pudo extraer la tabla.';
           }
-          this.mostrarTabla = true;
-          this.mensajeExito = 'Tabla extraída correctamente.';
-        } else {
-          this.mensajeError = 'No se pudo extraer la tabla.';
-        }
-        console.log('Respuesta del servidor:', res.table);
-      },
-      error: (err) => {
-        console.error('Error en servidor:', err);
-        this.mensajeError = 'Ocurrió un error al procesar la tabla en el servidor.';
-      }
-    }).add(() => {
-      this.cargando = false;
-      this.cdr.detectChanges();
-    });
+          console.log('Respuesta del servidor:', res.table);
+        },
+        error: (err) => {
+          console.error('Error en servidor:', err);
+          this.mensajeError =
+            'Ocurrió un error al procesar la tabla en el servidor.';
+        },
+      })
+      .add(() => {
+        this.cargando = false;
+        this.cdr.detectChanges();
+      });
   }
 
-  // ========== PARSEADOR DE TEXTO CON PIPES (ya existente) ==========
+  // ============================================================
+  //  PARSEADOR DE TEXTO CON PIPES
+  // ============================================================
   private parseTableText(text: string): void {
-    const lines = text.split('\n')
-      .map(line => line.trim())
-      .filter(line => line.length > 0);
+    const lines = text
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
 
     if (lines.length < 2) {
       this.mensajeError = 'El texto extraído no contiene una tabla válida.';
@@ -166,18 +261,20 @@ export class Pimage implements OnInit {
     }
 
     // Normalizar separadores
-    let normalizedLines = lines.map(line => {
+    const normalizedLines = lines.map((line) => {
       if (line.includes('\t')) return line.replace(/\t/g, ' | ');
       if (line.includes(';')) return line.replace(/;/g, ' | ');
-      if (line.includes('|') && !line.includes(' | ')) return line.replace(/\|/g, ' | ');
+      if (line.includes('|') && !line.includes(' | '))
+        return line.replace(/\|/g, ' | ');
       if (line.match(/\s{2,}/)) return line.replace(/\s{2,}/g, ' | ');
       return line;
     });
 
     const separator = ' | ';
-    const headers = normalizedLines[0].split(separator)
-      .map(h => h.trim())
-      .filter(h => h.length > 0);
+    const headers = normalizedLines[0]
+      .split(separator)
+      .map((h) => h.trim())
+      .filter((h) => h.length > 0);
 
     if (headers.length === 0) {
       this.mensajeError = 'No se encontraron encabezados de columna.';
@@ -187,7 +284,7 @@ export class Pimage implements OnInit {
     const rows: string[][] = [];
     for (let i = 1; i < normalizedLines.length; i++) {
       const line = normalizedLines[i];
-      let cells = line.split(separator).map(c => c.trim());
+      let cells = line.split(separator).map((c) => c.trim());
       while (cells.length < headers.length) cells.push('');
       if (cells.length > headers.length) cells = cells.slice(0, headers.length);
       rows.push(cells);
@@ -197,159 +294,160 @@ export class Pimage implements OnInit {
     this.tablaRows = rows;
   }
 
- // ========== PARSEADOR DE HTML MEJORADO (detecta encabezados duplicados) ==========
-private parseTableHtml(html: string): void {
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(html, 'text/html');
-  const tables = doc.querySelectorAll('table');
-  if (tables.length === 0) {
-    this.mensajeError = 'No se encontró tabla en el HTML.';
-    return;
-  }
+  // ============================================================
+  //  PARSEADOR DE HTML (detecta encabezados duplicados y rowspan)
+  // ============================================================
+  private parseTableHtml(html: string): void {
+    if (!this.isBrowser) return; // guard SSR
 
-  const table = tables[0];
-  const allRows = table.querySelectorAll('tr');
-  if (allRows.length === 0) return;
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+    const tables = doc.querySelectorAll('table');
+    if (tables.length === 0) {
+      this.mensajeError = 'No se encontró tabla en el HTML.';
+      return;
+    }
 
-  // Función auxiliar: detectar si una fila parece encabezado (contiene texto no numérico)
-  function isHeaderRow(row: Element): boolean {
-    const cells = row.querySelectorAll('th, td');
-    let textCells = 0;
-    let numericCells = 0;
-    cells.forEach(cell => {
-      const text = cell.textContent?.trim() || '';
-      if (text === '') return;
-      // Si contiene al menos una letra (no es solo número y punto/comas)
-      if (/[a-zA-ZáéíóúÁÉÍÓÚñÑ]/.test(text)) {
-        textCells++;
-      } else {
-        // Si es número o parece número
-        const num = parseFloat(text.replace(',', '.').replace(/[^0-9.-]/g, ''));
-        if (!isNaN(num)) {
-          numericCells++;
+    const table = tables[0];
+    const allRows = table.querySelectorAll('tr');
+    if (allRows.length === 0) return;
+
+    // Función auxiliar: detectar si una fila parece encabezado
+    function isHeaderRow(row: Element): boolean {
+      const cells = row.querySelectorAll('th, td');
+      let textCells = 0;
+      let numericCells = 0;
+      cells.forEach((cell) => {
+        const text = cell.textContent?.trim() || '';
+        if (text === '') return;
+        if (/[a-zA-ZáéíóúÁÉÍÓÚñÑ]/.test(text)) {
+          textCells++;
         } else {
-          textCells++; // si no es número, lo consideramos texto
-        }
-      }
-    });
-    // Si más del 50% de las celdas tienen texto, es encabezado
-    return (textCells / cells.length) > 0.5;
-  }
-
-  // Buscar la primera fila que sea encabezado (usando th o contenido)
-  let headerRowIndex = 0;
-  let dataStartIndex = 1;
-  let foundHeader = false;
-
-  for (let i = 0; i < allRows.length; i++) {
-    const row = allRows[i];
-    const hasTh = row.querySelector('th') !== null;
-    if (hasTh) {
-      headerRowIndex = i;
-      foundHeader = true;
-      dataStartIndex = i + 1;
-      break;
-    }
-    // Si no tiene th, pero parece encabezado por contenido
-    if (isHeaderRow(row)) {
-      headerRowIndex = i;
-      foundHeader = true;
-      dataStartIndex = i + 1;
-      break;
-    }
-  }
-
-  // Si no se encontró encabezado, usar la primera fila como encabezado y datos desde la segunda
-  if (!foundHeader) {
-    headerRowIndex = 0;
-    dataStartIndex = 1;
-  }
-
-  // Extraer encabezados de la fila seleccionada
-  const headerRow = allRows[headerRowIndex];
-  const headerCells = headerRow.querySelectorAll('th, td');
-  const headers: string[] = [];
-  headerCells.forEach(cell => {
-    let text = cell.textContent?.trim() || '';
-    // Limpiar unidades entre paréntesis si se desea (opcional)
-    // text = text.replace(/\(.*\)/, '').trim();
-    headers.push(text);
-  });
-
-  // Ahora procesar las filas de datos (desde dataStartIndex)
-  const dataRows = Array.from(allRows).slice(dataStartIndex);
-  if (dataRows.length === 0) {
-    this.mensajeError = 'No se encontraron filas de datos.';
-    return;
-  }
-
-  // Almacenar valores con rowspan activos
-  const activeRowspan: { [col: number]: { value: string, remaining: number } } = {};
-  const rowsData: string[][] = [];
-
-  dataRows.forEach((row) => {
-    const cells = row.querySelectorAll('td');
-    const rowData: string[] = new Array(headers.length).fill('');
-
-    // Rellenar con rowspan activos
-    for (let col = 0; col < headers.length; col++) {
-      if (activeRowspan[col] && activeRowspan[col].remaining > 0) {
-        rowData[col] = activeRowspan[col].value;
-        activeRowspan[col].remaining--;
-        if (activeRowspan[col].remaining === 0) {
-          delete activeRowspan[col];
-        }
-      }
-    }
-
-    let cellIndex = 0;
-    for (let col = 0; col < headers.length; col++) {
-      if (rowData[col] === '' && cellIndex < cells.length) {
-        const cell = cells[cellIndex];
-        const value = cell.textContent?.trim() || '';
-        const rowspan = parseInt(cell.getAttribute('rowspan') || '1', 10);
-        const colspan = parseInt(cell.getAttribute('colspan') || '1', 10);
-
-        rowData[col] = value;
-        if (rowspan > 1) {
-          activeRowspan[col] = { value, remaining: rowspan - 1 };
-        }
-        // Para colspan, repetir valor en columnas adicionales
-        for (let c = 1; c < colspan; c++) {
-          if (col + c < headers.length) {
-            rowData[col + c] = value;
+          const num = parseFloat(text.replace(',', '.').replace(/[^0-9.-]/g, ''));
+          if (!isNaN(num)) {
+            numericCells++;
+          } else {
+            textCells++;
           }
         }
-        cellIndex++;
+      });
+      return textCells / cells.length > 0.5;
+    }
+
+    // Buscar la primera fila que sea encabezado
+    let headerRowIndex = 0;
+    let dataStartIndex = 1;
+    let foundHeader = false;
+
+    for (let i = 0; i < allRows.length; i++) {
+      const row = allRows[i];
+      const hasTh = row.querySelector('th') !== null;
+      if (hasTh) {
+        headerRowIndex = i;
+        foundHeader = true;
+        dataStartIndex = i + 1;
+        break;
+      }
+      if (isHeaderRow(row)) {
+        headerRowIndex = i;
+        foundHeader = true;
+        dataStartIndex = i + 1;
+        break;
       }
     }
 
-    rowsData.push(rowData);
-  });
-
-  // Propagar valores hacia abajo para celdas vacías (como rowspan no capturado)
-  const lastValues: string[] = new Array(headers.length).fill('');
-  const finalData: string[][] = [];
-  rowsData.forEach(row => {
-    const newRow: string[] = [];
-    for (let col = 0; col < headers.length; col++) {
-      let val = row[col];
-      if (val === '' && lastValues[col] !== '') {
-        val = lastValues[col];
-      }
-      newRow.push(val);
-      if (val !== '') {
-        lastValues[col] = val;
-      }
+    if (!foundHeader) {
+      headerRowIndex = 0;
+      dataStartIndex = 1;
     }
-    finalData.push(newRow);
-  });
 
-  this.tablaHeaders = headers;
-  this.tablaRows = finalData;
-  this.mostrarTabla = true;
-}
+    // Extraer encabezados
+    const headerRow = allRows[headerRowIndex];
+    const headerCells = headerRow.querySelectorAll('th, td');
+    const headers: string[] = [];
+    headerCells.forEach((cell) => {
+      const text = cell.textContent?.trim() || '';
+      headers.push(text);
+    });
 
+    // Procesar filas de datos
+    const dataRows = Array.from(allRows).slice(dataStartIndex);
+    if (dataRows.length === 0) {
+      this.mensajeError = 'No se encontraron filas de datos.';
+      return;
+    }
+
+    // Almacenar valores con rowspan activos
+    const activeRowspan: {
+      [col: number]: { value: string; remaining: number };
+    } = {};
+    const rowsData: string[][] = [];
+
+    dataRows.forEach((row) => {
+      const cells = row.querySelectorAll('td');
+      const rowData: string[] = new Array(headers.length).fill('');
+
+      // Rellenar con rowspan activos
+      for (let col = 0; col < headers.length; col++) {
+        if (activeRowspan[col] && activeRowspan[col].remaining > 0) {
+          rowData[col] = activeRowspan[col].value;
+          activeRowspan[col].remaining--;
+          if (activeRowspan[col].remaining === 0) {
+            delete activeRowspan[col];
+          }
+        }
+      }
+
+      let cellIndex = 0;
+      for (let col = 0; col < headers.length; col++) {
+        if (rowData[col] === '' && cellIndex < cells.length) {
+          const cell = cells[cellIndex];
+          const value = cell.textContent?.trim() || '';
+          const rowspan = parseInt(cell.getAttribute('rowspan') || '1', 10);
+          const colspan = parseInt(cell.getAttribute('colspan') || '1', 10);
+
+          rowData[col] = value;
+          if (rowspan > 1) {
+            activeRowspan[col] = { value, remaining: rowspan - 1 };
+          }
+          for (let c = 1; c < colspan; c++) {
+            if (col + c < headers.length) {
+              rowData[col + c] = value;
+            }
+          }
+          cellIndex++;
+        }
+      }
+
+      rowsData.push(rowData);
+    });
+
+    // Propagar valores hacia abajo
+    const lastValues: string[] = new Array(headers.length).fill('');
+    const finalData: string[][] = [];
+    rowsData.forEach((row) => {
+      const newRow: string[] = [];
+      for (let col = 0; col < headers.length; col++) {
+        let val = row[col];
+        if (val === '' && lastValues[col] !== '') {
+          val = lastValues[col];
+        }
+        newRow.push(val);
+        if (val !== '') {
+          lastValues[col] = val;
+        }
+      }
+      finalData.push(newRow);
+    });
+
+    this.tablaHeaders = headers;
+    this.tablaRows = finalData;
+    this.mostrarTabla = true;
+  }
+
+  // ============================================================
+  //  UTILIDADES
+  // ============================================================
   private limpiarMensajes(): void {
     this.mensajeError = '';
     this.mensajeExito = '';

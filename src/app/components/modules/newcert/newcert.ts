@@ -13,6 +13,10 @@ import { CertService } from '../../../services/database/cert.service';
 import { ImageService } from '../../../services/database/image.service';
 import { AlertService } from '../../../services/core/alert.service';
 import {
+  EquipmentService,
+  PatronCruzado
+} from '../../../services/database/equipment.service';
+import {
   ImageCropperComponent,
   ImageCroppedEvent,
   LoadedImage
@@ -43,7 +47,13 @@ export class Newcert implements OnInit {
   private imageService = inject(ImageService);
   private alert = inject(AlertService);
   private auth = inject(AuthService);
+  private equipment = inject(EquipmentService);
   isBrowser: boolean = isPlatformBrowser(this.platformId);
+
+  // ========== PATRONES (selector) ==========
+  patrones: PatronCruzado[] = [];
+  cargandoPatrones: boolean = false;
+  patronSeleccionado: PatronCruzado | null = null;
 
   opcionesTitulo: string[] = [
     'DC Voltage',
@@ -90,6 +100,7 @@ export class Newcert implements OnInit {
     name_equipment: '',
     cc: '',
     id_user: '',
+    pt: '',
     date_cal: '',
     date_cc: '',
     calibration_interval: 0,
@@ -123,6 +134,77 @@ export class Newcert implements OnInit {
     this.regenerarTableIds();
     this.sincronizarJsonTexto();
     this.alert.success('Se han cargado: ' + this.resultTables.length + ' tablas', 'Datos cargados');
+
+    // 👇 Cargar patrones para el selector
+    this.cargarPatrones();
+  }
+
+  // ================================================================
+  //  SELECTOR DE PATRONES
+  // ================================================================
+  cargarPatrones(): void {
+    this.cargandoPatrones = true;
+    this.equipment.getPatronesCruzados().subscribe({
+      next: (res) => {
+        this.patrones = res;
+        this.cargandoPatrones = false;
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        console.error('Error cargando patrones:', err);
+        this.cargandoPatrones = false;
+        this.alert.error(
+          'No se pudieron cargar los patrones. Intenta recargar la página.',
+          'Error de carga'
+        );
+        this.cdr.detectChanges();
+      }
+    });
+  }
+
+  /**
+   * Devuelve true si hay un patrón seleccionado.
+   * Úsalo en el template para deshabilitar los campos autollenados
+   * (name_equipment, pt, calibration_interval) — date_cal queda activo.
+   */
+  get hayPatronSeleccionado(): boolean {
+    return this.patronSeleccionado !== null;
+  }
+
+  /**
+   * Se dispara al cambiar el select de patrón.
+   * - `equipment_id` contiene el `id` del patrón (ej. "1033-0000+1032-0000").
+   * - Autollena name_equipment, pt, date_cal y calibration_interval.
+   * - `date_cc` se deja vacía para que el usuario la capture.
+   */
+  onPatronChange(): void {
+    const id = (this.certificado.equipment_id || '').trim();
+    const patron = this.patrones.find(p => p.id === id) ?? null;
+    this.patronSeleccionado = patron;
+
+    if (!patron) {
+      // Sin selección: limpiar los campos autollenados
+      this.certificado.name_equipment = '';
+      this.certificado.pt = '';
+      this.certificado.calibration_interval = 0;
+      this.sincronizarJsonTexto();
+      this.cdr.detectChanges();
+      return;
+    }
+
+    // ===== Autollenado =====
+    this.certificado.name_equipment = patron.name || '';
+    this.certificado.pt = patron.pt || '';
+    this.certificado.date_cal = patron.calibration_date || '';
+    this.certificado.calibration_interval =
+      Number(patron.months_calibration) || 0;
+
+    // date_cc se deja vacía a propósito
+    // resolution, entity, cert_type, comments → los llena el usuario
+
+    this.regenerarTableIds();
+    this.sincronizarJsonTexto();
+    this.cdr.detectChanges();
   }
 
   // ========== 🔑 GENERACIÓN DE table_id ==========
@@ -922,15 +1004,13 @@ export class Newcert implements OnInit {
 
     // ===== Campos obligatorios básicos =====
     if (!c.equipment_id?.trim()) {
-      errores.push('• El "ID del Equipo" es obligatorio.');
-    } else if (c.equipment_id.trim().length < 2) {
-      errores.push('• El "ID del Equipo" debe tener al menos 2 caracteres.');
-    } else if (!/^[A-Za-z0-9_\-./]+$/.test(c.equipment_id.trim())) {
-      errores.push('• El "ID del Equipo" contiene caracteres no permitidos (usa letras, números, -, _, ., /).');
+      errores.push('• Debes seleccionar un patrón.');
+    } else if (!this.patronSeleccionado) {
+      errores.push('• El patrón seleccionado no es válido. Vuelve a elegirlo del listado.');
     }
 
     if (!c.name_equipment?.trim()) {
-      errores.push('• El "Nombre del Equipo" es obligatorio.');
+      errores.push('• El "Nombre del Equipo" está vacío.');
     } else if (c.name_equipment.trim().length < 3) {
       errores.push('• El "Nombre del Equipo" debe tener al menos 3 caracteres.');
     }
@@ -1164,7 +1244,7 @@ export class Newcert implements OnInit {
     };
   }
 
-    // ========== GUARDAR ==========
+  // ========== GUARDAR ==========
   guardarCertificado(): void {
     if (this.guardando) return;
     if (!this.validarFormulario()) return;
@@ -1230,6 +1310,7 @@ export class Newcert implements OnInit {
       name_equipment: '',
       cc: '',
       id_user: '',
+      pt: '',
       date_cal: '',
       date_cc: '',
       calibration_interval: 0,
@@ -1240,6 +1321,7 @@ export class Newcert implements OnInit {
       active: true,
       data: {}
     };
+    this.patronSeleccionado = null;
     this.resultTables = [this.crearEstructuraTablaInicial()];
     this.imageStates = [this.crearEstadoImagenVacio()];
     this.ocrEnProceso = false;

@@ -3,9 +3,10 @@
 export interface Certificado {
   id?: number; // Certificate ID
   cc?: string; // Certificate folio / number
-  equipment_id: string; // Equipment ID
+  equipment_id: string; // Equipment ID (Patron)
   name_equipment: string; // Equipment name
   id_user: string; // ID del usuario que creeo o edito
+  pt: string; //Pt al que pertenece el patron
   date_cal?: string; // Calibration date
   date_cc?: string; // Issue date
   calibration_interval?: number; // Intervalo de calibracion en meses
