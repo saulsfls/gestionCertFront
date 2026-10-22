@@ -10,14 +10,14 @@ import {
 } from '@angular/core';
 import { DOCUMENT, isPlatformBrowser } from '@angular/common';
 //El servicio se encarga unicamente de mostrar las alertas y notificaciones en otros componentes
-import { Alert } from '../../components/util/alert/alert';
+import { Alert } from '../../components/core/alert/alert';
 import {
   AlertData,
   AlertPosition,
   AlertResult,
   AlertServiceConfig,
   DialogMode,
-} from '../../components/util/alert/alert.model';
+} from '../../components/core/alert/alert.model';
 
 interface ToastEntry {
   ref: ComponentRef<Alert>;

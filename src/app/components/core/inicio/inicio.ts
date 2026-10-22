@@ -7,7 +7,7 @@ import {
   AlertPosition,
   AlertServiceConfig,
   AlertType,
-} from '../../util/alert/alert.model';
+} from '../alert/alert.model';
 import { AuthService } from '../../../services/auth/auth.service';
 
 @Component({

@@ -11,7 +11,7 @@ import { catchError, finalize } from 'rxjs/operators';
 import { CertService } from '../../../services/database/cert.service';
 import { AlertService } from '../../../services/core/alert.service';
 import { ApiResponse, Column, ResultTable } from '../../../models/certificado.models';
-import { Cmcsr } from '../../core/cmcsr/cmcsr';
+import { Cmcsr } from '../../calc/cmcsr/cmcsr';
 
 export interface CmcTablaSeleccion {
   seleccionada: boolean;

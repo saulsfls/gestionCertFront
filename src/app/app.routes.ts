@@ -1,17 +1,17 @@
 // src/app/app.routes.ts
 import { Routes } from '@angular/router';
 import { authGuard } from './guard/auth.guard';
-import { Newcert } from './components/modules/newcert/newcert';
-import { Viewcert } from './components/view/viewcert/viewcert';
+import { Newcert } from './components/cert/newcert/newcert';
+import { Viewcert } from './components/cert/viewcert/viewcert';
 import { Pimage } from './components/test/pimage/pimage';
-import { Editcert } from './components/modules/editcert/editcert';
-import { admincert } from './components/modules/admincert/admincert';
-import { Listcert } from './components/view/listcert/listcert';
+import { Editcert } from './components/cert/editcert/editcert';
+import { admincert } from './components/cert/admincert/admincert';
+import { Listcert } from './components/cert/listcert/listcert';
 import { Calcmc } from './components/cmc/calcmc/calcmc';
-import { Inicio } from './components/view/inicio/inicio';
-import { Cmcparams } from './components/view/cmcparams/cmcparams';
-import { Cmcparamsvf } from './components/view/cmcparamsvf/cmcparamsvf';
-import { Cmcsr } from './components/core/cmcsr/cmcsr';
+import { Inicio } from './components/core/inicio/inicio';
+import { Cmcparams } from './components/cmc/cmcparams/cmcparams';
+import { Cmcparamsvf } from './components/cmc/cmcparamsvf/cmcparamsvf';
+import { Cmcsr } from './components/calc/cmcsr/cmcsr';
 
 export const routes: Routes = [
   //Rutas publicas
