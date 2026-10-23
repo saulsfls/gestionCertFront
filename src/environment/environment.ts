@@ -1,15 +1,22 @@
 import { isPlatformBrowser } from '@angular/common';
-import { Inject, Injectable, PLATFORM_ID } from '@angular/core';
+import { Inject, Injectable, PLATFORM_ID, isDevMode } from '@angular/core';
 
 @Injectable({ providedIn: 'root' })
 export class Global {
   constructor(@Inject(PLATFORM_ID) private platformId: Object) {}
 
   get URLCalibraciones(): string {
+    // Si se ejecuta en el servidor (SSR)
     if (!isPlatformBrowser(this.platformId)) {
       return 'http://26.187.160.72:81/calibraciones/api/';
     }
 
+    // Si estás en desarrollo local (ng serve), usa la ruta del proxy para evitar CORS
+    if (isDevMode()) {
+      return '/api/';
+    }
+
+    // Comportamiento normal en producción
     return window.location.host.includes('192.168.1')
       ? 'http://192.168.1.201:81/calibraciones/api/'
       : 'http://26.187.160.72:81/calibraciones/api/';
