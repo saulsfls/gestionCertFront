@@ -151,24 +151,40 @@
                             <strong>Entidad emisora</strong>
                             <span>{{ cert.entity || 'N/A' }}</span>
                           </li>
+                          <li class="list-group-item d-flex justify-content-between">
+                            <strong>PT</strong>
+                            <span>{{ cert.pt || 'N/A' }}</span>
+                          </li>
+                          <li class="list-group-item d-flex justify-content-between">
+                            <strong>Tipo Certificado</strong>
+                            <span>{{ cert.cert_type || 'N/A' }}</span>
+                          </li>
                         </ul>
                       </div>
                       <div class="col-md-6">
                         <ul class="list-group list-group-flush">
                           <li class="list-group-item d-flex justify-content-between">
-                            <strong>Fecha Calibración</strong>
+                            <strong>Fecha Calibración: </strong>
                             <span>{{ cert.date_cal | date:'dd/MM/yyyy' }}</span>
                           </li>
                           <li class="list-group-item d-flex justify-content-between">
-                            <strong>Fecha Certificado</strong>
+                            <strong>Fecha Certificado: </strong>
                             <span>{{ cert.date_cc | date:'dd/MM/yyyy' }}</span>
                           </li>
                           <li class="list-group-item d-flex justify-content-between">
-                            <strong>Comentarios</strong>
-                            <span>{{ cert.comments || 'N/A' }}</span>
+                            <strong>Intervalo (meses): </strong>
+                            <span>{{ cert.calibration_interval ?? 'N/A' }}</span>
                           </li>
                           <li class="list-group-item d-flex justify-content-between">
-                            <strong>Estado</strong>
+                            <strong>Resolución: </strong>
+                            <span>{{ cert.resolution ?? 'N/A' }}</span>
+                          </li>
+                          <li class="list-group-item d-flex justify-content-between">
+                            <strong>Comentarios:  </strong>
+                            <span>  {{ cert.comments || 'N/A' }}</span>
+                          </li>
+                          <li class="list-group-item d-flex justify-content-between">
+                            <strong>Estado: </strong>
                             <span class="badge" [ngClass]="cert.active ? 'bg-success' : 'bg-danger'">
                               {{ cert.active ? 'Activo' : 'Inactivo' }}
                             </span>

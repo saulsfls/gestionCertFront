@@ -21,13 +21,6 @@ import {
   CmcResultado,
 } from '../../../models/cmc.model';
 
-/**
- * Resultado del parseo de un valor de referencia.
- * - `numero`: valor normalizado a la unidad base (V, A, Ω, ...).
- * - `texto`: sufijo/prefijo original SIN el número (ej: " mV", " V", "").
- * - `unidadBase`: multiplicador aplicado a la unidad base (1, 1e-3, 1e3, ...).
- * - `unidadTexto`: texto de la unidad original (ej: "mV", "V", "").
- */
 interface ValorReferenciaParseado {
   numero: number;
   texto: string;
@@ -729,18 +722,57 @@ export class Cmcparamsvf implements OnInit {
 
   getErrorSeleccionado(index: number): string {
     const sel = this.seleccionCmc[index];
-    if (!sel) return '';
-    return this.formatearValor(
-      this.getValorCelda(this.filteredTablas[index], sel.filaIndex, sel.columnaErrorKey)
-    );
+    const tabla = this.filteredTablas[index];
+    if (!sel || !tabla) return '';
+
+    const colIntervaloKey = tabla.columns[0]?.key ?? '';
+    const rangoObjetivo = String(
+      this.getValorCelda(tabla, sel.filaIndex, colIntervaloKey) ?? ''
+    ).trim();
+
+    if (!rangoObjetivo) {
+      return this.formatearValor(
+        this.getValorCelda(tabla, sel.filaIndex, sel.columnaErrorKey)
+      );
+    }
+
+    const filas = this.obtenerFilasMismoRango(tabla, sel, colIntervaloKey, rangoObjetivo);
+    if (!filas.length) {
+      return this.formatearValor(
+        this.getValorCelda(tabla, sel.filaIndex, sel.columnaErrorKey)
+      );
+    }
+
+    const errorProm = filas.reduce((acc, f) => acc + f.error, 0) / filas.length;
+    return this.formatearValor(errorProm);
   }
 
   getIncertidumbreSeleccionada(index: number): string {
     const sel = this.seleccionCmc[index];
-    if (!sel) return '';
-    return this.formatearValor(
-      this.getValorCelda(this.filteredTablas[index], sel.filaIndex, sel.columnaIncertidumbreKey)
-    );
+    const tabla = this.filteredTablas[index];
+    if (!sel || !tabla) return '';
+
+    const colIntervaloKey = tabla.columns[0]?.key ?? '';
+    const rangoObjetivo = String(
+      this.getValorCelda(tabla, sel.filaIndex, colIntervaloKey) ?? ''
+    ).trim();
+
+    if (!rangoObjetivo) {
+      return this.formatearValor(
+        this.getValorCelda(tabla, sel.filaIndex, sel.columnaIncertidumbreKey)
+      );
+    }
+
+    const filas = this.obtenerFilasMismoRango(tabla, sel, colIntervaloKey, rangoObjetivo);
+    if (!filas.length) {
+      return this.formatearValor(
+        this.getValorCelda(tabla, sel.filaIndex, sel.columnaIncertidumbreKey)
+      );
+    }
+
+    // Tomar la incertidumbre más alta del rango
+    const incertidumbreMax = filas.reduce((max, f) => Math.max(max, f.incertidumbre), -Infinity);
+    return this.formatearValor(incertidumbreMax);
   }
 
   // ============================================================
@@ -1345,10 +1377,10 @@ export class Cmcparamsvf implements OnInit {
 
       const n = filasRango.length;
       const sumaError = filasRango.reduce((acc, f) => acc + f.error, 0);
-      const sumaInc = filasRango.reduce((acc, f) => acc + f.incertidumbre, 0);
-
       const errorProm = sumaError / n;
-      const incertidumbreProm = sumaInc / n;
+
+      // CORRECCIÓN: Se toma la incertidumbre máxima del rango en lugar del promedio
+      const incertidumbreMax = filasRango.reduce((max, f) => Math.max(max, f.incertidumbre), -Infinity);
 
       let filaMin: FilaRangoInfo | null = null;
       let filaMax: FilaRangoInfo | null = null;
@@ -1376,7 +1408,7 @@ export class Cmcparamsvf implements OnInit {
         cert,
         fecha,
         error: errorProm,
-        incertidumbre: incertidumbreProm,
+        incertidumbre: incertidumbreMax,
         cc: cert.cc || tabla.cc_id || '',
         table_id: tabla.table_id || '',
         rango: rangoObjetivo,
@@ -1467,7 +1499,7 @@ export class Cmcparamsvf implements OnInit {
       `#Entradas:`,
       ``,
       `errores=${fmt(p.errores)} #Promedio de errores por certificado (mismo rango)`,
-      `incertidumbres=${fmt(p.incertidumbres)} #Promedio de incertidumbres por certificado (mismo rango)`,
+      `incertidumbres=${fmt(p.incertidumbres)} #Incertidumbre máxima por certificado (mismo rango)`,
       `tiempo.intermedio=${fmt(p.tiempoIntermedio)} #Días entre calibraciones, desde el más antiguo al más reciente`,
       `intervalo.calibracion=${p.intervaloCalibracion} #Se reporta en meses`,
       `rango=${p.rangoReferencia} #Rango de referencia seleccionado`,
@@ -1501,32 +1533,35 @@ export class Cmcparamsvf implements OnInit {
     const resumenes: Record<number, ResumenTablaCmc[]> = {};
     const anteriorId = this.cmcActivoId;
 
-    for (const cmc of this.cmcs) {
-      // Contextualizamos temporalmente el CMC para usar los getters existentes
-      this.cmcActivoId = cmc.id;
-      const filas: ResumenTablaCmc[] = [];
+    try {
+      for (const cmc of this.cmcs) {
+        // Contextualizamos temporalmente el CMC para usar los getters existentes
+        this.cmcActivoId = cmc.id;
+        const filas: ResumenTablaCmc[] = [];
 
-      this.filteredTablas.forEach((tabla, i) => {
-        if (!cmc.selecciones[i]?.seleccionada) return;
+        this.filteredTablas.forEach((tabla, i) => {
+          if (!cmc.selecciones[i]?.seleccionada) return;
 
-        filas.push({
-          index: i + 1,
-          cc: tabla.cc_id || '—',
-          fila: String((cmc.selecciones[i].filaIndex ?? 0) + 1),
-          intervalo: this.getRangoSeleccionado(i),
-          refMin: this.getMinReferencia(i),
-          refMax: this.getMaxReferencia(i),
-          dias: this.getDiasDesdeAnterior(i),
-          sesgo: this.getErrorSeleccionado(i),
-          incertidumbre: this.getIncertidumbreSeleccionada(i)
+          filas.push({
+            index: i + 1,
+            cc: tabla.cc_id || '—',
+            fila: String((cmc.selecciones[i].filaIndex ?? 0) + 1),
+            intervalo: this.getRangoSeleccionado(i),
+            refMin: this.getMinReferencia(i),
+            refMax: this.getMaxReferencia(i),
+            dias: this.getDiasDesdeAnterior(i),
+            sesgo: this.getErrorSeleccionado(i),
+            incertidumbre: this.getIncertidumbreSeleccionada(i)
+          });
         });
-      });
 
-      resumenes[cmc.id] = filas;
+        resumenes[cmc.id] = filas;
+      }
+    } finally {
+      // Restauramos el estado original incluso si hay errores
+      this.cmcActivoId = anteriorId;
     }
 
-    // Restauramos el estado original
-    this.cmcActivoId = anteriorId;
     return resumenes;
   }
 

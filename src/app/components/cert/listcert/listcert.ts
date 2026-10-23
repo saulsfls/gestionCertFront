@@ -7,6 +7,12 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AlertService } from '../../../services/core/alert.service';
 
+interface CampoResumen {
+  etiqueta: string;
+  valor: string;
+  clave: keyof Certificado | 'estado' | 'data';
+}
+
 @Component({
   selector: 'app-listcert',
   standalone: true,
@@ -51,22 +57,26 @@ export class Listcert implements OnInit {
     this.obtenerCertificados();
   }
 
-  // Navega hacia el componente de edición pasando el ID del certificado
+  // ---------------------------------------------------------------------------
+  // Navegación
+  // ---------------------------------------------------------------------------
   editarCertificado(id: number | string | undefined): void {
     if (!id) return;
-    this.router.navigate(['/editcert', id]);
+    this.router.navigate(['/edit-cert', id]);
   }
 
   administrarCertificado(): void {
-    this.router.navigate(['/admincert']);
+    this.router.navigate(['/admin-cert']);
   }
 
   detalleCertificado(id: number | string | undefined): void {
     if (!id) return;
-    this.router.navigate(['/viewcert', id]);
+    this.router.navigate(['/view-cert', id]);
   }
 
-  // Getter reactivo que filtra por equipo, ID, folio (cc) o nombre, además del estado
+  // ---------------------------------------------------------------------------
+  // Filtro reactivo
+  // ---------------------------------------------------------------------------
   get certificadosFiltrados(): Certificado[] {
     return this.listaCertificados.filter((cert) => {
       if (this.filtroEstado === 'activos' && !cert.active) return false;
@@ -88,7 +98,9 @@ export class Listcert implements OnInit {
     });
   }
 
-  // Obtiene todos los certificados a través del servicio
+  // ---------------------------------------------------------------------------
+  // Carga de datos
+  // ---------------------------------------------------------------------------
   obtenerCertificados(): void {
     this.cargando = true;
     this.cdr.detectChanges();
@@ -126,7 +138,9 @@ export class Listcert implements OnInit {
     });
   }
 
-  // Desplegar u ocultar la sección inferior con un resumen rápido del certificado
+  // ---------------------------------------------------------------------------
+  // Expansión / resumen
+  // ---------------------------------------------------------------------------
   toggleDetalle(id: number | string | undefined, cert: Certificado): void {
     if (!id) return;
     if (this.idExpandido === id) {
@@ -138,7 +152,62 @@ export class Listcert implements OnInit {
     }
   }
 
-  // Procesa la columna 'data' (JSONB) para extraer 'Result Tables'
+  /**
+   * Devuelve TODOS los campos del certificado seleccionado listos para
+   * renderizarse en el resumen (etiqueta + valor formateado).
+   */
+  get camposResumen(): CampoResumen[] {
+    const c = this.certificadoSeleccionado;
+    if (!c) return [];
+
+    return [
+      { clave: 'id',                etiqueta: 'ID',                 valor: c.id != null ? String(c.id) : '—' },
+      { clave: 'cc',                etiqueta: 'Folio (CC)',         valor: c.cc || '—' },
+      { clave: 'equipment_id',      etiqueta: 'ID Equipo',          valor: c.equipment_id || '—' },
+      { clave: 'name_equipment',    etiqueta: 'Nombre Equipo',      valor: c.name_equipment || '—' },
+      { clave: 'id_user',           etiqueta: 'ID Usuario',         valor: c.id_user || '—' },
+      { clave: 'pt',                etiqueta: 'PT',                 valor: c.pt || '—' },
+      { clave: 'date_cal',          etiqueta: 'Fecha Calibración',  valor: this.formatearFecha(c.date_cal) },
+      { clave: 'date_cc',           etiqueta: 'Fecha Emisión',      valor: this.formatearFecha(c.date_cc) },
+      {
+        clave: 'calibration_interval',
+        etiqueta: 'Intervalo (meses)',
+        valor: c.calibration_interval != null ? String(c.calibration_interval) : '—',
+      },
+      {
+        clave: 'resolution',
+        etiqueta: 'Resolución',
+        valor: c.resolution != null ? String(c.resolution) : '—',
+      },
+      { clave: 'entity',            etiqueta: 'Entidad',            valor: c.entity || '—' },
+      { clave: 'cert_type',         etiqueta: 'Tipo Certificado',   valor: c.cert_type || '—' },
+      { clave: 'comments',          etiqueta: 'Comentarios',        valor: c.comments || '—' },
+      { clave: 'estado',            etiqueta: 'Estado',             valor: c.active ? 'Activo' : 'Inactivo' },
+    ];
+  }
+
+  /** Tablas de resultados del certificado seleccionado */
+  get tablasResumen(): ResultTable[] {
+    if (!this.certificadoSeleccionado) return [];
+    return this.obtenerTablasResultado(
+      this.certificadoSeleccionado.data,
+      this.certificadoSeleccionado.equipment_id
+    );
+  }
+
+  /** JSON crudo del certificado seleccionado (para mostrarlo en <pre>) */
+  get jsonResumen(): string {
+    return this.obtenerJsonString(this.certificadoSeleccionado?.data);
+  }
+
+  /** ¿El certificado seleccionado tiene datos JSON cargados? */
+  get tieneData(): boolean {
+    return !!this.certificadoSeleccionado?.data;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Procesamiento de 'data' (JSONB) → Result Tables
+  // ---------------------------------------------------------------------------
   obtenerTablasResultado(
     data?: CertificadoData | Record<string, any>,
     certEquipmentId?: string
@@ -155,7 +224,8 @@ export class Listcert implements OnInit {
         comments: tabla.comments || '',
         title: tabla.title || tabla.titulo || '',
         parameter: tabla.parameter || tabla.mesurando || '',
-        calibration_equation: tabla.calibration_equation || tabla.ecuation_calibration || '',
+        calibration_equation:
+          tabla.calibration_equation || tabla.ecuation_calibration || '',
         columns: tabla.columns || tabla.columnas || [],
         rows: tabla.rows || tabla.filas || [],
       }));
@@ -164,15 +234,15 @@ export class Listcert implements OnInit {
     return tablas;
   }
 
-  // Obtiene el equipment_id de una tabla o, en su defecto, el del certificado seleccionado
   obtenerEquipmentIdDeTabla(tabla: ResultTable): string {
     return tabla.equipment_id || this.certificadoSeleccionado?.equipment_id || '';
   }
 
-  // Desactiva el certificado seleccionado previa confirmación del usuario
+  // ---------------------------------------------------------------------------
+  // Desactivación
+  // ---------------------------------------------------------------------------
   async desactivarCertificado(cert: Certificado): Promise<void> {
     if (!cert.active || !cert.id) return;
-
     if (this.desactivando.has(cert.id)) return;
 
     const identificador = cert.cc || cert.equipment_id || cert.id;
@@ -221,11 +291,35 @@ export class Listcert implements OnInit {
     });
   }
 
-  // Helpers de formateo y edición modal
+  // ---------------------------------------------------------------------------
+  // Helpers de formato
+  // ---------------------------------------------------------------------------
+  formatearFecha(fecha?: string): string {
+    if (!fecha) return '—';
+    const d = new Date(fecha);
+    if (isNaN(d.getTime())) return fecha;
+    return d.toLocaleDateString('es-MX', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    });
+  }
+
   obtenerJsonString(data: any): string {
+    if (!data) return '{}';
     return typeof data === 'string' ? data : JSON.stringify(data, null, 2);
   }
 
+  copiarJsonResumen(): void {
+    if (!this.tieneData) return;
+    navigator.clipboard.writeText(this.jsonResumen).then(() => {
+      this.alert.success('JSON del resumen copiado al portapapeles.');
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Modal de edición rápida
+  // ---------------------------------------------------------------------------
   abrirModalEdicion(cert: Certificado): void {
     this.certificadoEdicion = { ...cert };
     this.jsonEdicionTexto = cert.data ? JSON.stringify(cert.data, null, 2) : '{}';
@@ -236,7 +330,6 @@ export class Listcert implements OnInit {
     this.jsonEdicionTexto = '';
   }
 
-  // Copia el JSON del modal al portapapeles
   copiarJson(): void {
     if (!this.jsonEdicionTexto) return;
     navigator.clipboard.writeText(this.jsonEdicionTexto).then(() => {

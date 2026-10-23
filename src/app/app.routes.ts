@@ -12,6 +12,9 @@ import { Inicio } from './components/core/inicio/inicio';
 import { Cmcparams } from './components/cmc/cmcparams/cmcparams';
 import { Cmcparamsvf } from './components/cmc/cmcparamsvf/cmcparamsvf';
 import { Cmcsr } from './components/calc/cmcsr/cmcsr';
+import { Viewcmc } from './components/cmc/viewcmc/viewcmc';
+import { Listcmc } from './components/cmc/listcmc/listcmc';
+import { Editcmc } from './components/cmc/editcmc/editcmc';
 
 export const routes: Routes = [
   //Rutas publicas
@@ -23,16 +26,25 @@ export const routes: Routes = [
     canActivateChild: [authGuard],
     children: [
       { path: '', redirectTo: 'inicio', pathMatch: 'full' },
-      { path: 'newcert', component: Newcert },
+      //Ruta del procesamiento de imagen (Solo prueba)
       { path: 'pimage', component: Pimage },
-      { path: 'editcert/:id', component: Editcert },
-      { path: 'admincert', component: admincert },
-      { path: 'listcert', component: Listcert },
-      { path: 'viewcert/:id', component: Viewcert },
+      //Rutas del Certificado
+      { path: 'new-cert', component: Newcert },
+      { path: 'edit-cert/:id', component: Editcert },
+      { path: 'admin-cert', component: admincert },
+      { path: 'list-cert', component: Listcert },
+      { path: 'view-cert/:id', component: Viewcert },
+      //Rutas del CMC
       { path: 'calcmc', component: Calcmc },
-      { path: 'cmcparams', component: Cmcparams },
-      { path: 'cmcparamsvf', component: Cmcparamsvf },
+      { path: 'cmc-params', component: Cmcparams },
+      { path: 'cmc-paramsvf', component: Cmcparamsvf },
       { path: 'cmc-resultados', component: Cmcsr },
+      { path: 'cmc-view/:id', component: Viewcmc},
+      { path: 'cmc-list', component: Listcmc },
+      { path: 'cmc-edit', component: Editcmc},
+
+
+
     ]
   },
   // Fallback

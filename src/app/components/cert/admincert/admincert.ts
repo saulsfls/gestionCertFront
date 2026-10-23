@@ -190,6 +190,6 @@ export class admincert implements OnInit {
 
   // Navega de vuelta a la vista principal de certificados
   volver(): void {
-    this.router.navigate(['/listcert']);
+    this.router.navigate(['/list-cert']);
   }
 }

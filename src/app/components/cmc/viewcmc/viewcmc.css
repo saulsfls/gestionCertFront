@@ -1,0 +1,129 @@
+.cmc-resultado {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 16px 20px;
+  font-family: system-ui, sans-serif;
+  color: #1f2937;
+}
+
+.encabezado {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+h3 { margin: 0 0 4px; font-size: 1.05rem; }
+.subtitulo { margin: 0; color: #6b7280; font-size: 0.85rem; }
+
+.acciones { display: flex; gap: 8px; }
+
+.btn {
+
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.tabs-cmc {
+  display: flex;
+  gap: 6px;
+  border-bottom: 1px solid #e5e7eb;
+  margin-bottom: 12px;
+}
+.tab {
+  background: transparent;
+  border: none;
+  padding: 8px 14px;
+  cursor: pointer;
+  color: #6b7280;
+  border-bottom: 2px solid transparent;
+  font-size: 0.88rem;
+}
+.tab.activo { color: #1d4ed8; border-color: #1d4ed8; font-weight: 600; }
+.tab.error { color: #b91c1c; }
+
+.meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.85rem;
+  color: #4b5563;
+  margin-bottom: 12px;
+}
+
+.tarjetas-resumen {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.tarjeta {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #f9fafb;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.tarjeta .label { font-size: 0.78rem; color: #6b7280; text-transform: uppercase; letter-spacing: .03em; }
+.tarjeta .valor { font-size: 1.15rem; font-weight: 600; }
+.tarjeta.destacada {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+.tarjeta.destacada .valor { color: #1d4ed8; }
+
+.tabla-fuentes {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+.tabla-fuentes th,
+.tabla-fuentes td {
+  padding: 8px 10px;
+  border-bottom: 1px solid #e5e7eb;
+  text-align: left;
+}
+.tabla-fuentes th {
+  background: #f3f4f6;
+  font-weight: 600;
+  color: #374151;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+}
+.tabla-fuentes td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.tabla-fuentes tfoot td { border-top: 2px solid #d1d5db; }
+
+.barra-celda { width: 120px; }
+.barra {
+  background: #e5e7eb;
+  border-radius: 4px;
+  height: 8px;
+  overflow: hidden;
+}
+.barra-relleno {
+  height: 100%;
+  background: linear-gradient(90deg, #60a5fa, #1d4ed8);
+  transition: width .25s ease;
+}
+
+.vacio {
+  padding: 24px;
+  text-align: center;
+  color: #9ca3af;
+  font-size: 0.9rem;
+}
+
+.error-box {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+  padding: 10px 14px;
+  border-radius: 6px;
+  font-size: 0.88rem;
+}

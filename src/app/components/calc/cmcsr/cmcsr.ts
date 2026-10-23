@@ -11,6 +11,8 @@ import {
 } from '@angular/core';
 import { CommonModule, Location } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
+import { firstValueFrom } from 'rxjs';
 import { CmcPayload, CmcResultado, CmcMultiPayload } from '../../../models/cmc.model';
 import { CmcData } from '../../../models/cmc.model';
 import {
@@ -46,18 +48,17 @@ export class Cmcsr implements OnChanges, OnInit {
   @Output() calculado = new EventEmitter<CmcResultado[]>();
   @Output() cerrado = new EventEmitter<void>();
 
-  /** El ViewModel ahora viene unificado desde el servicio */
   resultados: CmcVistaResultado[] = [];
   cmcActivoId: number | null = null;
   copiado = false;
 
-  /** Bandera: hay una petición de guardado en curso */
+  /** Bandera: petición de guardado (individual o masivo) en curso */
   guardando = false;
 
-  /** Bandera: el CMC activo ya fue guardado exitosamente (bloquea el botón) */
-  guardadoExitoso = false;
+  /** Números de CMC guardados exitosamente — persiste entre cambios de CMC */
+  private guardadosExitosos = new Set<number>();
 
-  /** Guarda los resúmenes crudos del router state */
+  /** Resúmenes crudos que llegan desde el router state */
   resumenTablas: Record<number, ResumenTablaCmc[]> = {};
 
   private readonly calc = inject(CmcCalculatorService);
@@ -66,28 +67,66 @@ export class Cmcsr implements OnChanges, OnInit {
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly location = inject(Location);
 
+  constructor(private router: Router){ }
+
+  // -------------------------------------------------------------------
+  // Getters usados por el template
+  // -------------------------------------------------------------------
   get cmcActivo(): CmcVistaResultado | undefined {
     return this.resultados.find(r => r.payload.cmcNumero === this.cmcActivoId);
   }
 
-  /** ¿Se puede pulsar el botón de guardar? */
+  /** ¿El CMC activo ya fue guardado? */
+  get guardadoExitoso(): boolean {
+    return this.cmcActivoId !== null && this.guardadosExitosos.has(this.cmcActivoId);
+  }
+
+  /** ¿Hay más de un CMC en pantalla? */
+  get tieneMultiples(): boolean {
+    return this.resultados.length > 1;
+  }
+
+  /** ¿Queda alguno pendiente de guardar? */
+  get puedeGuardarTodos(): boolean {
+    if (this.guardando) return false;
+    return this.resultados.some(
+      r => !!r.resultado && !this.guardadosExitosos.has(r.payload.cmcNumero)
+    );
+  }
+
+  get todosGuardados(): boolean {
+    if (!this.resultados.length) return false;
+    return this.resultados.every(r => this.guardadosExitosos.has(r.payload.cmcNumero));
+  }
+
   get puedeGuardar(): boolean {
     return !this.guardando && !this.guardadoExitoso && !!this.cmcActivo?.resultado;
   }
 
-  /** Texto dinámico del botón (útil para el template) */
   get textoBotonGuardar(): string {
     if (this.guardando) return 'Guardando…';
-    if (this.guardadoExitoso) return 'Guardado';
+    if (this.guardadoExitoso) return 'CMC Guardado con éxito';
     return 'Guardar CMC';
   }
 
-  // ============================================================
-  //   CICLO DE VIDA
-  // ============================================================
+  get textoBotonGuardarTodos(): string {
+    if (this.guardando) return 'Guardando…';
+    if (this.todosGuardados) return 'Todos guardados';
+    return 'Guardar todos los CMC';
+  }
 
+  /** Helper público para el template (indicador en tabs) */
+  estaGuardado(id: number): boolean {
+    return this.guardadosExitosos.has(id);
+  }
+
+  // -------------------------------------------------------------------
+  // Ciclo de vida
+  // -------------------------------------------------------------------
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['cmcs'] && !changes['cmcs'].isFirstChange()) {
+      // Nueva entrada de cálculos → reseteamos el estado de guardado
+      this.guardadosExitosos.clear();
       this.recalcular();
     }
 
@@ -111,10 +150,6 @@ export class Cmcsr implements OnChanges, OnInit {
       this.recalcular();
     }
   }
-
-  // ============================================================
-  //   DELEGACIÓN AL SERVICIO
-  // ============================================================
 
   recalcular(): void {
     this.resultados = this.calc.procesarResultados(this.cmcs, this.resumenTablas);
@@ -143,26 +178,15 @@ export class Cmcsr implements OnChanges, OnInit {
 
   seleccionarCmc(id: number): void {
     this.cmcActivoId = id;
-    // Si el usuario cambia de CMC, permitimos intentar guardar el nuevo
-    // (si prefieres bloqueo total, elimina esta línea).
-    this.guardadoExitoso = false;
+    // No se resetea el estado: cada CMC conserva su marca de "guardado" en el Set
     this.refresh();
   }
 
-  // ============================================================
-  //   GUARDAR EN BASE DE DATOS (solo el CMC activo)
-  // ============================================================
-
-  /**
-   * Guarda **únicamente** el CMC activo.
-   * - Si ya se guardó con éxito, el botón queda bloqueado (`guardadoExitoso = true`).
-   * - Mientras la petición está en vuelo, `guardando = true` (spinner).
-   */
+  // -------------------------------------------------------------------
+  // Guardado INDIVIDUAL (CMC activo) — sin confirmación
+  // -------------------------------------------------------------------
   guardarResultados(): void {
-    // Bloqueo total tras un guardado exitoso
-
     const user = this.auth.getUser()?.id_user;
-
     if (!user) {
       this.alert.error('Debes iniciar sesión para guardar el cálculo.', 'Sesión requerida');
       return;
@@ -171,7 +195,6 @@ export class Cmcsr implements OnChanges, OnInit {
     if (this.guardadoExitoso || this.guardando) return;
 
     const activo = this.cmcActivo;
-
     if (!activo || !activo.resultado) {
       this.alert.warning('No hay un CMC válido seleccionado para guardar.', 'Sin datos');
       return;
@@ -180,11 +203,107 @@ export class Cmcsr implements OnChanges, OnInit {
     this.guardando = true;
     this.refresh();
 
-    const payload = activo.payload;
-    const res = activo.resultado;
+    const dataAGuardar = this.buildCmcData(activo, user);
 
-    const dataAGuardar: CmcData = {
-      id_equipment: payload.id, // ID del equipo
+    this.cmcService.crearCmc(dataAGuardar).subscribe({
+      next: (resp) => {
+        this.guardando = false;
+
+        if (resp.ok) {
+          this.guardadosExitosos.add(activo.payload.cmcNumero);
+          this.alert.success('El CMC se guardó correctamente.', 'Guardado exitoso');
+        } else {
+          this.alert.warning('No se pudo guardar el CMC. Revisa la consola.', 'Guardado fallido');
+        }
+        this.refresh();
+      },
+      error: (err) => {
+        this.guardando = false;
+        console.error('[Cmcsr] Error al guardar CMC:', err);
+        this.alert.error('Ocurrió un error de red al intentar guardar el CMC.', 'Error al guardar');
+        this.refresh();
+      }
+    });
+  }
+
+  // -------------------------------------------------------------------
+  // Guardado MASIVO — con confirmación vía AlertService
+  // -------------------------------------------------------------------
+  async guardarTodosLosCmc(): Promise<void> {
+    const user = this.auth.getUser()?.id_user;
+    if (!user) {
+      this.alert.error('Debes iniciar sesión para guardar los cálculos.', 'Sesión requerida');
+      return;
+    }
+
+    if (this.guardando) return;
+
+    const pendientes = this.resultados.filter(
+      r => !!r.resultado && !this.guardadosExitosos.has(r.payload.cmcNumero)
+    );
+
+    if (!pendientes.length) {
+      this.alert.warning('Todos los CMC ya están guardados.', 'Sin cambios');
+      return;
+    }
+
+    // Confirmación SOLO si hay más de un CMC en total
+    if (this.resultados.length > 1) {
+      const lista = pendientes.map(p => `#${p.payload.cmcNumero}`).join(', ');
+      const ok = await this.alert.confirm(        // ← AJUSTA AQUÍ si tu API es distinta
+        `Se guardarán ${pendientes.length} CMC (${lista}). ¿Deseas continuar?`,
+        'Confirmar guardado'
+      );
+      if (!ok) return;
+    }
+
+    this.guardando = true;
+    this.refresh();
+
+    let exitos = 0;
+    let fallidos = 0;
+
+    for (const item of pendientes) {
+      try {
+        const data = this.buildCmcData(item, user);
+        const resp = await firstValueFrom(this.cmcService.crearCmc(data));
+
+        if (resp?.ok) {
+          this.guardadosExitosos.add(item.payload.cmcNumero);
+          exitos++;
+        } else {
+          fallidos++;
+          console.warn(`[Cmcsr] CMC #${item.payload.cmcNumero} no se guardó (resp.ok=false).`);
+        }
+      } catch (err) {
+        fallidos++;
+        console.error(`[Cmcsr] Error guardando CMC #${item.payload.cmcNumero}:`, err);
+      }
+      this.refresh();
+    }
+
+    this.guardando = false;
+
+    if (fallidos === 0) {
+      this.alert.success(`Se guardaron ${exitos} CMC correctamente.`, 'Guardado exitoso');
+    } else if (exitos === 0) {
+      this.alert.error(`No se pudo guardar ningún CMC (${fallidos} fallidos).`, 'Error al guardar');
+    } else {
+      this.alert.warning(
+        `Se guardaron ${exitos} CMC. ${fallidos} fallidos. Revisa la consola.`,
+        'Guardado parcial'
+      );
+    }
+
+    this.refresh();
+  }
+
+  /** Construye el CmcData a partir del view-model + usuario */
+  private buildCmcData(item: CmcVistaResultado, user: string): CmcData {
+    const payload = item.payload;
+    const res = item.resultado!;
+    return {
+      id_equipment: payload.id,
       id_user: user,
       value_ref_min: payload.minReferencia || payload.rangoReferencia,
       value_ref_max: payload.maxReferencia || payload.rangoReferencia,
@@ -202,35 +321,13 @@ export class Cmcsr implements OnChanges, OnInit {
       u_reference: res.incertRefEstandar,
       s_reference: res.estabilidadRefEstandar,
       repeatability: res.repetibilidad,
-      reproducibility: res.reproducibilidad
+      reproducibility: res.reproducibilidad,
     };
-
-    this.cmcService.crearCmc(dataAGuardar).subscribe({
-      next: (resp) => {
-        this.guardando = false;
-
-        if (resp.ok) {
-          this.guardadoExitoso = true;
-          this.alert.success('El CMC se guardó correctamente.', 'Guardado exitoso');
-        } else {
-          this.alert.warning('No se pudo guardar el CMC. Revisa la consola.', 'Guardado fallido');
-        }
-
-        this.refresh();
-      },
-      error: (err) => {
-        this.guardando = false;
-        console.error('[Cmcsr] Error al guardar CMC:', err);
-        this.alert.error('Ocurrió un error de red al intentar guardar el CMC.', 'Error al guardar');
-        this.refresh();
-      }
-    });
   }
 
-  // ============================================================
-  //   FORMATEO
-  // ============================================================
-
+  // -------------------------------------------------------------------
+  // Utilidades
+  // -------------------------------------------------------------------
   fmt(n: number | null | undefined, digitos = 6): string {
     if (n === null || n === undefined || !isFinite(n)) return '—';
     return n.toFixed(digitos);
@@ -240,10 +337,6 @@ export class Cmcsr implements OnChanges, OnInit {
     if (n === null || n === undefined || !isFinite(n)) return '—';
     return `${n.toFixed(2)} %`;
   }
-
-  // ============================================================
-  //   COPIAR / EXPORTAR
-  // ============================================================
 
   copiarResultados(): void {
     const texto = this.resultados
@@ -315,6 +408,10 @@ export class Cmcsr implements OnChanges, OnInit {
       `Coef. expansión (k):         ${this.fmt(x.coefExpansion, 4)}`,
       `U expandida (k·u_c):         ${this.fmt(x.incertidumbreExpandida)}`,
     ].join('\n');
+  }
+
+  verCmc(): void {
+    this.router.navigate(['/cmc-list']);
   }
 
   cerrar(): void {

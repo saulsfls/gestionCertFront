@@ -1,0 +1,116 @@
+<div class="cmc-resultado">
+  <!-- Encabezado -->
+  <header class="encabezado">
+    <div>
+      <h3>Resultados del CMC</h3>
+      <p *ngIf="cmc?.id_equipment" class="subtitulo">
+        Equipo: {{ cmc?.id_equipment }} — CMC #{{ cmc?.id }}
+      </p>
+    </div>
+    <div class="acciones">
+      <button type="button" class="btn btn-outline-danger mb-1" (click)="goBack()" title="Regresar a la lista">
+        ← Volver
+      </button>
+      <button type="button" class="btn btn-outline-secondary mb-1" (click)="exportToExcel()" [disabled]="!cmc">
+        <i class="bi bi-file-excel"></i> Exportar a Excel
+      </button>
+    </div>
+  </header>
+
+  <!-- Loading -->
+  <div *ngIf="loading" class="text-center my-5">
+    <div class="spinner-border text-primary" role="status">
+      <span class="visually-hidden">Cargando...</span>
+    </div>
+    <p class="mt-2">Cargando CMC...</p>
+  </div>
+
+  <!-- Error -->
+  <div *ngIf="errorMsg && !loading" class="error-box">
+    ⚠️ {{ errorMsg }}
+  </div>
+
+  <!-- Sin datos -->
+  <div *ngIf="!loading && !cmc && !errorMsg" class="vacio">
+    No hay resultados para mostrar.
+  </div>
+
+  <!-- Detalle del CMC -->
+  <ng-container *ngIf="!loading && cmc as c">
+    <!-- Meta info -->
+    <div class="meta">
+      <span>
+        <strong>Rango de referencia: </strong>
+        {{ c.value_ref_min || '—' }} – {{ c.value_ref_max || '—' }}
+      </span>
+      <span><strong>Intervalo:</strong> {{ c.interval_value || '—' }}</span>
+      <span>
+        <strong>Certificados: </strong>
+        {{ c.cert_associate || 'Sin certificados asociados' }}
+      </span>
+      <span><strong>Fecha: </strong> {{ c.created_at | date:'dd/MM/yyyy' }}</span>
+      <span>
+        <strong>Estado: </strong>
+        <span class="badge" [ngClass]="isActive() ? 'bg-success' : 'bg-danger'">
+          {{ isActive() ? 'Activo' : 'Inactivo' }}
+        </span>
+      </span>
+    </div>
+
+    <!-- Tarjetas resumen -->
+    <div class="tarjetas-resumen">
+      <div class="tarjeta">
+        <span class="label">u combinada</span>
+        <span class="valor">{{ c.u_combined | number:'1.2-4' }}</span>
+      </div>
+      <div class="tarjeta">
+        <span class="label">Grados de libertad efectivos</span>
+        <span class="valor">{{ c.degrees_freedom }}</span>
+      </div>
+      <div class="tarjeta">
+        <span class="label">Coef. expansión (k)</span>
+        <span class="valor">{{ c.coefficient_expansion | number:'1.2-4' }}</span>
+      </div>
+      <div class="tarjeta destacada">
+        <span class="label">U expandida (k·u<sub>c</sub>)</span>
+        <span class="valor">{{ c.u_expanded | number:'1.2-4' }}</span>
+      </div>
+    </div>
+
+    <!-- Tabla de fuentes de incertidumbre -->
+    <table class="tabla-fuentes">
+      <thead>
+        <tr>
+          <th>Fuente</th>
+          <th>Valor</th>
+          <th>Peso</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let f of fuentes">
+          <td>{{ f.nombre }}</td>
+          <td class="num">{{ f.valor | number:'1.2-4' }}</td>
+          <td class="num">{{ f.pesoPct | number:'1.1-1' }}%</td>
+          <td class="barra-celda">
+            <div class="barra">
+              <div class="barra-relleno" [style.width.%]="f.pesoPct"></div>
+            </div>
+          </td>
+        </tr>
+        <tr *ngIf="fuentes.length === 0">
+          <td colspan="4" class="text-center text-muted">
+            Sin componentes de incertidumbre registrados.
+          </td>
+        </tr>
+      </tbody>
+      <tfoot>
+        <tr>
+          <td colspan="2"><strong>Incertidumbre combinada</strong></td>
+          <td class="num"><strong>{{ c.u_combined | number:'1.2-4' }}</strong></td>
+          <td></td>
+        </tr>
+      </tfoot>
+    </table>
+  </ng-container>
+</div>

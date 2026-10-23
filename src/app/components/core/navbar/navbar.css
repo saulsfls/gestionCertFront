@@ -1,0 +1,228 @@
+
+.navbar {
+  background: linear-gradient(135deg, #16181d 0%, #212529 100%) !important;
+  border-bottom: 2px solid rgba(13, 110, 253, 0.35);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35) !important;
+  padding: 0.6rem 1rem;
+}
+
+/* -------- Marca / logo -------- */
+.navbar-brand {
+  font-size: 1.1rem;
+  letter-spacing: 0.3px;
+  transition: transform 0.25s ease;
+
+  i {
+    transition: transform 0.35s ease;
+  }
+
+  &:hover {
+    transform: translateY(-1px);
+
+    i {
+      transform: rotate(-12deg) scale(1.12);
+    }
+  }
+}
+
+/* -------- Botón hamburguesa -------- */
+.navbar-toggler {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 0.5rem;
+  padding: 0.35rem 0.55rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+
+  &:hover {
+    border-color: rgba(255, 255, 255, 0.45);
+  }
+
+  &:focus {
+    outline: none;
+    border-color: rgba(13, 110, 253, 0.6);
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.35);
+  }
+}
+
+/* -------- Links principales -------- */
+.navbar-nav .nav-link {
+  position: relative;
+  padding: 0.55rem 0.9rem !important;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.78) !important;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: color 0.2s ease, background-color 0.2s ease;
+
+  /* Indicador inferior animado (usamos ::before para no chocar con el caret de Bootstrap) */
+  &::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: 4px;
+    width: 0;
+    height: 2px;
+    background: #0d6efd;
+    border-radius: 2px;
+    transform: translateX(-50%);
+    transition: width 0.25s ease;
+  }
+
+  &:hover,
+  &:focus-visible {
+    color: #fff !important;
+    background-color: rgba(255, 255, 255, 0.06);
+
+    &::before {
+      width: 60%;
+    }
+  }
+
+  &.active {
+    color: #fff !important;
+    background-color: rgba(13, 110, 253, 0.18);
+
+    &::before {
+      width: 60%;
+    }
+  }
+}
+
+/* Rotación del caret al abrir el dropdown */
+.navbar-nav .dropdown-toggle::after {
+  margin-left: 0.45rem;
+  transition: transform 0.25s ease;
+}
+.navbar-nav .dropdown-toggle[aria-expanded="true"]::after {
+  transform: rotate(180deg);
+}
+
+/* -------- Dropdown (escritorio) -------- */
+.dropdown-menu {
+  display: block;                 /* siempre en el DOM para poder animar */
+  visibility: hidden;
+  opacity: 0;
+  transform: translateY(-10px) scale(0.98);
+  pointer-events: none;
+
+  margin-top: 0.5rem;
+  padding: 0.4rem;
+  min-width: 240px;
+  background: #ffffff;
+  border: none;
+  border-radius: 0.75rem;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
+  transition: opacity 0.22s ease, transform 0.22s ease, visibility 0.22s;
+
+  &.show {
+    visibility: visible;
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    pointer-events: auto;
+  }
+}
+
+/* -------- Items del dropdown -------- */
+.dropdown-item {
+  padding: 0.55rem 0.85rem;
+  font-size: 0.94rem;
+  color: #343a40;
+  border-radius: 0.5rem;
+  transition: background-color 0.18s ease, color 0.18s ease, padding-left 0.18s ease;
+
+  &:hover,
+  &:focus {
+    background-color: rgba(13, 110, 253, 0.1);
+    color: #0d6efd;
+    padding-left: 1.15rem;
+  }
+
+  &.active {
+    background-color: #0d6efd;
+    color: #fff;
+  }
+}
+
+.dropdown-divider {
+  margin: 0.35rem 0;
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
+@media (max-width: 991.98px) {
+
+  /* Panel desplegable del menú */
+  .navbar-collapse {
+    margin-top: 0.75rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+    animation: slideDown 0.25s ease;
+  }
+
+  .navbar-nav .nav-link {
+    padding: 0.7rem 1rem !important;
+
+    &::before { display: none; } /* sin subrayado en móvil */
+  }
+
+  /* Dropdowns tipo acordeón en móvil */
+  .dropdown-menu {
+    position: static !important;
+    min-width: 100%;
+    margin: 0.25rem 0 0.5rem 0.5rem;
+    padding: 0.35rem;
+    background: rgba(255, 255, 255, 0.05);
+    box-shadow: none;
+    border-radius: 0.5rem;
+
+    /* Animación por altura */
+    transform: none !important;
+    visibility: hidden;
+    opacity: 0;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease, opacity 0.25s ease;
+
+    &.show {
+      visibility: visible;
+      opacity: 1;
+      max-height: 600px;
+    }
+  }
+
+  .dropdown-item {
+    color: rgba(255, 255, 255, 0.85);
+
+    &:hover,
+    &:focus {
+      color: #fff;
+      background-color: rgba(13, 110, 253, 0.25);
+    }
+
+    &.active {
+      background-color: #0d6efd;
+      color: #fff;
+    }
+  }
+
+  .dropdown-divider {
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+}
+
+/* Animación del panel al abrir en móvil */
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Accesibilidad: respetar usuarios con movimiento reducido */
+@media (prefers-reduced-motion: reduce) {
+  .dropdown-menu,
+  .nav-link::before,
+  .dropdown-item,
+  .navbar-brand,
+  .navbar-brand i,
+  .navbar-collapse {
+    transition: none !important;
+    animation: none !important;
+  }
+}

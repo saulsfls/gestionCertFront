@@ -1,0 +1,167 @@
+<div class="container-fluid py-4">
+
+  <!-- Panel de Búsqueda y Filtros -->
+  <div class="card shadow-sm mb-4">
+    <div class="card-body">
+      <div class="row g-3 align-items-center">
+        <div class="col-md-8">
+          <label class="form-label fw-bold small text-secondary">Buscar CMC</label>
+          <input
+            type="text"
+            class="form-control"
+            placeholder="Buscar por Equipment ID, Certificado asociado o ID de BD..."
+            [(ngModel)]="textoBusqueda"
+          />
+        </div>
+        <div class="col-md-4">
+          <label class="form-label fw-bold small text-secondary">Filtrar por Estado</label>
+          <select class="form-select" [(ngModel)]="filtroEstado">
+            <option value="todos">Todos los CMC</option>
+            <option value="activos">Solo Activos</option>
+            <option value="inactivos">Solo Inactivos</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Indicador de Carga -->
+  <div *ngIf="cargando" class="text-center py-5">
+    <div class="spinner-border text-primary" role="status">
+      <span class="visually-hidden">Cargando...</span>
+    </div>
+  </div>
+
+  <!-- Tabla Principal de CMC -->
+  <div class="card shadow-sm">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-dark">
+          <tr>
+            <th>Estado</th>
+            <th>ID BD</th>
+            <th>Equipment ID</th>
+            <th>V. Ref. Mín</th>
+            <th>V. Ref. Máx</th>
+            <th>Intervalo</th>
+            <th>Cert. Asociado</th>
+            <th class="text-center">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          <ng-container *ngFor="let cmc of cmcFiltrados">
+            <!-- Fila Principal -->
+            <tr>
+              <td>
+                <span class="badge" [ngClass]="estaActivo(cmc) ? 'bg-success' : 'bg-danger'">
+                  {{ estaActivo(cmc) ? 'Activo' : 'Inactivo' }}
+                </span>
+              </td>
+              <td>{{ cmc.id }}</td>
+              <td class="fw-bold text-primary">{{ cmc.id_equipment }}</td>
+              <td>{{ cmc.value_ref_min }}</td>
+              <td>{{ cmc.value_ref_max }}</td>
+              <td><span class="badge bg-light text-dark border">{{ cmc.interval_value }}</span></td>
+              <td>{{ cmc.cert_associate || 'N/A' }}</td>
+              <td class="text-center">
+                <div class="btn-group btn-group-sm">
+                  <!-- Ver Resumen (expande) -->
+                  <button
+                    class="btn"
+                    [ngClass]="idExpandido === cmc.id ? 'btn-secondary' : 'btn-outline-primary'"
+                    (click)="toggleDetalle(cmc.id, cmc)"
+                  >
+                    {{ idExpandido === cmc.id ? 'Ocultar Resumen' : 'Ver Resumen' }}
+                  </button>
+
+                  <!-- Ver Detalle (envía ID del CMC) -->
+                  <button
+                    class="btn btn-outline-success"
+                    (click)="detalleCmc(cmc.id)"
+                    title="Ver detalle completo del CMC"
+                  >
+                    Ver Detalle
+                  </button>
+
+                  <!-- Editar (envía ID del CMC) -->
+                  <button
+                    class="btn btn-outline-warning"
+                    (click)="editarCmc(cmc.id)"
+                    title="Editar CMC"
+                  >
+                    Editar
+                  </button>
+
+                  <!-- Desactivar -->
+                  <button
+                    class="btn btn-outline-danger"
+                    [disabled]="!estaActivo(cmc)"
+                    (click)="desactivarCmc(cmc)"
+                    title="Desactivar CMC"
+                  >
+                    Desactivar
+                  </button>
+                </div>
+              </td>
+            </tr>
+
+            <!-- Fila Desplegable: Resumen (solo 4 campos) -->
+            <tr *ngIf="idExpandido === cmc.id" class="table-light">
+              <td colspan="8" class="p-4">
+                <div class="card border-secondary shadow-sm">
+                  <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                    <span class="fw-bold font-monospace text-warning">
+                      Resumen del CMC — Equipment ID: {{ cmc.id_equipment }}
+                    </span>
+                    <span class="badge bg-info text-dark">ID: {{ cmc.id }}</span>
+                  </div>
+                  <div class="card-body">
+                    <div class="row g-3">
+                      <div class="col-md-6">
+                        <ul class="list-group list-group-flush">
+                          <li class="list-group-item d-flex justify-content-between">
+                            <strong>Incertidumbre Combinada (u_combined)</strong>
+                            <span>{{ cmc.u_combined }}</span>
+                          </li>
+                          <li class="list-group-item d-flex justify-content-between">
+                            <strong>Incertidumbre Expandida (u_expanded)</strong>
+                            <span>{{ cmc.u_expanded }}</span>
+                          </li>
+                        </ul>
+                      </div>
+                      <div class="col-md-6">
+                        <ul class="list-group list-group-flush">
+                          <li class="list-group-item d-flex justify-content-between">
+                            <strong>Grados de Libertad</strong>
+                            <span>{{ cmc.degrees_freedom }}</span>
+                          </li>
+                          <li class="list-group-item d-flex justify-content-between">
+                            <strong>Coef. de Expansión</strong>
+                            <span>{{ cmc.coefficient_expansion }}</span>
+                          </li>
+                        </ul>
+                      </div>
+                    </div>
+
+                    <div class="mt-3 text-muted small">
+                      <i class="bi bi-info-circle"></i>
+                      Para ver el cálculo completo, haz clic en
+                      <strong>"Ver Detalle"</strong>.
+                    </div>
+                  </div>
+                </div>
+              </td>
+            </tr>
+          </ng-container>
+
+          <!-- Sin resultados -->
+          <tr *ngIf="cmcFiltrados.length === 0">
+            <td colspan="8" class="text-center py-4 text-muted">
+              No se encontraron CMC con los criterios seleccionados.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

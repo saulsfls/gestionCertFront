@@ -19,7 +19,7 @@
     <div class="collapse navbar-collapse" [class.show]="!isCollapsed">
       <ul class="navbar-nav me-auto mb-2 mb-lg-0">
 
-        <!-- 🟢 Inicio: siempre visible -->
+        <!-- Inicio: siempre visible -->
         <li class="nav-item">
           <a
             class="nav-link"
@@ -31,27 +31,8 @@
           </a>
         </li>
 
-        <!-- 🔴 Solo si hay sesión -->
+        <!--Solo si hay sesión -->
         @if (isLoggedIn()) {
-
-          <!-- Herramientas -->
-          <li class="nav-item dropdown" [class.show]="dropdowns.herramientas">
-            <a
-              class="nav-link dropdown-toggle"
-              href="javascript:void(0)"
-              role="button"
-              [attr.aria-expanded]="dropdowns.herramientas"
-              (click)="toggleDropdown($event, 'herramientas')">
-              Herramientas
-            </a>
-            <ul class="dropdown-menu" [class.show]="dropdowns.herramientas">
-              <li>
-                <a class="dropdown-item" routerLink="/pimage" routerLinkActive="active" (click)="isCollapsed = true">
-                  Procesar imagen
-                </a>
-              </li>
-            </ul>
-          </li>
 
           <!-- Certificados -->
           <li class="nav-item dropdown" [class.show]="dropdowns.certificados">
@@ -65,17 +46,17 @@
             </a>
             <ul class="dropdown-menu" [class.show]="dropdowns.certificados">
               <li>
-                <a class="dropdown-item" routerLink="/newcert" routerLinkActive="active" (click)="isCollapsed = true">
+                <a class="dropdown-item" routerLink="/new-cert" routerLinkActive="active" (click)="isCollapsed = true">
                   Crear certificado
                 </a>
               </li>
               <li>
-                <a class="dropdown-item" routerLink="/listcert" routerLinkActive="active" (click)="isCollapsed = true">
+                <a class="dropdown-item" routerLink="/list-cert" routerLinkActive="active" (click)="isCollapsed = true">
                   Lista de certificados
                 </a>
               </li>
               <li>
-                <a class="dropdown-item" routerLink="/admincert" routerLinkActive="active" (click)="isCollapsed = true">
+                <a class="dropdown-item" routerLink="/admin-cert" routerLinkActive="active" (click)="isCollapsed = true">
                   Administrar certificados
                 </a>
               </li>
@@ -94,17 +75,12 @@
             </a>
             <ul class="dropdown-menu" [class.show]="dropdowns.cmc">
               <li>
-                <a class="dropdown-item" routerLink="/calcmc" routerLinkActive="active" (click)="isCollapsed = true">
-                  Cálculo de CMC
-                </a>
-              </li>
-              <li>
-                <a class="dropdown-item" routerLink="/cmcparams" routerLinkActive="active" (click)="isCollapsed = true">
+                <a class="dropdown-item" routerLink="/cmc-params" routerLinkActive="active" (click)="isCollapsed = true">
                   Parámetros de CMC
                 </a>
               </li>
               <li>
-                <a class="dropdown-item" routerLink="/cmcparamsvf" routerLinkActive="active" (click)="isCollapsed = true">
+                <a class="dropdown-item" routerLink="/cmc-paramsvf" routerLinkActive="active" (click)="isCollapsed = true">
                   Parámetros de CMC por rangos
                 </a>
               </li>
@@ -114,9 +90,37 @@
                   Resultados CMC
                 </a>
               </li>
+               <li>
+                <a class="dropdown-item" routerLink="/cmc-list" routerLinkActive="active" (click)="isCollapsed = true">
+                  Lista de CMC
+                </a>
+              </li>
             </ul>
           </li>
 
+          <!-- Herramientas -->
+          <li class="nav-item dropdown" [class.show]="dropdowns.herramientas">
+            <a
+              class="nav-link dropdown-toggle"
+              href="javascript:void(0)"
+              role="button"
+              [attr.aria-expanded]="dropdowns.herramientas"
+              (click)="toggleDropdown($event, 'herramientas')">
+              Herramientas
+            </a>
+            <ul class="dropdown-menu" [class.show]="dropdowns.herramientas">
+              <li>
+                <a class="dropdown-item" routerLink="/calcmc" routerLinkActive="active" (click)="isCollapsed = true">
+                  Cálculo de CMC
+                </a>
+              </li>
+              <li>
+                <a class="dropdown-item" routerLink="/pimage" routerLinkActive="active" (click)="isCollapsed = true">
+                  Procesar imagen
+                </a>
+              </li>
+            </ul>
+          </li>
         }
       </ul>
     </div>
