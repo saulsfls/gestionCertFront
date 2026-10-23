@@ -10,12 +10,6 @@ export class Global {
     if (!isPlatformBrowser(this.platformId)) {
       return 'http://26.187.160.72:81/calibraciones/api/';
     }
-
-    // Si estás en desarrollo local (ng serve), usa la ruta del proxy para evitar CORS
-    if (isDevMode()) {
-      return '/api/';
-    }
-
     // Comportamiento normal en producción
     return window.location.host.includes('192.168.1')
       ? 'http://192.168.1.201:81/calibraciones/api/'
