@@ -15,6 +15,7 @@ import { Cmcsr } from './components/calc/cmcsr/cmcsr';
 import { Viewcmc } from './components/cmc/viewcmc/viewcmc';
 import { Listcmc } from './components/cmc/listcmc/listcmc';
 import { Editcmc } from './components/cmc/editcmc/editcmc';
+import { Alertconf } from './components/test/alertconf/alertconf';
 
 export const routes: Routes = [
   //Rutas publicas
@@ -26,7 +27,8 @@ export const routes: Routes = [
     canActivateChild: [authGuard],
     children: [
       { path: '', redirectTo: 'inicio', pathMatch: 'full' },
-      //Ruta del procesamiento de imagen (Solo prueba)
+      //Rutas de componentes de prueba
+      { path: 'alert-conf', component: Alertconf},
       { path: 'pimage', component: Pimage },
       //Rutas del Certificado
       { path: 'new-cert', component: Newcert },
