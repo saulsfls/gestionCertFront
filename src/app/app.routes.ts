@@ -26,24 +26,24 @@ export const routes: Routes = [
     path: '',
     canActivateChild: [authGuard],
     children: [
-      { path: '', redirectTo: 'inicio', pathMatch: 'full' },
+      { path: '', redirectTo: 'inicio', pathMatch: 'full', title: 'Gestion de certificado' },
       //Rutas de componentes de prueba
-      { path: 'alert-conf', component: Alertconf},
-      { path: 'pimage', component: Pimage },
+      { path: 'alert-conf', component: Alertconf, title: 'Configuracion de Alertas'},
+      { path: 'pimage', component: Pimage, title: 'Prueba de procesamiento de imagen' },
       //Rutas del Certificado
-      { path: 'new-cert', component: Newcert },
-      { path: 'edit-cert/:id', component: Editcert },
-      { path: 'admin-cert', component: admincert },
-      { path: 'list-cert', component: Listcert },
-      { path: 'view-cert/:id', component: Viewcert },
+      { path: 'new-cert', component: Newcert, title: 'Nuevo certificado' },
+      { path: 'edit-cert/:id', component: Editcert, title: 'Editar Certificado'},
+      { path: 'admin-cert', component: admincert, title: 'Administrar Certificados'},
+      { path: 'list-cert', component: Listcert,  title: 'Lista de Certificados'},
+      { path: 'view-cert/:id', component: Viewcert, title: 'Detalle del Certificado'},
       //Rutas del CMC
-      { path: 'calcmc', component: Calcmc },
-      { path: 'cmc-params', component: Cmcparams },
-      { path: 'cmc-paramsvf', component: Cmcparamsvf },
-      { path: 'cmc-resultados', component: Cmcsr },
-      { path: 'cmc-view/:id', component: Viewcmc},
-      { path: 'cmc-list', component: Listcmc },
-      { path: 'cmc-edit', component: Editcmc},
+      { path: 'calcmc', component: Calcmc, title: 'Modulo de calculo del CMC'},
+      { path: 'cmc-params', component: Cmcparams, title: 'Parametros del CMC' },
+      { path: 'cmc-paramsvf', component: Cmcparamsvf,  title: 'Parametros del CMC'},
+      { path: 'cmc-resultados', component: Cmcsr, title:'Resultados del CMC' },
+      { path: 'cmc-view/:id', component: Viewcmc, title: 'Detalle del Calculo'},
+      { path: 'cmc-list', component: Listcmc, title: 'Lista de CMC'},
+      { path: 'cmc-edit', component: Editcmc, title: 'Editar CMC'},
 
 
 
