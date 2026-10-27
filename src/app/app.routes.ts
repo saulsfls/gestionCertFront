@@ -20,7 +20,8 @@ import { Alertconf } from './components/test/alertconf/alertconf';
 
 export const routes: Routes = [
   //Rutas publicas
-  { path: 'inicio', component: Inicio },
+  { path: 'inicio', component: Inicio, title: 'Gestion de Certificados'},
+  { path: 'alert-conf', component: Alertconf, title: 'Configuracion de Alertas'},
 
   //Rutas privadas protegidas
   {
@@ -29,7 +30,6 @@ export const routes: Routes = [
     children: [
       { path: '', redirectTo: 'inicio', pathMatch: 'full', title: 'Gestion de certificado' },
       //Rutas de componentes de prueba
-      { path: 'alert-conf', component: Alertconf, title: 'Configuracion de Alertas'},
       { path: 'pimage', component: Pimage, title: 'Prueba de procesamiento de imagen' },
       //Rutas del Certificado
       { path: 'new-cert', component: Newcert, title: 'Nuevo certificado' },
@@ -45,8 +45,6 @@ export const routes: Routes = [
       { path: 'cmc-view/:id', component: Viewcmc, title: 'Detalle del Calculo'},
       { path: 'cmc-list', component: Listcmc, title: 'Lista de CMC'},
       { path: 'cmc-edit', component: Editcmc, title: 'Editar CMC'},
-
-
 
     ]
   },
