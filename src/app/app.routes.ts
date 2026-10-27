@@ -1,5 +1,6 @@
 // src/app/app.routes.ts
 import { Routes } from '@angular/router';
+import { RenderMode, ServerRoute } from '@angular/ssr';
 import { authGuard } from './guard/auth.guard';
 import { Newcert } from './components/cert/newcert/newcert';
 import { Viewcert } from './components/cert/viewcert/viewcert';
@@ -30,7 +31,7 @@ export const routes: Routes = [
       { path: 'pimage', component: Pimage },
       //Rutas del Certificado
       { path: 'new-cert', component: Newcert },
-      { path: 'edit-cert/:id', component: Editcert },
+      { path: 'edit-cert/:id', component: Editcert, },
       { path: 'admin-cert', component: admincert },
       { path: 'list-cert', component: Listcert },
       { path: 'view-cert/:id', component: Viewcert },
@@ -42,11 +43,10 @@ export const routes: Routes = [
       { path: 'cmc-view/:id', component: Viewcmc},
       { path: 'cmc-list', component: Listcmc },
       { path: 'cmc-edit', component: Editcmc},
-
-
-
     ]
   },
   // Fallback
   { path: '**', redirectTo: 'inicio' }
 ];
+
+
