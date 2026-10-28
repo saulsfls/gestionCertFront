@@ -20,6 +20,7 @@ import { Alertconf } from './components/test/alertconf/alertconf';
 
 export const routes: Routes = [
   //Rutas publicas
+  { path: '', component: Inicio, title: 'Gestion de Certificados'},
   { path: 'inicio', component: Inicio, title: 'Gestion de Certificados'},
   { path: 'alert-conf', component: Alertconf, title: 'Configuracion de Alertas'},
 
@@ -28,7 +29,6 @@ export const routes: Routes = [
     path: '',
     canActivateChild: [authGuard],
     children: [
-      { path: '', redirectTo: 'inicio', pathMatch: 'full', title: 'Gestion de certificado' },
       //Rutas de componentes de prueba
       { path: 'pimage', component: Pimage, title: 'Prueba de procesamiento de imagen' },
       //Rutas del Certificado

@@ -1,0 +1,205 @@
+<div class="container py-4">
+  <!-- Hero / Bienvenida -->
+<div class="p-5 mb-4 bg-light rounded-3 shadow-sm border">
+  <div class="container-fluid py-2">
+    <div class="row align-items-center">
+      <!-- Columna de Texto (Izquierda) -->
+      <div class="col-lg-8">
+        <h1 class="display-5 fw-bold text-danger">Sistema de Gestión de Certificados</h1>
+        <p class="fs-6 text-muted mt-2 mb-0">
+          Bienvenido a la plataforma centralizada para la digitalización de certificados mediante Inteligencia Artificial,
+          el cálculo avanzado de capacidades de medición y calibración (CMC), y el uso de herramientas de desarrollo integradas.
+        </p>
+        <button class="btn btn-outline-danger my-4" (click)="regresarCRM()">Regresar al CRM</button>
+      </div>
+
+      <!-- Columna del Logo (Derecha) -->
+      <div class="col-lg-4 text-center text-lg-end mt-4 mt-lg-0">
+        <img src="logo.png" alt="Logo de la Aplicación" class="img-fluid" style="max-height: 140px; object-fit: contain;">
+      </div>
+    </div>
+  </div>
+</div>
+
+  <!-- Sección 1: Módulo de Certificados -->
+  <div class="mb-5">
+    <div class="d-flex align-items-center mb-3">
+      <div class="bg-primary text-white rounded p-2 me-3">
+        <i class="bi bi-file-earmark-text fs-4"></i>
+      </div>
+      <h2 class="h3 mb-0 text-dark">Módulo de Certificados</h2>
+    </div>
+    <p class="text-muted">Digitalización, almacenamiento y gestión completa de certificados de calibración.</p>
+
+    <div class="row g-4">
+      <!-- Crear Certificado -->
+      <div class="col-md-6 col-lg-4">
+        <div class="card h-100 shadow-sm border-0">
+          <div class="card-body">
+            <span class="badge bg-success mb-2">Entrada de datos</span>
+            <h5 class="card-title fw-bold">Crear Certificado</h5>
+            <p class="card-text small text-muted">
+              Digitaliza archivos originales usando IA como apoyo para rellenar tablas, compactar y aislar la información relevante estructurada en tablas.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Lista de Certificados -->
+      <div class="col-md-6 col-lg-4">
+        <div class="card h-100 shadow-sm border-0">
+          <div class="card-body">
+            <span class="badge bg-info text-dark mb-2">Gestión</span>
+            <h5 class="card-title fw-bold">Lista de Certificados</h5>
+            <p class="card-text small text-muted mb-2">Visualiza y filtra todos los certificados (activos/inactivos, por ID o nombre). Cada uno incluye:</p>
+            <ul class="small text-muted ps-3 mb-0">
+              <li><strong>Ver Resumen:</strong> Detalles y formato JSON.</li>
+              <li><strong>Ver Detalle:</strong> Tablas completas y exportación a Excel.</li>
+              <li><strong>Desactivar:</strong> Marca certificados como obsoletos/viejos.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- Editar Certificado y Herramientas -->
+      <div class="col-md-6 col-lg-4">
+        <div class="card h-100 shadow-sm border-0">
+          <div class="card-body">
+            <span class="badge bg-warning text-dark mb-2">Edición Avanzada</span>
+            <h5 class="card-title fw-bold">Editar y Tratamiento</h5>
+            <p class="card-text small text-muted mb-2">Edita datos de tablas y certificado con herramientas interactivas por columna:</p>
+            <ul class="small text-muted ps-3 mb-0">
+              <li><strong>Separar texto:</strong> Divide cadenas usando '±' en número e incertidumbre (ej: <code>-0,0016 ± 0,0022</code>).</li>
+              <li><strong>Eliminar texto:</strong> Limpia el contenido de columnas seleccionadas.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- Administrar Certificados -->
+      <div class="col-md-6 col-lg-4">
+        <div class="card h-100 shadow-sm border-0">
+          <div class="card-body">
+            <span class="badge bg-danger mb-2">Restringido</span>
+            <h5 class="card-title fw-bold">Administrar Certificados</h5>
+            <p class="card-text small text-muted">
+              Panel exclusivo de control y gestión global al que solo pueden acceder los usuarios con rol de administrador.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sección 2: Módulo de CMC -->
+  <div class="mb-5">
+    <div class="d-flex align-items-center mb-3">
+      <div class="bg-success text-white rounded p-2 me-3">
+        <i class="bi bi-calculator fs-4"></i>
+      </div>
+      <h2 class="h3 mb-0 text-dark">Módulo CMC</h2>
+    </div>
+    <p class="text-muted">Cálculo, simulación y administración de parámetros y resultados de CMC.</p>
+
+    <div class="row g-4">
+      <!-- Parámetros de CMC -->
+      <div class="col-md-6 col-lg-3">
+        <div class="card h-100 shadow-sm border-0">
+          <div class="card-body">
+            <h5 class="card-title fw-bold text-dark">Parámetros de CMC</h5>
+            <p class="card-text small text-muted">
+              Calcula un registro por cada tabla, obligando al usuario a mantener el mismo rango para el cálculo.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Parámetros por Rangos -->
+      <div class="col-md-6 col-lg-3">
+        <div class="card h-100 shadow-sm border-0">
+          <div class="card-body">
+            <h5 class="card-title fw-bold text-dark">CMC por Rangos</h5>
+            <p class="card-text small text-muted">
+              Toma todos los registros por rango, promedia errores y selecciona la incertidumbre más alta asociada.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Resultados de CMC -->
+      <div class="col-md-6 col-lg-3">
+        <div class="card h-100 shadow-sm border-0">
+          <div class="card-body">
+            <h5 class="card-title fw-bold text-dark">Resultados de CMC</h5>
+            <p class="card-text small text-muted">
+              Muestra pesos de contribución a la incertidumbre. Permite guardar selecciones específicas o todos los cálculos.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Lista de CMC -->
+      <div class="col-md-6 col-lg-3">
+        <div class="card h-100 shadow-sm border-0">
+          <div class="card-body">
+            <h5 class="card-title fw-bold text-dark">Lista de CMC</h5>
+            <p class="card-text small text-muted mb-2">Historial de CMCs calculados con opciones de:</p>
+            <ul class="small text-muted ps-3 mb-0">
+              <li><strong>Ver Resumen:</strong> Incertidumbres más relevantes.</li>
+              <li><strong>Ver Detalle:</strong> Pesos, detalles completos y exportación a Excel.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sección 3: Herramientas -->
+  <div class="mb-4">
+    <div class="d-flex align-items-center mb-3">
+      <div class="bg-secondary text-white rounded p-2 me-3">
+        <i class="bi bi-tools fs-4"></i>
+      </div>
+      <h2 class="h3 mb-0 text-dark">Herramientas de Desarrollo</h2>
+    </div>
+    <p class="text-muted">Utilidades auxiliares para pruebas, procesamiento y configuración.</p>
+
+    <div class="row g-4">
+      <!-- Cálculo Manual -->
+      <div class="col-md-4">
+        <div class="card h-100 shadow-sm border-0">
+          <div class="card-body">
+            <h5 class="card-title fw-bold">Cálculo del CMC</h5>
+            <p class="card-text small text-muted">
+              Ingresa parámetros manualmente para realizar un cálculo interactivo con resultados mostrados en tiempo real.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Procesar Imagen -->
+      <div class="col-md-4">
+        <div class="card h-100 shadow-sm border-0">
+          <div class="card-body">
+            <h5 class="card-title fw-bold">Procesar Imagen</h5>
+            <p class="card-text small text-muted">
+              Sube una imagen de prueba; el servidor procesará la solicitud y devolverá la tabla extraída renderizada en HTML.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Configuración de Alertas -->
+      <div class="col-md-4">
+        <div class="card h-100 shadow-sm border-0">
+          <div class="card-body">
+            <h5 class="card-title fw-bold">Configuración de Alertas</h5>
+            <p class="card-text small text-muted">
+              Panel de demostración y ejemplos de cómo se gestionan y configuran las alertas del sistema y notificaciones.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
