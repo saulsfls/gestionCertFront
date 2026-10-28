@@ -13,11 +13,11 @@ import {
   LoadedImage,
 } from 'ngx-image-cropper';
 import { Subscription } from 'rxjs';
+import * as XLSX from 'xlsx';
 
 import { ImageService } from '../../../services/database/image.service';
-import {
-  EquipmentService
-} from '../../../services/database/equipment.service';
+import { EquipmentService } from '../../../services/database/equipment.service';
+import { AlertService } from '../../../services/core/alert.service';
 
 @Component({
   selector: 'app-pimage',
@@ -30,10 +30,10 @@ export class Pimage implements OnInit, OnDestroy {
   private platformId = inject(PLATFORM_ID);
   isBrowser: boolean = isPlatformBrowser(this.platformId);
   private equipment = inject(EquipmentService);
+  private alertService = inject(AlertService);
 
   // ========== TABLA CRUZADA PATRÓN / EQUIPO ==========
   cargandoCruzada: boolean = false;
-  errorCruzada: string = '';
   private subCruzada?: Subscription;
 
   // ========== CROPPER / IMAGEN ==========
@@ -48,8 +48,6 @@ export class Pimage implements OnInit, OnDestroy {
   mostrarTabla: boolean = false;
   tablaTexto: string = '';
 
-  mensajeError: string = '';
-  mensajeExito: string = '';
   patrones: any;
   equipos: any;
 
@@ -66,58 +64,48 @@ export class Pimage implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
-
+    this.subCruzada?.unsubscribe();
   }
 
-  cargaPatronesCruzados():void{
-    this.equipment.getPatronesCruzados().subscribe({
-      next: (res) =>{
-        console.log(res);
-      }
-    })
+  cargaPatronesCruzados(): void {
+    this.subCruzada = this.equipment.getPatronesCruzados().subscribe({
+      next: (res) => console.log(res),
+    });
   }
 
   cargarPatrones(): void {
-    //this.cargandoPatrones = true;
     this.equipment.getDatosPatron().subscribe({
       next: (res) => {
         this.patrones = res;
-        console.log(res)
-        //this.cargandoPatrones = false;
         this.cdr.detectChanges();
       },
       error: (err) => {
         console.error('Error patrones:', err);
-        //this.cargandoPatrones = false;
+        this.alertService.error('No se pudieron cargar los patrones.', 'Error');
         this.cdr.detectChanges();
       },
     });
   }
 
   cargarEquipos(): void {
-    //this.cargandoEquipos = true;
     this.equipment.getDatosEquipos().subscribe({
       next: (res) => {
         this.equipos = res;
-        console.log(res);
-        //this.cargandoEquipos = false;
         this.cdr.detectChanges();
       },
       error: (err) => {
         console.error('Error equipos:', err);
-        //this.cargandoEquipos = false;
+        this.alertService.error('No se pudieron cargar los equipos.', 'Error');
         this.cdr.detectChanges();
       },
     });
   }
-
 
   // ============================================================
   //  MÉTODOS DEL CROPPER / IMAGEN
   // ============================================================
   onPaste(event: ClipboardEvent): void {
     if (!this.isBrowser) return;
-    this.limpiarMensajes();
     const items = event.clipboardData?.items;
     if (!items) return;
 
@@ -141,12 +129,14 @@ export class Pimage implements OnInit, OnDestroy {
     }
 
     if (!imagenEncontrada) {
-      this.mensajeError = 'El contenido pegado no es una imagen válida.';
+      this.alertService.warning(
+        'El contenido pegado no es una imagen válida.',
+        'Pegar imagen'
+      );
     }
   }
 
   fileChangeEvent(event: Event): void {
-    this.limpiarMensajes();
     this.pasteImageFile = undefined;
     this.croppedImageBase64 = '';
     this.imageChangedEvent = event;
@@ -162,17 +152,19 @@ export class Pimage implements OnInit, OnDestroy {
     }
   }
 
-  imageLoaded(image?: LoadedImage): void {
+  imageLoaded(_image?: LoadedImage): void {
     this.cdr.detectChanges();
   }
 
   cropperReady(): void {
-    // El cropper está listo para interacción
+    /* El cropper está listo para interacción */
   }
 
   loadImageFailed(): void {
-    this.mensajeError =
-      'Error al cargar la imagen. Intenta con otra captura o archivo.';
+    this.alertService.error(
+      'Error al cargar la imagen. Intenta con otra captura o archivo.',
+      'Carga de imagen'
+    );
   }
 
   private blobToBase64(blobUrl: string): Promise<string> {
@@ -194,16 +186,19 @@ export class Pimage implements OnInit, OnDestroy {
   //  ENVIAR IMAGEN AL SERVIDOR Y PROCESAR RESPUESTA
   // ============================================================
   enviarANode(): void {
-    this.limpiarMensajes();
-
     if (!this.pasteImageFile && !this.imageChangedEvent) {
-      this.mensajeError = 'Por favor selecciona o pega una imagen primero.';
+      this.alertService.warning(
+        'Por favor selecciona o pega una imagen primero.',
+        'Sin imagen'
+      );
       return;
     }
 
     if (!this.croppedImageBase64) {
-      this.mensajeError =
-        'Ajusta el área de selección sobre la tabla antes de extraer.';
+      this.alertService.warning(
+        'Ajusta el área de selección sobre la tabla antes de extraer.',
+        'Área no definida'
+      );
       return;
     }
 
@@ -221,29 +216,91 @@ export class Pimage implements OnInit, OnDestroy {
           if (res.success && res.table) {
             this.tablaTexto = res.table;
             const tableText = res.table.trim();
-            // Detectar si es HTML
             if (tableText.startsWith('<table')) {
               this.parseTableHtml(tableText);
             } else {
               this.parseTableText(tableText);
             }
-            this.mostrarTabla = true;
-            this.mensajeExito = 'Tabla extraída correctamente.';
+            this.mostrarTabla = this.tablaHeaders.length > 0;
+            if (this.mostrarTabla) {
+              this.alertService.success(
+                'Tabla extraída correctamente.',
+                'OCR'
+              );
+            }
           } else {
-            this.mensajeError = 'No se pudo extraer la tabla.';
+            this.alertService.error(
+              'No se pudo extraer la tabla del servidor.',
+              'OCR'
+            );
           }
           console.log('Respuesta del servidor:', res.table);
         },
         error: (err) => {
           console.error('Error en servidor:', err);
-          this.mensajeError =
-            'Ocurrió un error al procesar la tabla en el servidor.';
+          this.alertService.error(
+            'Ocurrió un error al procesar la tabla en el servidor.',
+            'Servidor'
+          );
         },
       })
       .add(() => {
         this.cargando = false;
         this.cdr.detectChanges();
       });
+  }
+
+  // ============================================================
+  //  EXPORTAR A EXCEL
+  // ============================================================
+  exportToExcel(): void {
+    if (!this.isBrowser) return;
+
+    if (this.tablaHeaders.length === 0 || this.tablaRows.length === 0) {
+      this.alertService.warning(
+        'No hay datos en la tabla para exportar.',
+        'Exportar'
+      );
+      return;
+    }
+
+    try {
+      const wsData: (string | number)[][] = [
+        this.tablaHeaders,
+        ...this.tablaRows,
+      ];
+
+      const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+      // Ancho automático de columnas
+      ws['!cols'] = this.tablaHeaders.map((h, i) => {
+        const maxLen = Math.max(
+          h.length,
+          ...this.tablaRows.map((r) => (r[i] ?? '').toString().length)
+        );
+        return { wch: Math.min(Math.max(maxLen + 2, 10), 50) };
+      });
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Tabla OCR');
+
+      const filename = `tabla_ocr_${new Date()
+        .toISOString()
+        .slice(0, 10)}_${Date.now()}.xlsx`;
+
+      XLSX.writeFile(wb, filename);
+
+      this.alertService.success(
+        `Archivo "${filename}" generado correctamente.`,
+        'Exportar a Excel'
+      );
+    } catch (err) {
+      console.error('Error al exportar:', err);
+      this.alertService.error(
+        'No se pudo generar el archivo Excel.',
+        'Exportar'
+      );
+    }
   }
 
   // ============================================================
@@ -256,11 +313,13 @@ export class Pimage implements OnInit, OnDestroy {
       .filter((line) => line.length > 0);
 
     if (lines.length < 2) {
-      this.mensajeError = 'El texto extraído no contiene una tabla válida.';
+      this.alertService.error(
+        'El texto extraído no contiene una tabla válida.',
+        'Parseo'
+      );
       return;
     }
 
-    // Normalizar separadores
     const normalizedLines = lines.map((line) => {
       if (line.includes('\t')) return line.replace(/\t/g, ' | ');
       if (line.includes(';')) return line.replace(/;/g, ' | ');
@@ -277,7 +336,10 @@ export class Pimage implements OnInit, OnDestroy {
       .filter((h) => h.length > 0);
 
     if (headers.length === 0) {
-      this.mensajeError = 'No se encontraron encabezados de columna.';
+      this.alertService.error(
+        'No se encontraron encabezados de columna.',
+        'Parseo'
+      );
       return;
     }
 
@@ -298,13 +360,16 @@ export class Pimage implements OnInit, OnDestroy {
   //  PARSEADOR DE HTML (detecta encabezados duplicados y rowspan)
   // ============================================================
   private parseTableHtml(html: string): void {
-    if (!this.isBrowser) return; // guard SSR
+    if (!this.isBrowser) return;
 
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, 'text/html');
     const tables = doc.querySelectorAll('table');
     if (tables.length === 0) {
-      this.mensajeError = 'No se encontró tabla en el HTML.';
+      this.alertService.error(
+        'No se encontró tabla en el HTML extraído.',
+        'Parseo'
+      );
       return;
     }
 
@@ -312,43 +377,31 @@ export class Pimage implements OnInit, OnDestroy {
     const allRows = table.querySelectorAll('tr');
     if (allRows.length === 0) return;
 
-    // Función auxiliar: detectar si una fila parece encabezado
     function isHeaderRow(row: Element): boolean {
       const cells = row.querySelectorAll('th, td');
       let textCells = 0;
-      let numericCells = 0;
       cells.forEach((cell) => {
         const text = cell.textContent?.trim() || '';
         if (text === '') return;
         if (/[a-zA-ZáéíóúÁÉÍÓÚñÑ]/.test(text)) {
           textCells++;
         } else {
-          const num = parseFloat(text.replace(',', '.').replace(/[^0-9.-]/g, ''));
-          if (!isNaN(num)) {
-            numericCells++;
-          } else {
-            textCells++;
-          }
+          const num = parseFloat(
+            text.replace(',', '.').replace(/[^0-9.-]/g, '')
+          );
+          if (isNaN(num)) textCells++;
         }
       });
-      return textCells / cells.length > 0.5;
+      return cells.length > 0 && textCells / cells.length > 0.5;
     }
 
-    // Buscar la primera fila que sea encabezado
     let headerRowIndex = 0;
     let dataStartIndex = 1;
     let foundHeader = false;
 
     for (let i = 0; i < allRows.length; i++) {
       const row = allRows[i];
-      const hasTh = row.querySelector('th') !== null;
-      if (hasTh) {
-        headerRowIndex = i;
-        foundHeader = true;
-        dataStartIndex = i + 1;
-        break;
-      }
-      if (isHeaderRow(row)) {
+      if (row.querySelector('th') !== null || isHeaderRow(row)) {
         headerRowIndex = i;
         foundHeader = true;
         dataStartIndex = i + 1;
@@ -361,23 +414,22 @@ export class Pimage implements OnInit, OnDestroy {
       dataStartIndex = 1;
     }
 
-    // Extraer encabezados
     const headerRow = allRows[headerRowIndex];
     const headerCells = headerRow.querySelectorAll('th, td');
     const headers: string[] = [];
-    headerCells.forEach((cell) => {
-      const text = cell.textContent?.trim() || '';
-      headers.push(text);
-    });
+    headerCells.forEach((cell) =>
+      headers.push(cell.textContent?.trim() || '')
+    );
 
-    // Procesar filas de datos
     const dataRows = Array.from(allRows).slice(dataStartIndex);
     if (dataRows.length === 0) {
-      this.mensajeError = 'No se encontraron filas de datos.';
+      this.alertService.error(
+        'No se encontraron filas de datos en la tabla.',
+        'Parseo'
+      );
       return;
     }
 
-    // Almacenar valores con rowspan activos
     const activeRowspan: {
       [col: number]: { value: string; remaining: number };
     } = {};
@@ -387,14 +439,11 @@ export class Pimage implements OnInit, OnDestroy {
       const cells = row.querySelectorAll('td');
       const rowData: string[] = new Array(headers.length).fill('');
 
-      // Rellenar con rowspan activos
       for (let col = 0; col < headers.length; col++) {
         if (activeRowspan[col] && activeRowspan[col].remaining > 0) {
           rowData[col] = activeRowspan[col].value;
           activeRowspan[col].remaining--;
-          if (activeRowspan[col].remaining === 0) {
-            delete activeRowspan[col];
-          }
+          if (activeRowspan[col].remaining === 0) delete activeRowspan[col];
         }
       }
 
@@ -411,9 +460,7 @@ export class Pimage implements OnInit, OnDestroy {
             activeRowspan[col] = { value, remaining: rowspan - 1 };
           }
           for (let c = 1; c < colspan; c++) {
-            if (col + c < headers.length) {
-              rowData[col + c] = value;
-            }
+            if (col + c < headers.length) rowData[col + c] = value;
           }
           cellIndex++;
         }
@@ -422,20 +469,15 @@ export class Pimage implements OnInit, OnDestroy {
       rowsData.push(rowData);
     });
 
-    // Propagar valores hacia abajo
     const lastValues: string[] = new Array(headers.length).fill('');
     const finalData: string[][] = [];
     rowsData.forEach((row) => {
       const newRow: string[] = [];
       for (let col = 0; col < headers.length; col++) {
         let val = row[col];
-        if (val === '' && lastValues[col] !== '') {
-          val = lastValues[col];
-        }
+        if (val === '' && lastValues[col] !== '') val = lastValues[col];
         newRow.push(val);
-        if (val !== '') {
-          lastValues[col] = val;
-        }
+        if (val !== '') lastValues[col] = val;
       }
       finalData.push(newRow);
     });
@@ -443,13 +485,5 @@ export class Pimage implements OnInit, OnDestroy {
     this.tablaHeaders = headers;
     this.tablaRows = finalData;
     this.mostrarTabla = true;
-  }
-
-  // ============================================================
-  //  UTILIDADES
-  // ============================================================
-  private limpiarMensajes(): void {
-    this.mensajeError = '';
-    this.mensajeExito = '';
   }
 }
