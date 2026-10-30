@@ -456,6 +456,34 @@ export class Alertconf implements OnInit {
     this.alert.success('Este toast hereda la nueva configuración.');
   }
 
+  async mostrarAlertGrande(): Promise<void> {
+    const detalle = Array.from({ length: 5 }, (_, i) =>
+      `Párrafo ${i + 1}: este es un texto de ejemplo lo suficientemente largo ` +
+      `como para forzar varias líneas dentro del modal y comprobar cómo se ` +
+      `comporta el scroll interno junto con el footer fijo.`
+    ).join('\n\n');
+
+    await this.alert.alert(
+      detalle,
+      'Aviso del sistema · contenido extenso',
+      {
+        type: 'info',
+        confirmText: 'Entendido',
+        dismissible: true,
+        size: 'xl',
+        sizeOptions: {
+          width: '1200px',
+          maxWidth: '95vw',
+          maxHeight: '85vh',
+          scrollable: true,
+          messageMaxHeight: '50vh',
+          fontSize: '15px',
+          lineHeight: 1.6,
+        },
+      }
+    );
+  }
+
   /* ── 🛠️ Helpers de construcción de opciones ───────────────── */
 
   private buildToastSizeOptions(): AlertSizeOptions | undefined {
