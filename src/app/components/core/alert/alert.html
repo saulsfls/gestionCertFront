@@ -1,6 +1,7 @@
 @if (isToast()) {
   <div
     [class]="toastClass()"
+    [style]="toastStyles()"
     [attr.role]="data().type === 'error' ? 'alert' : 'status'"
     (mouseenter)="onHover(true)"
     (mouseleave)="onHover(false)">
@@ -76,7 +77,10 @@
        [class.nga-show]="visible()"
        (mousedown)="onBackdrop($event)">
 
-    <div [class]="modalClass()" role="dialog" aria-modal="true">
+    <div [class]="modalClass()"
+         [style]="toastStyles()"
+         role="dialog"
+         aria-modal="true">
       <div class="nga-modal-body">
 
         <div class="nga-modal-icon">

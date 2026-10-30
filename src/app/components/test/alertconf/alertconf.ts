@@ -7,11 +7,12 @@ import {
   AlertData,
   AlertPosition,
   AlertServiceConfig,
+  AlertSize,
+  AlertSizeOptions,
   AlertType,
 } from '../../core/alert/alert.model';
 import { AuthService } from '../../../services/auth/auth.service';
 
-/** 🔐 Contraseña para crear el usuario de prueba (solo demo). */
 const TEST_PASSWORD = 'FLATHforce';
 
 @Component({
@@ -24,14 +25,9 @@ export class Alertconf implements OnInit {
   private alert = inject(AlertService);
   private auth = inject(AuthService);
 
-  // ── 👤 Usuario de prueba ─────────────────────────────────────
-  /** Botón "Crear usuario de prueba" visible solo sin sesión válida. */
   mostrarBotonCrearUsuario = false;
-
-  /** 🔒 Bandera interna: autoriza createTestUser() solo tras validar contraseña. */
   private passwordVerificada = false;
 
-  // ── 🎛️ Configuración del AlertService ───────────────────────
   readonly positions: AlertPosition[] = [
     'top-left', 'top-center', 'top-right',
     'bottom-left', 'bottom-center', 'bottom-right',
@@ -41,6 +37,8 @@ export class Alertconf implements OnInit {
     'success', 'error', 'warning', 'info', 'question',
   ];
 
+  readonly sizes: AlertSize[] = ['sm', 'md', 'lg', 'xl', 'full'];
+
   config: AlertServiceConfig = {
     position: 'top-right',
     duration: 4000,
@@ -49,9 +47,11 @@ export class Alertconf implements OnInit {
     showProgress: true,
     closeButton: true,
     dismissible: true,
+    size: 'md',
+    scrollable: false,
+    sizeOptions: { maxWidth: '90vw' },
   };
 
-  // ── 📝 Formularios de demo ─────────────────────────────────
   toastForm: {
     type: AlertType;
     title: string;
@@ -61,6 +61,15 @@ export class Alertconf implements OnInit {
     showProgress: boolean;
     closeButton: boolean;
     pauseOnHover: boolean;
+    size: AlertSize;
+    width: string;
+    maxWidth: string;
+    maxHeight: string;
+    scrollable: boolean;
+    messageMaxHeight: string;
+    fontSize: string;
+    titleFontSize: string;
+    lineHeight: number | null;
   } = {
     type: 'success',
     title: 'Guardado',
@@ -70,6 +79,15 @@ export class Alertconf implements OnInit {
     showProgress: true,
     closeButton: true,
     pauseOnHover: true,
+    size: 'md',
+    width: '',
+    maxWidth: '',
+    maxHeight: '',
+    scrollable: false,
+    messageMaxHeight: '',
+    fontSize: '',
+    titleFontSize: '',
+    lineHeight: null,
   };
 
   dialogForm: {
@@ -81,6 +99,11 @@ export class Alertconf implements OnInit {
     dismissible: boolean;
     promptDefault: string;
     promptPlaceholder: string;
+    size: AlertSize;
+    width: string;
+    maxWidth: string;
+    maxHeight: string;
+    scrollable: boolean;
   } = {
     type: 'question',
     title: 'Confirmación',
@@ -90,11 +113,15 @@ export class Alertconf implements OnInit {
     dismissible: true,
     promptDefault: '',
     promptPlaceholder: 'Escribe aquí…',
+    size: 'md',
+    width: '',
+    maxWidth: '',
+    maxHeight: '',
+    scrollable: false,
   };
 
   lastResult = '—';
 
-  // ── 🚀 Ciclo de vida ────────────────────────────────────────
   ngOnInit(): void {
     this.aplicarConfig();
     this.checkSession();
@@ -105,8 +132,6 @@ export class Alertconf implements OnInit {
     this.alert.success('Configuración aplicada', 'AlertService');
   }
 
-  // ── 🔍 Verificación de sesión ──────────────────────────────
-  /** Revisa el localStorage y decide si se muestra el botón de crear usuario. */
   checkSession(): void {
     const haySesionValida = this.auth.hasValidSession();
     this.mostrarBotonCrearUsuario = !haySesionValida;
@@ -123,8 +148,6 @@ export class Alertconf implements OnInit {
     );
   }
 
-  // ── 🔐 Crear usuario de prueba (con contraseña) ────────────
-  /** Pide la contraseña y, si es correcta, autoriza la creación del usuario. */
   async verificarPassword(): Promise<void> {
     if (this.auth.hasValidSession()) {
       this.alert.info('Ya existe una sesión activa.', 'Sin cambios');
@@ -157,12 +180,10 @@ export class Alertconf implements OnInit {
       this.alert.info('No se ha creado ningún usuario.', 'Cancelado');
       return;
     }
-
     if (pass === '') {
       this.alert.warning('La contraseña no puede estar vacía.', 'Campo vacío');
       return;
     }
-
     if (pass !== TEST_PASSWORD) {
       this.alert.warning(
         'Contraseña incorrecta. No se ha creado el usuario.',
@@ -171,7 +192,6 @@ export class Alertconf implements OnInit {
       return;
     }
 
-    // ✅ Contraseña correcta → autorizar y crear.
     this.passwordVerificada = true;
     try {
       this.createTestUser();
@@ -180,24 +200,20 @@ export class Alertconf implements OnInit {
     }
   }
 
-  /** Crea el usuario de prueba (solo si la contraseña fue verificada antes). */
   createTestUser(): void {
     if (!this.passwordVerificada) {
       this.alert.error('Acceso no autorizado.', 'Contraseña requerida');
       return;
     }
-
     if (this.auth.hasValidSession()) {
       this.alert.info('Ya existe una sesión activa.', 'Sin cambios');
       return;
     }
-
     const u = this.auth.addUser();
     this.mostrarBotonCrearUsuario = false;
     this.alert.success(`Usuario de prueba creado: ${u.id_user}`, 'Testing listo');
   }
 
-  // ── 🍞 Toasts de prueba ────────────────────────────────────
   toastSuccess(): void {
     this.alert.success('Operación completada correctamente', 'Éxito');
   }
@@ -221,6 +237,8 @@ export class Alertconf implements OnInit {
       showProgress: this.toastForm.showProgress,
       closeButton:  this.toastForm.closeButton,
       pauseOnHover: this.toastForm.pauseOnHover,
+      size:         this.toastForm.size,
+      sizeOptions:  this.buildToastSizeOptions(),
     });
   }
 
@@ -232,7 +250,6 @@ export class Alertconf implements OnInit {
     setTimeout(() => this.alert.success('Sincronización completa'), 800);
   }
 
-  // ── 🧪 Diálogos de demo ────────────────────────────────────
   async mostrarAlert(): Promise<void> {
     await this.alert.alert(
       'Esta es una notificación tipo modal de solo lectura.',
@@ -266,14 +283,13 @@ export class Alertconf implements OnInit {
   }
 
   async lanzarDialogoCustom(mode: 'alert' | 'confirm' | 'prompt'): Promise<void> {
-    const message = this.dialogForm.message;
-    const title   = this.dialogForm.title;
-
     const options: Partial<AlertData> = {
       type:        this.dialogForm.type,
       confirmText: this.dialogForm.confirmText,
       cancelText:  this.dialogForm.cancelText,
       dismissible: this.dialogForm.dismissible,
+      size:        this.dialogForm.size,
+      sizeOptions: this.buildDialogSizeOptions(),
     };
 
     if (mode === 'prompt') {
@@ -284,18 +300,18 @@ export class Alertconf implements OnInit {
     }
 
     if (mode === 'alert') {
-      await this.alert.alert(message, title, options);
+      await this.alert.alert(this.dialogForm.message, this.dialogForm.title, options);
       this.lastResult = 'alert → void';
       return;
     }
 
     if (mode === 'confirm') {
-      const ok = await this.alert.confirm(message, title, options);
+      const ok = await this.alert.confirm(this.dialogForm.message, this.dialogForm.title, options);
       this.lastResult = `confirm → ${ok}`;
       return;
     }
 
-    const value = await this.alert.prompt(message, title, options);
+    const value = await this.alert.prompt(this.dialogForm.message, this.dialogForm.title, options);
     this.lastResult = `prompt → ${value === null ? 'null' : `"${value}"`}`;
   }
 
@@ -329,17 +345,146 @@ export class Alertconf implements OnInit {
     return new Promise(r => setTimeout(r, ms));
   }
 
-  // ── 🔑 Login/Logout de demo ────────────────────────────────
   login(): void {
     if (this.auth.login()) {
       this.alert.success('Se ha iniciado sesión correctamente', 'Bienvenido');
-      this.checkSession(); // refresca el estado del botón "crear usuario"
+      this.checkSession();
     }
   }
 
   logout(): void {
     this.auth.logout();
     this.alert.warning('Se ha cerrado la sesión correctamente', 'Hasta luego');
-    this.checkSession(); // vuelve a mostrar el botón "crear usuario"
+    this.checkSession();
+  }
+
+  /* ── 🎨 Demos nuevos: presets, texto largo y control fino ── */
+
+  demoPresets(): void {
+    this.alert.toast({ message: 'Toast pequeño (sm).', size: 'sm' });
+    this.alert.toast({ message: 'Toast mediano (md, default).', size: 'md' });
+    this.alert.toast({
+      message: 'Toast grande (lg) con un poco más de texto para notar la diferencia.',
+      size: 'lg',
+    });
+    this.alert.toast({
+      message: 'Toast extra grande (xl) con bastante más contenido para apreciar el ancho.',
+      size: 'xl',
+    });
+    this.alert.toast({
+      message: 'Toast full-width: ocupa todo el ancho del root.',
+      size: 'full',
+      position: 'top-center',
+    });
+    this.alert.toast({
+      message: 'Preset + override: parte de lg pero limita el ancho en pantallas pequeñas.',
+      size: 'lg',
+      sizeOptions: { maxWidth: '85vw' },
+    });
+  }
+
+  demoTextoLargo(): void {
+    const detalle = Array.from({ length: 30 }, (_, i) =>
+      `Línea ${i + 1}: detalle extenso del error ocurrido durante el procesamiento del archivo.`
+    ).join('\n');
+
+    this.alert.toast({
+      type: 'error',
+      title: 'Error al procesar el archivo',
+      message: detalle,
+      size: 'sm',
+      sizeOptions: {
+        width: '250 px',
+        maxWidth: '95vw',
+        maxHeight: '70vh',
+        scrollable: true,
+        messageMaxHeight: '260px',
+        fontSize: '14px',
+        lineHeight: 1.5,
+      },
+      duration: 0,
+      closeButton: true,
+      pauseOnHover: true,
+    });
+  }
+
+  demoControlFino(): void {
+    this.alert.toast({
+      type: 'info',
+      title: 'Configuración personalizada',
+      message: 'Este toast tiene medidas y tipografía definidas una por una.',
+      sizeOptions: {
+        width: '520px',
+        minWidth: '320px',
+        maxWidth: '90vw',
+        fontSize: '15px',
+        titleFontSize: '17px',
+        lineHeight: 1.6,
+      },
+      position: 'bottom-right',
+      duration: 8000,
+      showProgress: true,
+      pauseOnHover: true,
+      closeButton: true,
+    });
+
+    this.alert.toast({
+      type: 'warning',
+      message: 'Toast sin botón de cerrar y sin barra de progreso.',
+      size: 'lg',
+      closeButton: false,
+      showProgress: false,
+      duration: 3000,
+    });
+  }
+
+  demoConfigGlobal(): void {
+    this.alert.configure({
+      position: 'bottom-center',
+      duration: 4000,
+      maxVisible: 3,
+      pauseOnHover: true,
+      showProgress: true,
+      closeButton: true,
+      dismissible: true,
+      size: 'lg',
+      scrollable: true,
+      sizeOptions: { maxWidth: '90vw' },
+    });
+
+    this.alert.info('Defaults globales aplicados: bottom-center, lg, scrollable.');
+    this.alert.success('Este toast hereda la nueva configuración.');
+  }
+
+  /* ── 🛠️ Helpers de construcción de opciones ───────────────── */
+
+  private buildToastSizeOptions(): AlertSizeOptions | undefined {
+    const f = this.toastForm;
+    const opts: AlertSizeOptions = {};
+
+    if (f.width)            opts.width = f.width;
+    if (f.maxWidth)         opts.maxWidth = f.maxWidth;
+    if (f.maxHeight)        opts.maxHeight = f.maxHeight;
+    if (f.fontSize)         opts.fontSize = f.fontSize;
+    if (f.titleFontSize)    opts.titleFontSize = f.titleFontSize;
+    if (f.lineHeight != null) opts.lineHeight = f.lineHeight;
+    if (f.scrollable) {
+      opts.scrollable = true;
+      if (f.messageMaxHeight) opts.messageMaxHeight = f.messageMaxHeight;
+    }
+
+    return Object.keys(opts).length ? opts : undefined;
+  }
+
+  private buildDialogSizeOptions(): AlertSizeOptions | undefined {
+    const f = this.dialogForm;
+    const opts: AlertSizeOptions = {};
+
+    if (f.width)     opts.width = f.width;
+    if (f.maxWidth)  opts.maxWidth = f.maxWidth;
+    if (f.maxHeight) opts.maxHeight = f.maxHeight;
+    if (f.scrollable) opts.scrollable = true;
+
+    return Object.keys(opts).length ? opts : undefined;
   }
 }

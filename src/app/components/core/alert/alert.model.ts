@@ -7,6 +7,22 @@ export type AlertPosition =
 export type AlertKind   = 'toast' | 'dialog';
 export type DialogMode  = 'alert' | 'confirm' | 'prompt';
 
+export type AlertSize = 'sm' | 'md' | 'lg' | 'xl' | 'full';
+
+export interface AlertSizeOptions {
+  width?: string;
+  minWidth?: string;
+  maxWidth?: string;
+  maxHeight?: string;
+
+  scrollable?: boolean;
+  messageMaxHeight?: string;
+
+  fontSize?: string;
+  titleFontSize?: string;
+  lineHeight?: string | number;
+}
+
 export interface AlertData {
   id: string;
   kind: AlertKind;
@@ -14,14 +30,15 @@ export interface AlertData {
   message: string;
   title?: string;
 
-  /* toast */
   position?: AlertPosition;
   duration?: number;
   showProgress?: boolean;
   closeButton?: boolean;
   pauseOnHover?: boolean;
 
-  /* dialog */
+  size?: AlertSize;
+  sizeOptions?: AlertSizeOptions;
+
   dialogMode?: DialogMode;
   dismissible?: boolean;
   confirmText?: string;
@@ -43,4 +60,16 @@ export interface AlertServiceConfig {
   showProgress: boolean;
   closeButton: boolean;
   dismissible: boolean;
+
+  size?: AlertSize;
+  sizeOptions?: AlertSizeOptions;
+  scrollable?: boolean;
 }
+
+export const ALERT_SIZE_PRESETS: Record<AlertSize, AlertSizeOptions> = {
+  sm:   { width: '280px', fontSize: '13px', titleFontSize: '14px' },
+  md:   { width: '380px', fontSize: '14px', titleFontSize: '15px' },
+  lg:   { width: '520px', fontSize: '14px', titleFontSize: '16px' },
+  xl:   { width: '720px', fontSize: '15px', titleFontSize: '17px' },
+  full: { width: '100%', maxWidth: '100%' },
+};

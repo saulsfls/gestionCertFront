@@ -1,5 +1,3 @@
-
-
 <div class="container py-4">
 
   <header class="mb-4">
@@ -8,18 +6,16 @@
       Salida y entrada de sesion, solo para desarrollo
     </p>
   </header>
+
   <section class="card mb-4">
     <div class="card-body d-flex flex-wrap gap-4">
       <button class="btn btn-success mb-4" (click)="verificarPassword()">
         Iniciar sesión
       </button>
-
       <button class="btn btn-danger mb-4" (click)="logout()">
         Cerrar sesión
       </button>
     </div>
-
-
   </section>
 </div>
 
@@ -32,9 +28,7 @@
     </p>
   </header>
 
-  <!-- ═══════════════════════════════════════════════════════════
-       SECCIÓN 1 · ATAJOS RÁPIDOS
-       ═══════════════════════════════════════════════════════════ -->
+  <!-- 1 · ATAJOS RÁPIDOS -->
   <section class="card mb-4">
     <div class="card-header fw-semibold">1 · Atajos rápidos</div>
     <div class="card-body d-flex flex-wrap gap-2">
@@ -47,9 +41,7 @@
     </div>
   </section>
 
-  <!-- ═══════════════════════════════════════════════════════════
-       SECCIÓN 2 · CONFIGURACIÓN GLOBAL
-       ═══════════════════════════════════════════════════════════ -->
+  <!-- 2 · CONFIGURACIÓN GLOBAL -->
   <section class="card mb-4">
     <div class="card-header fw-semibold">2 · Configuración global</div>
     <div class="card-body">
@@ -77,6 +69,29 @@
           <label class="form-label">Máximo visible</label>
           <input type="number" class="form-control"
                  [(ngModel)]="config.maxVisible" min="1" max="10">
+        </div>
+
+        <div class="col-md-4">
+          <label class="form-label">Tamaño por defecto</label>
+          <select class="form-select" [(ngModel)]="config.size">
+            @for (s of sizes; track s) {
+              <option [value]="s">{{ s }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="col-md-4">
+          <label class="form-label">Ancho máximo (global)</label>
+          <input type="text" class="form-control"
+                 placeholder="90vw"
+                 [(ngModel)]="config.sizeOptions!.maxWidth">
+        </div>
+
+        <div class="col-md-4">
+          <label class="form-label">Tamaño de fuente (global)</label>
+          <input type="text" class="form-control"
+                 placeholder="14px"
+                 [(ngModel)]="config.sizeOptions!.fontSize">
         </div>
 
         <div class="col-12">
@@ -108,6 +123,13 @@
               Modal: cerrar al hacer click fuera
             </label>
           </div>
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="cfgScroll"
+                   [(ngModel)]="config.scrollable">
+            <label class="form-check-label" for="cfgScroll">
+              Mensajes largos con scroll
+            </label>
+          </div>
         </div>
 
       </div>
@@ -126,9 +148,7 @@
     </div>
   </section>
 
-  <!-- ═══════════════════════════════════════════════════════════
-       SECCIÓN 3 · TOAST PERSONALIZADO
-       ═══════════════════════════════════════════════════════════ -->
+  <!-- 3 · TOAST PERSONALIZADO -->
   <section class="card mb-4">
     <div class="card-header fw-semibold">3 · Toast personalizado</div>
     <div class="card-body">
@@ -160,11 +180,20 @@
         </div>
 
         <div class="col-md-3">
+          <label class="form-label">Tamaño (preset)</label>
+          <select class="form-select" [(ngModel)]="toastForm.size">
+            @for (s of sizes; track s) {
+              <option [value]="s">{{ s }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="col-md-6">
           <label class="form-label">Título</label>
           <input type="text" class="form-control" [(ngModel)]="toastForm.title">
         </div>
 
-        <div class="col-12">
+        <div class="col-md-6">
           <label class="form-label">Mensaje</label>
           <input type="text" class="form-control" [(ngModel)]="toastForm.message">
         </div>
@@ -189,6 +218,71 @@
           </div>
         </div>
 
+        <div class="col-12">
+          <hr class="my-1">
+          <div class="fw-semibold small text-body-secondary mb-2">
+            Overrides de tamaño (opcional — sobrescriben al preset)
+          </div>
+        </div>
+
+        <div class="col-md-3">
+          <label class="form-label">Width</label>
+          <input type="text" class="form-control"
+                 placeholder="520px"
+                 [(ngModel)]="toastForm.width">
+        </div>
+
+        <div class="col-md-3">
+          <label class="form-label">Max width</label>
+          <input type="text" class="form-control"
+                 placeholder="90vw"
+                 [(ngModel)]="toastForm.maxWidth">
+        </div>
+
+        <div class="col-md-3">
+          <label class="form-label">Max height</label>
+          <input type="text" class="form-control"
+                 placeholder="70vh"
+                 [(ngModel)]="toastForm.maxHeight">
+        </div>
+
+        <div class="col-md-3">
+          <label class="form-label">Font size</label>
+          <input type="text" class="form-control"
+                 placeholder="14px"
+                 [(ngModel)]="toastForm.fontSize">
+        </div>
+
+        <div class="col-md-3">
+          <label class="form-label">Title font size</label>
+          <input type="text" class="form-control"
+                 placeholder="16px"
+                 [(ngModel)]="toastForm.titleFontSize">
+        </div>
+
+        <div class="col-md-3">
+          <label class="form-label">Line height</label>
+          <input type="number" class="form-control"
+                 placeholder="1.5" step="0.1" min="1"
+                 [(ngModel)]="toastForm.lineHeight">
+        </div>
+
+        <div class="col-md-3 d-flex align-items-end">
+          <div class="form-check form-switch mb-2">
+            <input class="form-check-input" type="checkbox" id="tfScroll"
+                   [(ngModel)]="toastForm.scrollable">
+            <label class="form-check-label" for="tfScroll">Scrollable</label>
+          </div>
+        </div>
+
+        <div class="col-md-3">
+          <label class="form-label">Message max height</label>
+          <input type="text" class="form-control"
+                 placeholder="240px"
+                 [disabled]="!toastForm.scrollable"
+                 [(ngModel)]="toastForm.messageMaxHeight">
+        </div>
+
       </div>
 
       <hr>
@@ -205,9 +299,7 @@
     </div>
   </section>
 
-  <!-- ═══════════════════════════════════════════════════════════
-       SECCIÓN 4 · DIÁLOGOS — API DIRECTA
-       ═══════════════════════════════════════════════════════════ -->
+  <!-- 4 · DIÁLOGOS — API DIRECTA -->
   <section class="card mb-4">
     <div class="card-header fw-semibold">4 · Diálogos (API directa)</div>
     <div class="card-body">
@@ -225,9 +317,7 @@
     </div>
   </section>
 
-  <!-- ═══════════════════════════════════════════════════════════
-       SECCIÓN 5 · DIÁLOGO PERSONALIZADO
-       ═══════════════════════════════════════════════════════════ -->
+  <!-- 5 · DIÁLOGO PERSONALIZADO -->
   <section class="card mb-4">
     <div class="card-header fw-semibold">5 · Diálogo personalizado</div>
     <div class="card-body">
@@ -243,7 +333,16 @@
           </select>
         </div>
 
-        <div class="col-md-8">
+        <div class="col-md-4">
+          <label class="form-label">Tamaño (preset)</label>
+          <select class="form-select" [(ngModel)]="dialogForm.size">
+            @for (s of sizes; track s) {
+              <option [value]="s">{{ s }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="col-md-4">
           <label class="form-label">Título</label>
           <input type="text" class="form-control" [(ngModel)]="dialogForm.title">
         </div>
@@ -275,12 +374,40 @@
                  [(ngModel)]="dialogForm.promptPlaceholder">
         </div>
 
+        <div class="col-md-4">
+          <label class="form-label">Width</label>
+          <input type="text" class="form-control"
+                 placeholder="520px"
+                 [(ngModel)]="dialogForm.width">
+        </div>
+
+        <div class="col-md-4">
+          <label class="form-label">Max width</label>
+          <input type="text" class="form-control"
+                 placeholder="90vw"
+                 [(ngModel)]="dialogForm.maxWidth">
+        </div>
+
+        <div class="col-md-4">
+          <label class="form-label">Max height</label>
+          <input type="text" class="form-control"
+                 placeholder="90vh"
+                 [(ngModel)]="dialogForm.maxHeight">
+        </div>
+
         <div class="col-12">
           <div class="form-check form-switch">
             <input class="form-check-input" type="checkbox" id="dfDismiss"
                    [(ngModel)]="dialogForm.dismissible">
             <label class="form-check-label" for="dfDismiss">
               Cerrar al hacer click fuera del modal
+            </label>
+          </div>
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="dfScroll"
+                   [(ngModel)]="dialogForm.scrollable">
+            <label class="form-check-label" for="dfScroll">
+              Mensaje con scroll interno
             </label>
           </div>
         </div>
@@ -304,9 +431,7 @@
     </div>
   </section>
 
-  <!-- ═══════════════════════════════════════════════════════════
-       SECCIÓN 6 · DEMO COMPLETO
-       ═══════════════════════════════════════════════════════════ -->
+  <!-- 6 · DEMO COMPLETO -->
   <section class="card mb-4">
     <div class="card-header fw-semibold">6 · Demo completo (encadenado)</div>
     <div class="card-body">
@@ -319,9 +444,32 @@
     </div>
   </section>
 
-  <!-- ═══════════════════════════════════════════════════════════
-       RESULTADO DEL ÚLTIMO DIÁLOGO
-       ═══════════════════════════════════════════════════════════ -->
+  <!-- 7 · DEMOS DE TAMAÑO -->
+  <section class="card mb-4">
+    <div class="card-header fw-semibold">7 · Demos de tamaño</div>
+    <div class="card-body">
+      <div class="d-flex flex-wrap gap-2 mb-3">
+        <button class="btn btn-outline-success" (click)="demoPresets()">
+          Presets (sm → full)
+        </button>
+        <button class="btn btn-outline-danger" (click)="demoTextoLargo()">
+          Texto largo con scroll
+        </button>
+        <button class="btn btn-outline-info" (click)="demoControlFino()">
+          Control fino
+        </button>
+        <button class="btn btn-outline-secondary" (click)="demoConfigGlobal()">
+          Config global con size
+        </button>
+      </div>
+      <p class="text-body-secondary small mb-0">
+        Usa estos atajos para ver cómo se comportan los presets y los overrides
+        de tamaño. Después prueba el formulario de la sección 3 con tus propios valores.
+      </p>
+    </div>
+  </section>
+
+  <!-- RESULTADO DEL ÚLTIMO DIÁLOGO -->
   <section class="alert alert-secondary d-flex align-items-center gap-2 mb-0">
     <strong class="me-1">Último resultado:</strong>
     <code class="mb-0">{{ lastResult }}</code>

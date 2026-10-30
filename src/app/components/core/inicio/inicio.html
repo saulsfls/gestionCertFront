@@ -30,13 +30,13 @@
       <h2 class="h3 mb-0 text-dark">Módulo de Certificados</h2>
     </div>
     <p class="text-muted">Digitalización, almacenamiento y gestión completa de certificados de calibración.</p>
-
+    <!--Seccion 1: Modulo de certificados-->
     <div class="row g-4">
       <!-- Crear Certificado -->
       <div class="col-md-6 col-lg-4">
         <div class="card h-100 shadow-sm border-0">
           <div class="card-body">
-            <span class="badge bg-success mb-2">Entrada de datos</span>
+            <span class="btn btn-success mb-4" routerLink="/new-cert">Entrada de datos</span>
             <h5 class="card-title fw-bold">Crear Certificado</h5>
             <p class="card-text small text-muted">
               Digitaliza archivos originales usando IA como apoyo para rellenar tablas, compactar y aislar la información relevante estructurada en tablas.
@@ -49,7 +49,7 @@
       <div class="col-md-6 col-lg-4">
         <div class="card h-100 shadow-sm border-0">
           <div class="card-body">
-            <span class="badge bg-info text-dark mb-2">Gestión</span>
+            <span class="btn btn-primary mb-4" routerLink="/list-cert">Gestión</span>
             <h5 class="card-title fw-bold">Lista de Certificados</h5>
             <p class="card-text small text-muted mb-2">Visualiza y filtra todos los certificados (activos/inactivos, por ID o nombre). Cada uno incluye:</p>
             <ul class="small text-muted ps-3 mb-0">
@@ -65,7 +65,7 @@
       <div class="col-md-6 col-lg-4">
         <div class="card h-100 shadow-sm border-0">
           <div class="card-body">
-            <span class="badge bg-warning text-dark mb-2">Edición Avanzada</span>
+            <span class="btn btn-warning mb-4" routerLink="/list-cert">Edición Avanzada</span>
             <h5 class="card-title fw-bold">Editar y Tratamiento</h5>
             <p class="card-text small text-muted mb-2">Edita datos de tablas y certificado con herramientas interactivas por columna:</p>
             <ul class="small text-muted ps-3 mb-0">
@@ -80,7 +80,7 @@
       <div class="col-md-6 col-lg-4">
         <div class="card h-100 shadow-sm border-0">
           <div class="card-body">
-            <span class="badge bg-danger mb-2">Restringido</span>
+            <span class="btn btn-danger mb-3" routerLink="/list-cert">Restringido</span>
             <h5 class="card-title fw-bold">Administrar Certificados</h5>
             <p class="card-text small text-muted">
               Panel exclusivo de control y gestión global al que solo pueden acceder los usuarios con rol de administrador.
@@ -88,6 +88,19 @@
           </div>
         </div>
       </div>
+      <!---->
+      <div class="col-md-6 col-lg-4">
+        <div class="card h-100 shadow-sm border-0">
+          <div class="card-body">
+            <span class="btn btn-primary mb-3" (click)="ayuda()">Ayuda  ❓ </span>
+            <h5 class="card-title fw-bold">Informacion</h5>
+            <p class="card-text small text-muted">
+              Siempre que aparezca el boton de informacion desplegara una alerta con informacion relevante acerca del software
+            </p>
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 
@@ -106,7 +119,7 @@
       <div class="col-md-6 col-lg-3">
         <div class="card h-100 shadow-sm border-0">
           <div class="card-body">
-            <h5 class="card-title fw-bold text-dark">Parámetros de CMC</h5>
+            <h5 class="btn btn-primary mb-2" routerLink="/cmc-params">Parámetros de CMC</h5>
             <p class="card-text small text-muted">
               Calcula un registro por cada tabla, obligando al usuario a mantener el mismo rango para el cálculo.
             </p>
@@ -118,7 +131,7 @@
       <div class="col-md-6 col-lg-3">
         <div class="card h-100 shadow-sm border-0">
           <div class="card-body">
-            <h5 class="card-title fw-bold text-dark">CMC por Rangos</h5>
+            <h5 class="btn btn-primary mb-2" routerLink="/cmc-paramsvf">CMC por Rangos</h5>
             <p class="card-text small text-muted">
               Toma todos los registros por rango, promedia errores y selecciona la incertidumbre más alta asociada.
             </p>
@@ -130,7 +143,7 @@
       <div class="col-md-6 col-lg-3">
         <div class="card h-100 shadow-sm border-0">
           <div class="card-body">
-            <h5 class="card-title fw-bold text-dark">Resultados de CMC</h5>
+            <h5 class="btn btn-success mb-2" routerLink="/cmc-list">Resultados de CMC</h5>
             <p class="card-text small text-muted">
               Muestra pesos de contribución a la incertidumbre. Permite guardar selecciones específicas o todos los cálculos.
             </p>
@@ -142,7 +155,7 @@
       <div class="col-md-6 col-lg-3">
         <div class="card h-100 shadow-sm border-0">
           <div class="card-body">
-            <h5 class="card-title fw-bold text-dark">Lista de CMC</h5>
+            <h5 class="btn btn-warning mb-2" routerLink="/cmc-list">Lista de CMC</h5>
             <p class="card-text small text-muted mb-2">Historial de CMCs calculados con opciones de:</p>
             <ul class="small text-muted ps-3 mb-0">
               <li><strong>Ver Resumen:</strong> Incertidumbres más relevantes.</li>
@@ -169,7 +182,7 @@
       <div class="col-md-4">
         <div class="card h-100 shadow-sm border-0">
           <div class="card-body">
-            <h5 class="card-title fw-bold">Cálculo del CMC</h5>
+            <h5 class="btn btn-outline-primary" routerLink="/calcmc">Cálculo del CMC</h5>
             <p class="card-text small text-muted">
               Ingresa parámetros manualmente para realizar un cálculo interactivo con resultados mostrados en tiempo real.
             </p>
@@ -181,7 +194,7 @@
       <div class="col-md-4">
         <div class="card h-100 shadow-sm border-0">
           <div class="card-body">
-            <h5 class="card-title fw-bold">Procesar Imagen</h5>
+            <h5 class="btn btn-outline-success" routerLink="/pimage">Procesar Imagen</h5>
             <p class="card-text small text-muted">
               Sube una imagen de prueba; el servidor procesará la solicitud y devolverá la tabla extraída renderizada en HTML.
             </p>
@@ -193,13 +206,14 @@
       <div class="col-md-4">
         <div class="card h-100 shadow-sm border-0">
           <div class="card-body">
-            <h5 class="card-title fw-bold">Configuración de Alertas</h5>
+            <h5 class="btn btn-outline-danger" routerLink="/alert-conf">Configuración de Alertas</h5>
             <p class="card-text small text-muted">
               Panel de demostración y ejemplos de cómo se gestionan y configuran las alertas del sistema y notificaciones.
             </p>
           </div>
         </div>
       </div>
+      
     </div>
   </div>
 </div>

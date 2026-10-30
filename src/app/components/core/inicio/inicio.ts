@@ -6,7 +6,7 @@ import { AuthService } from '../../../services/auth/auth.service';
 
 @Component({
   selector: 'app-inicio',
-  imports: [],
+  imports: [RouterLink],
   standalone: true,
   templateUrl: './inicio.html',
   styleUrl: './inicio.css',
@@ -51,5 +51,19 @@ export class Inicio implements OnInit {
 
   regresarCRM(): void {
     window.location.href = 'http://192.168.1.200:81/CRM'; // Ajusta la ruta de tu CRM si es distinta
+  }
+
+  ayuda(): void{
+    //this.alert.alert('Se despelagara una alerta como esta para mostrar el mensaje de ayuda','Informacion')
+
+    this.alert.toast({
+      type: 'success',
+      message: 'Listo',
+      position: 'top-center',
+      duration: 3000,
+      showProgress: true,
+      pauseOnHover: true,
+      closeButton: true,
+    });
   }
 }
