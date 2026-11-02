@@ -145,7 +145,7 @@
 
 .nga-modal {
   width: 100%;
-  max-width: 460px;
+  max-width: 95vw;
   max-height: 90vh;
   display: flex;
   flex-direction: column;
@@ -232,4 +232,9 @@
 @media (max-width: 400px) {
   .nga-root { max-width: 100%; padding: .6rem; }
   .nga-modal-footer .btn { min-width: 0; flex: 1; }
+}
+.nga-modal-message,
+.nga-toast-message {
+  white-space: pre-line;
+  word-break: break-word;
 }

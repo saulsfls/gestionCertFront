@@ -50,10 +50,21 @@ export class Newcert implements OnInit {
   private equipment = inject(EquipmentService);
   isBrowser: boolean = isPlatformBrowser(this.platformId);
 
+  // ========== CONSTANTES "SIN PT" ==========
+  /** Valor centinela interno para el selector de PT. */
+  readonly SIN_PT_VALUE = '__SIN_PT__';
+  /** Etiqueta visible en el dropdown. */
+  readonly SIN_PT_LABEL = 'Equipamiento sin PT';
+  /** Valor que se persiste en `certificado.pt` cuando se elige "sin PT". */
+  readonly SIN_PT_STORED = 'PT-00';
+
   // ========== PATRONES (selector) ==========
   patrones: PatronCruzado[] = [];
   cargandoPatrones: boolean = false;
   patronSeleccionado: PatronCruzado | null = null;
+
+  // ========== PT COMO LLAVE ÚNICA ==========
+  ptSeleccionado: string = '';
 
   opcionesTitulo: string[] = [
     'DC Voltage',
@@ -139,15 +150,14 @@ export class Newcert implements OnInit {
     this.cargarPatrones();
   }
 
-  // ================================================================
-  //  SELECTOR DE PATRONES
-  // ================================================================
+
   cargarPatrones(): void {
     this.cargandoPatrones = true;
     this.equipment.getPatronesCruzados().subscribe({
       next: (res) => {
         this.patrones = res;
         this.cargandoPatrones = false;
+        console.log(this.patrones);
         this.cdr.detectChanges();
       },
       error: (err) => {
@@ -162,6 +172,58 @@ export class Newcert implements OnInit {
     });
   }
 
+  // ========== PT COMO LLAVE ÚNICA (getters) ==========
+
+  /** ¿El usuario eligió "Equipamiento sin PT"? */
+  get esSinPt(): boolean {
+    return this.ptSeleccionado === this.SIN_PT_VALUE;
+  }
+
+  /** Devuelve la etiqueta amigable para un valor de PT (incluye el centinela). */
+  mostrarPt(pt: string): string {
+    return pt === this.SIN_PT_VALUE ? this.SIN_PT_LABEL : pt;
+  }
+
+  /** Lista de opciones de PT: primero "sin PT", luego los PTs reales ordenados. */
+  get ptsDisponibles(): string[] {
+    const set = new Set<string>();
+    for (const p of this.patrones) {
+      const pt = (p.pt || '').trim();
+      if (pt) set.add(pt);
+    }
+    const reales = Array.from(set).sort((a, b) => a.localeCompare(b, 'es'));
+    return [this.SIN_PT_VALUE, ...reales];
+  }
+
+  /**
+   * Patrones disponibles para el PT seleccionado.
+   * - Si es "sin PT" → devuelve TODOS los patrones (sin duplicar `id`).
+   * - Si es un PT real → filtra por ese PT (sin duplicar `id`).
+   */
+  get patronesFiltradosPorPt(): PatronCruzado[] {
+    if (!this.ptSeleccionado) return [];
+
+    const fuente = this.esSinPt
+      ? this.patrones
+      : this.patrones.filter(p => (p.pt || '').trim() === this.ptSeleccionado);
+
+    // Deduplicar por `id` para evitar repetidos en el dropdown
+    const vistos = new Set<string>();
+    const unicos: PatronCruzado[] = [];
+    for (const p of fuente) {
+      const id = (p.id || '').trim();
+      if (!id || vistos.has(id)) continue;
+      vistos.add(id);
+      unicos.push(p);
+    }
+    return unicos;
+  }
+
+  /** ¿Ya hay un PT elegido? (para habilitar el dropdown de equipment) */
+  get hayPtSeleccionado(): boolean {
+    return this.ptSeleccionado.trim().length > 0;
+  }
+
   /**
    * Devuelve true si hay un patrón seleccionado.
    * Úsalo en el template para deshabilitar los campos autollenados
@@ -172,20 +234,45 @@ export class Newcert implements OnInit {
   }
 
   /**
-   * Se dispara al cambiar el select de patrón.
-   * - `equipment_id` contiene el `id` del patrón (ej. "1033-0000+1032-0000").
+   * Se dispara al cambiar el select de PT.
+   * - Limpia la selección de equipo (porque cambia el universo de patrones).
+   * - Si es "sin PT", `certificado.pt` se fija en `PT-00`.
+   * - En otro caso, se sincroniza con el PT elegido.
+   */
+  onPtChange(): void {
+    this.patronSeleccionado = null;
+    this.certificado.equipment_id = '';
+    this.certificado.name_equipment = '';
+    this.certificado.date_cal = '';
+    this.certificado.calibration_interval = 0;
+
+    this.certificado.pt = this.esSinPt
+      ? this.SIN_PT_STORED
+      : this.ptSeleccionado;
+
+    this.regenerarTableIds();
+    this.sincronizarJsonTexto();
+    this.cdr.detectChanges();
+  }
+
+  /**
+   * Se dispara al cambiar el select de patrón dentro del PT elegido.
+   * - `equipment_id` contiene el `id` del patrón.
    * - Autollena name_equipment, pt, date_cal y calibration_interval.
-   * - `date_cc` se deja vacía para que el usuario la capture.
+   * - Si "sin PT", `pt` se guarda como `PT-00`.
    */
   onPatronChange(): void {
     const id = (this.certificado.equipment_id || '').trim();
-    const patron = this.patrones.find(p => p.id === id) ?? null;
+    const patron = this.patronesFiltradosPorPt.find(p => p.id === id) ?? null;
     this.patronSeleccionado = patron;
 
     if (!patron) {
-      // Sin selección: limpiar los campos autollenados
+      // Sin selección: limpiar campos autollenados, pero conservar el PT
       this.certificado.name_equipment = '';
-      this.certificado.pt = '';
+      this.certificado.pt = this.esSinPt
+        ? this.SIN_PT_STORED
+        : this.ptSeleccionado;
+      this.certificado.date_cal = '';
       this.certificado.calibration_interval = 0;
       this.sincronizarJsonTexto();
       this.cdr.detectChanges();
@@ -194,7 +281,9 @@ export class Newcert implements OnInit {
 
     // ===== Autollenado =====
     this.certificado.name_equipment = patron.name || '';
-    this.certificado.pt = patron.pt || '';
+    this.certificado.pt = this.esSinPt
+      ? this.SIN_PT_STORED
+      : (patron.pt || this.ptSeleccionado);
     this.certificado.date_cal = patron.calibration_date || '';
     this.certificado.calibration_interval =
       Number(patron.months_calibration) || 0;
@@ -579,9 +668,6 @@ export class Newcert implements OnInit {
       );
   }
 
-  // ================================================================
-  //  📤 ENVIAR A OCR
-  // ================================================================
   enviarANode(tableIndex: number): void {
     const state = this.imageStates[tableIndex];
     const table = this.resultTables[tableIndex];
@@ -849,9 +935,6 @@ export class Newcert implements OnInit {
     return { headers, rows: finalRows };
   }
 
-  // ================================================================
-  //  APLICAR DATOS EXTRAÍDOS
-  // ================================================================
   private aplicarDatosExtraidos(
     indexTable: number,
     headers: string[],
@@ -995,18 +1078,26 @@ export class Newcert implements OnInit {
     });
   }
 
-  // ================================================================
-  //  ✅ VALIDACIONES DEL FORMULARIO
-  // ================================================================
+
   validarFormulario(): boolean {
     const errores: string[] = [];
     const c = this.certificado;
 
     // ===== Campos obligatorios básicos =====
+    if (!this.ptSeleccionado?.trim()) {
+      errores.push(`• Debes seleccionar un PT o "${this.SIN_PT_LABEL}".`);
+    }
+
     if (!c.equipment_id?.trim()) {
-      errores.push('• Debes seleccionar un patrón.');
+      errores.push('• Debes seleccionar un equipo patrón.');
     } else if (!this.patronSeleccionado) {
-      errores.push('• El patrón seleccionado no es válido. Vuelve a elegirlo del listado.');
+      errores.push('• El patrón seleccionado no es válido. Vuelve a elegirlo.');
+    } else if (
+      !this.esSinPt &&
+      (this.patronSeleccionado.pt || '').trim() !== this.ptSeleccionado.trim()
+    ) {
+      // Solo validar coincidencia de PT cuando NO es "sin PT"
+      errores.push('• El patrón seleccionado no coincide con el PT. Vuelve a elegirlo.');
     }
 
     if (!c.name_equipment?.trim()) {
@@ -1129,9 +1220,7 @@ export class Newcert implements OnInit {
     return true;
   }
 
-  // ================================================================
-  //  🔁 TRADUCTOR DE ERRORES DEL BACKEND
-  // ================================================================
+
   private traducirErrorBackend(err: any): { titulo: string; mensaje: string } {
     // Timeout de RxJS
     if (err?.name === 'TimeoutError') {
@@ -1270,6 +1359,9 @@ export class Newcert implements OnInit {
       equipment_id: (this.certificado.equipment_id ?? '').trim(),
       name_equipment: (this.certificado.name_equipment ?? '').trim(),
       cc: (this.certificado.cc ?? '').trim(),
+      pt: this.esSinPt
+        ? this.SIN_PT_STORED
+        : (this.ptSeleccionado ?? this.certificado.pt ?? '').trim(),
       id_user: String(user.id_user),          // ← FIX: number → string
       entity: (this.certificado.entity ?? '').trim(),
       cert_type: (this.certificado.cert_type ?? '').trim(),
@@ -1321,6 +1413,7 @@ export class Newcert implements OnInit {
       active: true,
       data: {}
     };
+    this.ptSeleccionado = '';
     this.patronSeleccionado = null;
     this.resultTables = [this.crearEstructuraTablaInicial()];
     this.imageStates = [this.crearEstadoImagenVacio()];
@@ -1328,5 +1421,24 @@ export class Newcert implements OnInit {
     this.regenerarTableIds();
     this.sincronizarJsonTexto();
     this.cdr.detectChanges();
+  }
+
+  ayuda(modal: string): void {
+    const detalle = '';
+    this.alert.alert(detalle, 'Información', {
+      type: 'info',
+      confirmText: 'Sí, entendido',
+      dismissible: true,
+      size: 'xl',
+      sizeOptions: {
+        width: '1200px',       // O '1200px', funcionará bien con el nuevo CSS
+        maxWidth: '95vw',    // Esto se aplicará en línea
+        maxHeight: '85vh',
+        scrollable: true,
+        messageMaxHeight: '60vh',
+        fontSize: '15px',
+        lineHeight: 1.6,
+      },
+    });
   }
 }

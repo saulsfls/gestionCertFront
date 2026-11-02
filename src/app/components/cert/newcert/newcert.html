@@ -1,6 +1,3 @@
-<!-- ============================================= -->
-<!-- Formulario Principal del Certificado          -->
-<!-- ============================================= -->
 <div class="card mb-4 shadow-sm">
   <div class="card-header bg-dark text-white">
     <h5 class="m-0">Datos Generales del Certificado</h5>
@@ -8,7 +5,39 @@
   <div class="card-body">
     <div class="row g-3">
 
-      <!-- Selector de Patrón (reemplaza al ID del Equipo) -->
+      <!-- Procedimiento Técnico (PT) — llave principal del flujo -->
+      <div class="col-md-3">
+        <label for="pt" class="form-label fw-bold">
+          Procedimiento Técnico <span class="text-danger">*</span>
+        </label>
+        <select
+          id="pt"
+          class="form-select"
+          [(ngModel)]="ptSeleccionado"
+          (ngModelChange)="onPtChange()"
+          [disabled]="cargandoPatrones || ptsDisponibles.length === 0"
+          required>
+          <option [ngValue]="''" disabled>
+            {{ cargandoPatrones ? 'Cargando PTs…' : '-- Selecciona un PT --' }}
+          </option>
+          @for (pt of ptsDisponibles; track pt) {
+            <option [ngValue]="pt">{{ mostrarPt(pt) }}</option>
+          }
+
+        </select>
+        @if (cargandoPatrones) {
+          <small class="text-muted d-flex align-items-center gap-1 mt-1">
+            <span class="spinner-border spinner-border-sm"></span>
+            Cargando catálogo…
+          </small>
+        } @else if (!cargandoPatrones && ptsDisponibles.length === 0) {
+          <small class="text-danger d-block mt-1">
+            No hay PTs disponibles en el catálogo.
+          </small>
+        }
+      </div>
+
+      <!-- Selector de Patrón (filtrado por PT) -->
       <div class="col-md-3">
         <label for="equipment_id" class="form-label fw-bold">
           Patrón / ID del Equipo <span class="text-danger">*</span>
@@ -18,19 +47,24 @@
           class="form-select"
           [(ngModel)]="certificado.equipment_id"
           (ngModelChange)="onPatronChange()"
-          [disabled]="cargandoPatrones"
+          [disabled]="!hayPtSeleccionado || patronesFiltradosPorPt.length === 0"
           required>
           <option [ngValue]="''" disabled>
-            {{ cargandoPatrones ? 'Cargando patrones…' : '-- Selecciona un patrón --' }}
+            @if (!hayPtSeleccionado) {
+              Selecciona primero un PT
+            } @else if (patronesFiltradosPorPt.length === 0) {
+              Sin patrones para este PT
+            } @else {
+              -- Selecciona un patrón --
+            }
           </option>
-          @for (p of patrones; track p.id) {
-            <option [ngValue]="p.id">{{ p.id }}</option>
+          @for (p of patronesFiltradosPorPt; track p.id) {
+            <option [ngValue]="p.id">{{ p.id }} — {{ p.name }}</option>
           }
         </select>
-        @if (cargandoPatrones) {
-          <small class="text-muted d-flex align-items-center gap-1 mt-1">
-            <span class="spinner-border spinner-border-sm"></span>
-            Cargando catálogo…
+        @if (hayPtSeleccionado && patronesFiltradosPorPt.length === 0) {
+          <small class="text-danger d-block mt-1">
+            Este PT no tiene patrones asociados.
           </small>
         }
       </div>
@@ -87,21 +121,6 @@
           id="date_cc"
           class="form-control"
           [(ngModel)]="certificado.date_cc">
-      </div>
-
-      <!-- Procedimiento Técnico (PT) — autollenado, disabled -->
-      <div class="col-md-3">
-        <label for="pt" class="form-label fw-bold">
-          Procedimiento Técnico
-        </label>
-        <input
-          type="text"
-          id="pt"
-          class="form-control"
-          maxlength="50"
-          [(ngModel)]="certificado.pt"
-          [disabled]="hayPatronSeleccionado"
-          placeholder="Se autollena al seleccionar un patrón">
       </div>
 
       <!-- Entidad Emisora -->
@@ -191,9 +210,7 @@
   </div>
 </div>
 
-<!-- ============================================= -->
-<!-- Resultados del Certificado                    -->
-<!-- ============================================= -->
+
 <div class="container my-4">
   <div class="d-flex justify-content-between align-items-center mb-4">
     <h3 class="fw-bold m-0">Resultados del Certificado</h3>
@@ -478,9 +495,6 @@
               placeholder="Sin comentarios"></textarea>
           </div>
 
-          <!-- ============================================ -->
-          <!-- SECCIÓN DE IMAGEN (Extraer datos por foto)   -->
-          <!-- ============================================ -->
           <div class="mt-4 p-3 border rounded bg-white">
             <div class="d-flex justify-content-between align-items-center mb-3">
               <h6 class="fw-bold m-0">📷 Extraer datos desde imagen</h6>
@@ -593,9 +607,6 @@
     </div>
   </ng-container>
 
-  <!-- ============================================= -->
-  <!-- Previsualizador y Editor de JSON              -->
-  <!-- ============================================= -->
   <div class="card bg-dark text-white shadow-sm mb-4">
     <div class="card-header d-flex justify-content-between align-items-center border-secondary p-2">
       <button

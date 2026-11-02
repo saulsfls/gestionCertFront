@@ -17,6 +17,7 @@ import { Viewcmc } from './components/cmc/viewcmc/viewcmc';
 import { Listcmc } from './components/cmc/listcmc/listcmc';
 import { Editcmc } from './components/cmc/editcmc/editcmc';
 import { Alertconf } from './components/test/alertconf/alertconf';
+import { Viewdata } from './components/test/viewdata/viewdata';
 
 export const routes: Routes = [
   //Rutas publicas
@@ -30,7 +31,8 @@ export const routes: Routes = [
     canActivateChild: [authGuard],
     children: [
       //Rutas de componentes de prueba
-      { path: 'pimage', component: Pimage, title: 'Prueba de procesamiento de imagen' },
+      { path: 'pimage', component: Pimage, title: 'Procesamiento de imagen' },
+      { path: 'view-data', component: Viewdata, title: 'Muestra de datos'},
       //Rutas del Certificado
       { path: 'new-cert', component: Newcert, title: 'Nuevo certificado' },
       { path: 'edit-cert/:id', component: Editcert, title: 'Editar Certificado'},

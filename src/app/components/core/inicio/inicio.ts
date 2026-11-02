@@ -53,17 +53,22 @@ export class Inicio implements OnInit {
     window.location.href = 'http://192.168.1.200:81/CRM'; // Ajusta la ruta de tu CRM si es distinta
   }
 
-  ayuda(): void{
-    //this.alert.alert('Se despelagara una alerta como esta para mostrar el mensaje de ayuda','Informacion')
-
-    this.alert.toast({
-      type: 'success',
-      message: 'Listo',
-      position: 'top-center',
-      duration: 3000,
-      showProgress: true,
-      pauseOnHover: true,
-      closeButton: true,
+  ayuda(): void {
+    const detalle ='Se mostrara informacion relevante en este cuadro de dialogo';
+    this.alert.alert(detalle, 'Información', {
+      type: 'info',
+      confirmText: 'Sí, entendido',
+      dismissible: true,
+      size: 'xl',
+      sizeOptions: {
+        width: '1200px',       // O '1200px', funcionará bien con el nuevo CSS
+        maxWidth: '95vw',    // Esto se aplicará en línea
+        maxHeight: '85vh',
+        scrollable: true,
+        messageMaxHeight: '60vh',
+        fontSize: '15px',
+        lineHeight: 1.6,
+      },
     });
   }
 }
