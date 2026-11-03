@@ -1,4 +1,4 @@
-// El componente actual se mantiene igual, este componente es una versión mejorada de cmcparams
+// Componente mejorado de cmcparams
 import {
   ChangeDetectorRef,
   Component,
@@ -32,14 +32,18 @@ interface FilaRangoInfo {
   error: number;
   incertidumbre: number;
   valorReferenciaRaw: string;
-  valorReferenciaNum: number;   // normalizado a unidad base
-  valorReferenciaTexto: string; // texto original SIN el número
-  valorReferenciaUnidadTexto: string; // unidad original (mV, V, ...)
+  valorReferenciaNum: number;
+  valorReferenciaTexto: string;
+  valorReferenciaUnidadTexto: string;
+}
+
+interface IntervaloUnico {
+  valor: string;
+  filaIndex: number;
 }
 
 /**
  * Estructura que representa una fila de la tabla "Valores seleccionados".
- * Esta información se envía a la vista de resultados.
  */
 export interface ResumenTablaCmc {
   index: number;
@@ -54,11 +58,24 @@ export interface ResumenTablaCmc {
 }
 
 /**
- * Extensión local de CmcConfiguracion para almacenar,
- * por cada tabla, si el usuario indicó que NO tiene rangos/intervalos.
+ * Extensión local de CmcConfiguracion.
  */
 type CmcConfiguracionExt = CmcConfiguracion & {
-  tieneRangosPorTabla?: Record<number, boolean>;
+  /**
+   * true  → las tablas se calculan por rango/fila seleccionada (default)
+   * false → la tabla completa se usa como un único bloque
+   */
+  todasTienenRangos?: boolean;
+  /**
+   * true  → el campo de intervalo está bloqueado (los certificados coinciden)
+   * false → el campo es editable (intervalos distintos o sin datos)
+   */
+  intervaloBloqueado?: boolean;
+  /**
+   * Bandera para no repetir la alerta de "intervalos distintos" hasta
+   * que cambie el estado de la selección.
+   */
+  intervaloAlertaMostrada?: boolean;
 };
 
 @Component({
@@ -99,9 +116,10 @@ export class Cmcparamsvf implements OnInit {
   resultadosCmc: CmcResultado[] = [];
 
   /**
-   * Ruta de la vista que muestra los resultados del CMC.
-   * Ajusta este valor al path real definido en tu enrutador.
+   * Estado del dropdown de intervalos junto al input.
    */
+  dropdownIntervaloAbierto = false;
+
   private readonly rutaResultadosCmc = '/cmc-resultados';
 
   private _cmcsParaMostrarCache: CmcPayload[] = [];
@@ -137,28 +155,19 @@ export class Cmcparamsvf implements OnInit {
     Object.keys(this.opcionesParametroPorTitulo).filter(t => t !== 'Other')
   );
 
-  /**
-   * Factores de conversión a la unidad base.
-   * La unidad base es la que aparece con exponente 0 (V, A, Ω, Hz, F, ...).
-   */
   private readonly factoresUnidad: Record<string, number> = {
-    // Tensión (base: V)
     'nv': 1e-9, 'uv': 1e-6, 'µv': 1e-6, 'mv': 1e-3,
     'v': 1,
-    'kv': 1e3, 'mv_': 1e6, 'mv__': 1e6, // duplicado por seguridad
-    // Corriente (base: A)
+    'kv': 1e3, 'mv_': 1e6, 'mv__': 1e6,
     'na': 1e-9, 'ua': 1e-6, 'µa': 1e-6, 'ma': 1e-3,
     'a': 1,
     'ka': 1e3,
-    // Resistencia (base: Ω)
     'mohm': 1e-3, 'mΩ': 1e-3, 'mω': 1e-3,
     'ohm': 1, 'Ω': 1, 'ω': 1,
     'kohm': 1e3, 'kΩ': 1e3, 'kω': 1e3,
     'mohm_': 1e6, 'mΩ_': 1e6, 'mω_': 1e6,
     'gohm': 1e9, 'gΩ': 1e9, 'gω': 1e9,
-    // Frecuencia (base: Hz)
     'mhz': 1e-3, 'hz': 1, 'khz': 1e3, 'mhz_': 1e6, 'ghz': 1e9,
-    // Capacitancia (base: F)
     'pf': 1e-12, 'nf': 1e-9, 'uf': 1e-6, 'µf': 1e-6,
     'mf': 1e-3, 'f': 1, 'mf_': 1e-3
   };
@@ -174,9 +183,7 @@ export class Cmcparamsvf implements OnInit {
     this.cargarEquipos();
   }
 
-  // ============================================================
-  //   GETTERS DE ESTADO
-  // ============================================================
+  // Getters de estado
 
   get cmcActivo(): CmcConfiguracionExt | undefined {
     return this.cmcs.find(c => c.id === this.cmcActivoId);
@@ -184,14 +191,6 @@ export class Cmcparamsvf implements OnInit {
 
   get seleccionCmc(): Record<number, CmcTablaSeleccion> {
     return this.cmcActivo?.selecciones ?? {};
-  }
-
-  /**
-   * Mapa de "tiene rangos" para la CMC activa.
-   * Por defecto true (comportamiento anterior: se calcula por rango/fila).
-   */
-  get tieneRangosActivo(): Record<number, boolean> {
-    return this.cmcActivo?.tieneRangosPorTabla ?? {};
   }
 
   get cmcsParaMostrar(): CmcPayload[] {
@@ -239,9 +238,32 @@ export class Cmcparamsvf implements OnInit {
       : this.selectedTitle;
   }
 
-  // ============================================================
-  //   HELPERS DE UNIDAD
-  // ============================================================
+  /**
+   * Intervalos únicos detectados en los certificados de las tablas
+   * seleccionadas del CMC activo. Se usa en el dropdown del input
+   * cuando el campo está desbloqueado.
+   */
+  get intervalosCertificadosUnicos(): number[] {
+    const cmc = this.cmcActivo;
+    if (!cmc) return [];
+
+    const nums = new Set<number>();
+
+    for (const [idxStr, sel] of Object.entries(cmc.selecciones)) {
+      if (!sel.seleccionada) continue;
+      const idx = Number(idxStr);
+      const tabla = this.filteredTablas[idx];
+      if (!tabla) continue;
+      const cert = this.getCertificado(tabla);
+      if (!cert) continue;
+      const num = this.parsearIntervaloMeses(cert.calibration_interval);
+      if (isFinite(num)) nums.add(num);
+    }
+
+    return Array.from(nums).sort((a, b) => a - b);
+  }
+
+  // Helpers de unidad
 
   formatColumnLabel(col: Column | undefined): string {
     if (!col) return '';
@@ -252,9 +274,7 @@ export class Cmcparamsvf implements OnInit {
     return `${label} (${unitStr})`;
   }
 
-  // ============================================================
-  //   VALIDACIÓN NUMÉRICA
-  // ============================================================
+  // Validación numérica
 
   esNumeroValido(val: any): boolean {
     if (val === null || val === undefined) return true;
@@ -283,9 +303,7 @@ export class Cmcparamsvf implements OnInit {
     return !this.esNumeroValido(val);
   }
 
-  // ============================================================
-  //   CARGA DE EQUIPOS
-  // ============================================================
+  // Carga de equipos
 
   private cargarEquipos(): void {
     this.cert.obtenerEquipmentId().subscribe({
@@ -486,6 +504,10 @@ export class Cmcparamsvf implements OnInit {
 
           this.certificadosPorCc = nuevosCertificados;
 
+          if (this.mostrarPanelCmc && this.cmcActivo) {
+            this.sincronizarIntervaloDesdeCertificados(this.cmcActivo, false);
+          }
+
           const total = pendientes.length;
           this.alert.success(
             `Se cargaron ${total} certificado${total === 1 ? '' : 's'} asociado${total === 1 ? '' : 's'}.`,
@@ -520,9 +542,7 @@ export class Cmcparamsvf implements OnInit {
     this.alert.info('Filtros restablecidos.', 'Sin filtros');
   }
 
-  // ============================================================
-  //   PANEL CMC (configuración)
-  // ============================================================
+  // Panel CMC: configuración
 
   abrirPanelCmc(): void {
     if (!this.selectedTitle) {
@@ -540,8 +560,14 @@ export class Cmcparamsvf implements OnInit {
       this.cmcActivoId = 1;
     }
 
+    const activo = this.cmcs.find(c => c.id === this.cmcActivoId);
+    if (activo) {
+      this.sincronizarIntervaloDesdeCertificados(activo, true);
+    }
+
     this.mostrarPanelCmc = true;
     this.panelCmcColapsado = false;
+    this.dropdownIntervaloAbierto = false;
     this.refresh();
   }
 
@@ -550,18 +576,19 @@ export class Cmcparamsvf implements OnInit {
     this.panelCmcColapsado = false;
     this.cmcs = [];
     this.cmcActivoId = 1;
+    this.dropdownIntervaloAbierto = false;
     this.cerrarResultadosCmc();
     this.refresh();
   }
 
   togglePanelCmc(): void {
     this.panelCmcColapsado = !this.panelCmcColapsado;
+    this.dropdownIntervaloAbierto = false;
     this.refresh();
   }
 
   private crearCmcConfig(id: number): CmcConfiguracionExt {
     const selecciones: Record<number, CmcTablaSeleccion> = {};
-    const tieneRangosPorTabla: Record<number, boolean> = {};
 
     this.filteredTablas.forEach((tabla, idx) => {
       const colError = this.detectarColumnaError(tabla);
@@ -576,25 +603,30 @@ export class Cmcparamsvf implements OnInit {
         columnaErrorKey: colError?.key ?? primeraColKey,
         columnaIncertidumbreKey: colInc?.key ?? primeraColKey
       };
-
-      // Por defecto asumimos que la tabla SÍ tiene rangos (comportamiento anterior).
-      tieneRangosPorTabla[idx] = true;
     });
 
-    return {
+    const cmc: CmcConfiguracionExt = {
       id,
-      intervaloCalibracion: 24,
+      intervaloCalibracion: 0,
       selecciones,
       payload: null,
       payloadTexto: '',
-      tieneRangosPorTabla
+      todasTienenRangos: true,
+      intervaloBloqueado: false,
+      intervaloAlertaMostrada: false
     };
+
+    this.sincronizarIntervaloDesdeCertificados(cmc, false);
+    return cmc;
   }
 
   nuevoCmc(): void {
     const nextId = this.cmcs.length ? Math.max(...this.cmcs.map(c => c.id)) + 1 : 1;
-    this.cmcs.push(this.crearCmcConfig(nextId));
+    const nuevo = this.crearCmcConfig(nextId);
+    this.cmcs.push(nuevo);
     this.cmcActivoId = nextId;
+    this.sincronizarIntervaloDesdeCertificados(nuevo, true);
+    this.dropdownIntervaloAbierto = false;
     this.refresh();
     this.alert.success(
       `Se creó el CMC #${nextId}. Configura las tablas y presiona "Calcular CMC".`,
@@ -604,6 +636,11 @@ export class Cmcparamsvf implements OnInit {
 
   seleccionarCmc(id: number): void {
     this.cmcActivoId = id;
+    const cmc = this.cmcs.find(c => c.id === id);
+    if (cmc) {
+      this.sincronizarIntervaloDesdeCertificados(cmc, false);
+    }
+    this.dropdownIntervaloAbierto = false;
     this.refresh();
   }
 
@@ -622,6 +659,7 @@ export class Cmcparamsvf implements OnInit {
     } else {
       this.resultadosCmc = this.resultadosCmc.filter(r => r.cmcNumero !== id);
     }
+    this.dropdownIntervaloAbierto = false;
     this.refresh();
     this.alert.info(`CMC #${id} eliminado.`, 'Eliminado');
   }
@@ -645,51 +683,195 @@ export class Cmcparamsvf implements OnInit {
     );
   }
 
-  // ============================================================
-  //   NUEVO: CHECKBOX "TIENE RANGOS / INTERVALOS"
-  // ============================================================
+  // Sincronización del intervalo de calibración desde los certificados
 
   /**
-   * Indica si una tabla específica tiene rangos/intervalos de medida.
-   * Por defecto true.
+   * Parsea el intervalo del certificado a un número (meses).
+   * Acepta números o cadenas tipo "12 meses", "24", "36 months".
    */
-  tablaTieneRangos(index: number): boolean {
-    const mapa = this.cmcActivo?.tieneRangosPorTabla ?? {};
-    return mapa[index] !== false; // true salvo que explícitamente sea false
+  private parsearIntervaloMeses(raw: any): number {
+    if (raw === null || raw === undefined) return NaN;
+    if (typeof raw === 'number') {
+      return isFinite(raw) && raw > 0 ? raw : NaN;
+    }
+    const s = String(raw).trim();
+    if (!s) return NaN;
+    const match = s.match(/\d+(?:[.,]\d+)?/);
+    if (!match) return NaN;
+    const num = Number(match[0].replace(',', '.'));
+    return isFinite(num) && num > 0 ? num : NaN;
   }
 
   /**
-   * Handler del checkbox. Si se desactiva (sin rangos), forzamos filaIndex = 0
-   * porque no aplica; el cálculo usará toda la tabla.
+   * Recalcula el intervalo del CMC a partir de los certificados de las
+   * tablas seleccionadas:
+   *  - Si todos coinciden → bloquea el campo con ese valor.
+   *  - Si difieren        → deja el campo en 0, editable, y avisa al usuario.
+   *  - Si no hay datos    → campo en 0, editable, sin aviso.
    */
-  onToggleTieneRangos(index: number, event: Event): void {
+  private sincronizarIntervaloDesdeCertificados(
+    cmc: CmcConfiguracionExt,
+    mostrarAlerta: boolean
+  ): void {
+    this.dropdownIntervaloAbierto = false;
+
+    const intervalosRaw = new Set<string>();
+    const intervalosNum: number[] = [];
+
+    for (const [idxStr, sel] of Object.entries(cmc.selecciones)) {
+      if (!sel.seleccionada) continue;
+      const idx = Number(idxStr);
+      const tabla = this.filteredTablas[idx];
+      if (!tabla) continue;
+      const cert = this.getCertificado(tabla);
+      if (!cert) continue;
+
+      const raw = cert.calibration_interval;
+      if (raw === null || raw === undefined || String(raw).trim() === '') continue;
+
+      intervalosRaw.add(String(raw).trim());
+      const num = this.parsearIntervaloMeses(raw);
+      if (isFinite(num)) intervalosNum.push(num);
+    }
+
+    if (!intervalosNum.length) {
+      cmc.intervaloCalibracion = 0;
+      cmc.intervaloBloqueado = false;
+      return;
+    }
+
+    const todosIguales = intervalosNum.every(n => n === intervalosNum[0]);
+
+    if (todosIguales) {
+      cmc.intervaloCalibracion = intervalosNum[0];
+      cmc.intervaloBloqueado = true;
+      cmc.intervaloAlertaMostrada = false;
+      return;
+    }
+
+    cmc.intervaloCalibracion = 0;
+    cmc.intervaloBloqueado = false;
+
+    if (mostrarAlerta && !cmc.intervaloAlertaMostrada) {
+      cmc.intervaloAlertaMostrada = true;
+      this.alert.warning(
+        `Los certificados de calibración seleccionados tienen intervalos distintos: ` +
+        `${Array.from(intervalosRaw).join(', ')}. ` +
+        `El campo "Intervalo de calibración (meses)" se ha dejado en 0 para que ingreses el valor manualmente.`,
+        'Intervalos de calibración diferentes'
+      );
+    }
+  }
+
+  // Dropdown del input de intervalo (cuando los certificados difieren)
+
+  toggleDropdownIntervalo(): void {
+    this.dropdownIntervaloAbierto = !this.dropdownIntervaloAbierto;
+    this.refresh();
+  }
+
+  seleccionarIntervaloDesdeDropdown(valor: number): void {
+    const cmc = this.cmcActivo;
+    if (!cmc) return;
+    cmc.intervaloCalibracion = valor;
+    this.dropdownIntervaloAbierto = false;
+    this.refresh();
+  }
+
+  // Toggle global "¿las tablas tienen rangos?"
+
+  tablaTieneRangos(_index: number): boolean {
+    return this.cmcActivo?.todasTienenRangos !== false;
+  }
+
+  todasTablasTienenRangos(): boolean {
+    return this.cmcActivo?.todasTienenRangos !== false;
+  }
+
+  onToggleTodasTienenRangos(event: Event): void {
     const checked = (event.target as HTMLInputElement).checked;
     const cmc = this.cmcActivo;
     if (!cmc) return;
 
-    if (!cmc.tieneRangosPorTabla) {
-      cmc.tieneRangosPorTabla = {};
-    }
-    cmc.tieneRangosPorTabla[index] = checked;
+    cmc.todasTienenRangos = checked;
 
-    const sel = cmc.selecciones[index];
-    if (sel && !checked) {
-      // Sin rangos: la selección de fila no aplica
-      sel.filaIndex = 0;
+    if (!checked) {
+      Object.values(cmc.selecciones).forEach(s => {
+        s.filaIndex = 0;
+      });
     }
 
     this.refresh();
   }
 
-  // ============================================================
-  //   LÓGICA DE FILAS (con soporte para "sin rangos")
-  // ============================================================
+  onToggleTieneRangos(_index: number, event: Event): void {
+    this.onToggleTodasTienenRangos(event);
+  }
+
+  // Intervalos únicos por tabla (para el dropdown "Fila / rango")
 
   /**
-   * Devuelve las filas que participan en el cálculo para una tabla dada.
-   * - Si la tabla TIENE rangos: filtra por el rango de la fila seleccionada.
-   * - Si la tabla NO tiene rangos: devuelve TODAS las filas.
+   * Devuelve los intervalos únicos (sin duplicados) de la tabla indicada.
+   * Cada entrada guarda el valor original y el índice de la primera fila
+   * que lo contiene, para que al seleccionar se use esa fila como ancla.
    */
+  getIntervalosUnicos(index: number): IntervaloUnico[] {
+    const tabla = this.filteredTablas[index];
+    if (!tabla) return [];
+
+    const colIntervaloKey = tabla.columns[0]?.key ?? '';
+    const vistos = new Map<string, IntervaloUnico>();
+
+    (tabla.rows ?? []).forEach((row, r) => {
+      const raw = String(row[colIntervaloKey] ?? '').trim();
+      if (!raw) return;
+      const norm = this.normalizarRango(raw);
+      if (!vistos.has(norm)) {
+        vistos.set(norm, { valor: raw, filaIndex: r });
+      }
+    });
+
+    return Array.from(vistos.values());
+  }
+
+  /**
+   * Devuelve el valor del rango actualmente seleccionado para la fila `index`.
+   * Se usa como valor del <select> en el template.
+   */
+  getRangoUnicoSeleccionado(index: number): string {
+    const sel = this.seleccionCmc[index];
+    const tabla = this.filteredTablas[index];
+    if (!sel || !tabla) return '';
+
+    const colIntervaloKey = tabla.columns[0]?.key ?? '';
+    return String(this.getValorCelda(tabla, sel.filaIndex, colIntervaloKey) ?? '').trim();
+  }
+
+  /**
+   * Handler del dropdown "Fila / rango" cuando se selecciona un rango único.
+   * Busca la primera fila de la tabla que tenga ese valor y ajusta filaIndex.
+   */
+  onFilaRangoChange(index: number, valor: string): void {
+    const tabla = this.filteredTablas[index];
+    const sel = this.seleccionCmc[index];
+    if (!tabla || !sel) return;
+
+    const colIntervaloKey = tabla.columns[0]?.key ?? '';
+    const norm = this.normalizarRango(valor);
+
+    const filaIndex = tabla.rows.findIndex(row =>
+      this.normalizarRango(String(row[colIntervaloKey] ?? '')) === norm
+    );
+
+    if (filaIndex >= 0) {
+      sel.filaIndex = filaIndex;
+    }
+
+    this.refresh();
+  }
+
+  // Lógica de filas (con soporte para "sin rangos")
+
   private obtenerFilasParaCalculo(
     tabla: ResultTable,
     sel: CmcTablaSeleccion,
@@ -739,10 +921,6 @@ export class Cmcparamsvf implements OnInit {
     return resultado;
   }
 
-  /**
-   * Wrapper para compatibilidad con el código existente.
-   * Consulta si la tabla tiene rangos para decidir el comportamiento.
-   */
   private obtenerFilasMismoRango(
     tabla: ResultTable,
     sel: CmcTablaSeleccion,
@@ -758,6 +936,12 @@ export class Cmcparamsvf implements OnInit {
     const sel = this.seleccionCmc[index];
     if (!sel) return;
     sel.seleccionada = !sel.seleccionada;
+
+    const cmc = this.cmcActivo;
+    if (cmc) {
+      this.sincronizarIntervaloDesdeCertificados(cmc, true);
+    }
+
     this.refresh();
   }
 
@@ -765,28 +949,7 @@ export class Cmcparamsvf implements OnInit {
     this.refresh();
   }
 
-  seleccionarTodas(): void {
-    Object.values(this.seleccionCmc).forEach(s => (s.seleccionada = true));
-    this.refresh();
-  }
-
-  deseleccionarTodas(): void {
-    Object.values(this.seleccionCmc).forEach(s => (s.seleccionada = false));
-    this.refresh();
-  }
-
-  sincronizarFilaCmc(): void {
-    const primera = Object.values(this.seleccionCmc)[0];
-    if (!primera) return;
-    const fila = primera.filaIndex;
-    Object.values(this.seleccionCmc).forEach(s => (s.filaIndex = fila));
-    this.refresh();
-    this.alert.info(`Fila ${fila + 1} sincronizada en todas las tablas.`, 'Rango aplicado');
-  }
-
-  // ============================================================
-  //   HELPERS DE VISUALIZACIÓN
-  // ============================================================
+  // Helpers de visualización
 
   private getValorCelda(
     tabla: ResultTable | undefined,
@@ -848,7 +1011,6 @@ export class Cmcparamsvf implements OnInit {
     if (!tabla) return '';
 
     if (!this.tablaTieneRangos(index)) {
-      // Sin rangos: mostrar el rango completo de la tabla
       const colIntervaloKey = tabla.columns[0]?.key ?? '';
       const valores: string[] = [];
       (tabla.rows ?? []).forEach((row) => {
@@ -869,9 +1031,6 @@ export class Cmcparamsvf implements OnInit {
 
     const colIntervaloKey = tabla.columns[0]?.key ?? '';
     const tieneRangos = this.tablaTieneRangos(index);
-    const rangoObjetivo = tieneRangos
-      ? String(this.getValorCelda(tabla, sel.filaIndex, colIntervaloKey) ?? '').trim()
-      : '';
 
     const filas = this.obtenerFilasParaCalculo(tabla, sel, colIntervaloKey, tieneRangos);
 
@@ -905,9 +1064,7 @@ export class Cmcparamsvf implements OnInit {
     return this.formatearValor(incertidumbreMax);
   }
 
-  // ============================================================
-  //   HELPERS PARA MIN/MAX Y DÍAS
-  // ============================================================
+  // Helpers para min/max y días
 
   getMinReferencia(index: number): string {
     const sel = this.seleccionCmc[index];
@@ -990,9 +1147,7 @@ export class Cmcparamsvf implements OnInit {
     return Math.round(ms / (1000 * 60 * 60 * 24));
   }
 
-  // ============================================================
-  //   MARCADO EN LAS TABLAS DE RESULTADOS
-  // ============================================================
+  // Marcado en las tablas de resultados
 
   private readonly paletaCmc: { bg: string; border: string; badge: string }[] = [
     { bg: 'rgba(13, 110, 253, 0.10)', border: '#0d6efd', badge: '#0d6efd' },
@@ -1010,11 +1165,6 @@ export class Cmcparamsvf implements OnInit {
     return this.paletaCmc[(id - 1) % this.paletaCmc.length];
   }
 
-  /**
-   * Determina qué CMCs afectan una fila.
-   * - Si la tabla del CMC TIENE rangos: solo las filas del rango seleccionado.
-   * - Si la tabla NO tiene rangos: TODAS las filas.
-   */
   getCmcsDeFila(tableIndex: number, rowIndex: number): number[] {
     const ids = new Set<number>();
     const tabla = this.filteredTablas[tableIndex];
@@ -1029,7 +1179,6 @@ export class Cmcparamsvf implements OnInit {
       const tieneRangos = this.tablaTieneRangosParaCmc(cmc, tableIndex);
 
       if (!tieneRangos) {
-        // Sin rangos: el CMC afecta a toda la tabla
         ids.add(cmc.id);
         continue;
       }
@@ -1051,13 +1200,8 @@ export class Cmcparamsvf implements OnInit {
     return Array.from(ids);
   }
 
-  /**
-   * Variante de tablaTieneRangos que recibe el CMC explícitamente
-   * (útil en getCmcsDeFila, donde el CMC no es necesariamente el activo).
-   */
-  private tablaTieneRangosParaCmc(cmc: CmcConfiguracionExt, index: number): boolean {
-    const mapa = cmc.tieneRangosPorTabla ?? {};
-    return mapa[index] !== false;
+  private tablaTieneRangosParaCmc(cmc: CmcConfiguracionExt, _index: number): boolean {
+    return cmc.todasTienenRangos !== false;
   }
 
   esPrimeraFilaDelRango(tableIndex: number, rowIndex: number, cmcId: number): boolean {
@@ -1073,7 +1217,6 @@ export class Cmcparamsvf implements OnInit {
     const tieneRangos = this.tablaTieneRangosParaCmc(cmc, tableIndex);
 
     if (!tieneRangos) {
-      // Sin rangos: solo la primera fila lleva la etiqueta de inicio de bloque
       return rowIndex === 0;
     }
 
@@ -1180,9 +1323,7 @@ export class Cmcparamsvf implements OnInit {
     return this.cmcs.some(c => c.selecciones[tableIndex]?.seleccionada);
   }
 
-  // ============================================================
-  //   PARSER Y NORMALIZACIÓN DE VALORES DE REFERENCIA
-  // ============================================================
+  // Parser y normalización de valores de referencia
 
   private parsearValorReferencia(raw: string): ValorReferenciaParseado {
     const original = String(raw ?? '').trim();
@@ -1313,9 +1454,7 @@ export class Cmcparamsvf implements OnInit {
     return original;
   }
 
-  // ============================================================
-  //   NORMALIZACIÓN DE RANGO
-  // ============================================================
+  // Normalización de rango
 
   private normalizarRango(v: string): string {
     return String(v ?? '')
@@ -1324,9 +1463,7 @@ export class Cmcparamsvf implements OnInit {
       .toLowerCase();
   }
 
-  // ============================================================
-  //   CÁLCULO — TODOS LOS CMCS
-  // ============================================================
+  // Cálculo de todos los CMC
 
   calcularTodosLosCmc(): void {
     if (!this.cmcs.length) {
@@ -1384,7 +1521,10 @@ export class Cmcparamsvf implements OnInit {
 
     if (!cmc.intervaloCalibracion || cmc.intervaloCalibracion <= 0) {
       limpiar();
-      return { ok: false, motivo: 'intervalo de calibración inválido' };
+      return {
+        ok: false,
+        motivo: 'intervalo de calibración inválido (el campo está en 0 o vacío)'
+      };
     }
 
     const entradas = Object.entries(cmc.selecciones)
@@ -1396,7 +1536,6 @@ export class Cmcparamsvf implements OnInit {
       return { ok: false, motivo: 'menos de 2 tablas seleccionadas' };
     }
 
-    // Solo validamos coincidencia de rangos entre tablas que SÍ tienen rangos.
     const rangosNormalizados = new Set<string>();
     const colIntervaloPorTabla: Record<number, string> = {};
     const tieneRangosPorTabla: Record<number, boolean> = {};
@@ -1414,7 +1553,7 @@ export class Cmcparamsvf implements OnInit {
       const tieneRangos = this.tablaTieneRangosParaCmc(cmc, idx);
       tieneRangosPorTabla[idx] = tieneRangos;
 
-      if (!tieneRangos) continue; // sin rangos: no valida coincidencia
+      if (!tieneRangos) continue;
 
       const rangoRaw = String(
         this.getValorCelda(tabla, s.filaIndex, colIntervaloKey) ?? ''
@@ -1436,7 +1575,6 @@ export class Cmcparamsvf implements OnInit {
       };
     }
 
-    // Rango objetivo (solo aplica si al menos una tabla tiene rangos)
     const primeraConRangos = entradas.find(({ idx }) => tieneRangosPorTabla[idx]);
     const rangoObjetivo = primeraConRangos
       ? String(
@@ -1501,7 +1639,6 @@ export class Cmcparamsvf implements OnInit {
       const sumaError = filasRango.reduce((acc, f) => acc + f.error, 0);
       const errorProm = sumaError / n;
 
-      // Se toma la incertidumbre máxima del conjunto de filas
       const incertidumbreMax = filasRango.reduce(
         (max, f) => Math.max(max, f.incertidumbre), -Infinity
       );
@@ -1645,14 +1782,8 @@ export class Cmcparamsvf implements OnInit {
     });
   }
 
-  // ============================================================
-  //   INTEGRACIÓN CON EL COMPONENTE DE RESULTADOS (Cmcsr)
-  // ============================================================
+  // Integración con el componente de resultados
 
-  /**
-   * Genera el resumen en tiempo real de las tablas seleccionadas para cada CMC.
-   * Esta data es exactamente la que se muestra en la tabla "Valores seleccionados".
-   */
   public obtenerResumenValoresSeleccionados(): Record<number, ResumenTablaCmc[]> {
     const resumenes: Record<number, ResumenTablaCmc[]> = {};
     const anteriorId = this.cmcActivoId;
@@ -1689,9 +1820,6 @@ export class Cmcparamsvf implements OnInit {
     return resumenes;
   }
 
-  /**
-   * Flujo principal al presionar "Calcular y ver CMC".
-   */
   async calcularYMostrarCmc(): Promise<void> {
     if (!this.cmcs.length) {
       this.alert.warning('No hay cálculos de CMC creados.');
@@ -1780,14 +1908,8 @@ export class Cmcparamsvf implements OnInit {
     this.refresh();
   }
 
-  // ============================================================
-  //   AYUDA CONTEXTUAL (3 bloques)
-  // ============================================================
+  // Ayuda contextual (3 bloques)
 
-  /**
-   * Muestra un modal de ayuda según el bloque solicitado.
-   * Valores aceptados: 'equipo' | 'cmc' | 'tablas'.
-   */
   ayuda(modal: string): void {
     const clave = String(modal ?? '').trim().toLowerCase();
 
@@ -1842,11 +1964,12 @@ export class Cmcparamsvf implements OnInit {
         <ol>
           <li><b>¿Tiene rangos / intervalos de medida?</b>
             <ul>
-              <li><b>Sí</b> (por defecto): el CMC se calcula <i>solo con las filas del rango seleccionado</i>. Debes elegir una fila; todas las filas con el mismo intervalo se agrupan automáticamente.</li>
+              <li><b>Sí</b> (por defecto): el CMC se calcula <i>solo con las filas del rango seleccionado</i>. El desplegable muestra únicamente los rangos distintos.</li>
               <li><b>No</b>: la tabla completa se usa como un único bloque. Esto aplica a instrumentos que con un mismo rango cubren toda la escala. En este caso la selección de fila se desactiva.</li>
+              <li>Este interruptor es <b>global</b>: al activarlo/desactivarlo se aplica a <i>todas</i> las tablas del CMC.</li>
             </ul>
           </li>
-          <li><b>Fila / rango:</b> si la tabla tiene rangos, selecciona una fila. El sistema detecta todas las filas que comparten el mismo intervalo y las promedia.</li>
+          <li><b>Fila / rango:</b> si la tabla tiene rangos, selecciona uno de los rangos distintos que aparecen en el desplegable. El sistema agrupa automáticamente las filas que comparten el mismo intervalo.</li>
           <li><b>Columnas:</b> se detectan automáticamente las columnas de <b>error</b>, <b>incertidumbre</b> y <b>referencia</b>. Puedes cambiarlas manualmente si la detección falla.</li>
         </ol>
         <p><b>Colores del resaltado:</b></p>
@@ -1858,7 +1981,6 @@ export class Cmcparamsvf implements OnInit {
           <li>… y así sucesivamente con la paleta cíclica.</li>
         </ul>
         <p>Las celdas <b>no usadas</b> por ningún CMC se muestran atenuadas (clase <code>cell-no-usada</code>).</p>
-        <p style="color:#6c757d; font-size:0.9em;"><i>Consejo: usa <b>Seleccionar todas</b> / <b>Deseleccionar todas</b> para activar o desactivar tablas rápidamente, y <b>Sincronizar fila</b> para replicar la fila seleccionada en todas las tablas con rango.</i></p>
       `;
     } else {
       detalle = `
@@ -1893,9 +2015,7 @@ export class Cmcparamsvf implements OnInit {
       .replace(/'/g, '&#039;');
   }
 
-  // ============================================================
-  //   UTILIDADES
-  // ============================================================
+  // Utilidades
 
   private refresh(): void {
     this.cdr.markForCheck();

@@ -45,7 +45,7 @@
 
         <div class="col-md-3">
           <label class="form-label fw-bold small text-secondary d-block">Acciones</label>
-          <div class="d-flex gap-2">
+          <div class="d-flex gap-2 align-items-center">
             <button
               type="button"
               class="btn btn-outline-secondary flex-grow-1"
@@ -53,14 +53,15 @@
               [disabled]="!selectedTitle && !selectedParameter">
               Limpiar filtros
             </button>
-            <!-- Ayuda del bloque 1: selección del instrumento -->
-            <button
-              type="button"
-              class="btn btn-outline-info"
+            <span
+              class="btn btn-warning"
+              role="button"
+              tabindex="0"
               (click)="ayuda('equipo')"
+              (keydown.enter)="ayuda('equipo')"
               title="Ayuda: selección del instrumento (equipo, título y mensurando)">
-              <i class="bi bi-question-circle"></i>
-            </button>
+              Ayuda ❓
+            </span>
           </div>
         </div>
 
@@ -81,9 +82,9 @@
   </div>
 
   <!--Panel de configuracion del cmc-->
-  <div *ngIf="mostrarPanelCmc" class="card shadow-sm mb-4 border-success">
+  <div *ngIf="mostrarPanelCmc" class="card shadow-sm mb-4 border-black">
 
-    <div class="card-header bg-success text-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <div class="card-header bg-black text-white d-flex justify-content-between align-items-center flex-wrap gap-2">
       <h5 class="mb-0 d-flex align-items-center flex-wrap gap-2">
         <i class="bi bi-sliders"></i>
         <span>Configuración del cálculo de CMC</span>
@@ -96,15 +97,15 @@
       </h5>
 
       <div class="d-flex gap-2">
-        <!-- Ayuda del bloque 2: cálculo del CMC -->
-        <button
-          type="button"
-          class="btn btn-sm btn-outline-light"
+        <span
+          class="btn btn-warning "
+          role="button"
+          tabindex="0"
           (click)="ayuda('cmc')"
+          (keydown.enter)="ayuda('cmc')"
           title="Ayuda: cálculo del CMC">
-          <i class="bi bi-question-circle me-1"></i>
-          Ayuda CMC
-        </button>
+          Ayuda CMC ❓
+        </span>
         <button
           type="button"
           class="btn btn-sm btn-light"
@@ -155,45 +156,100 @@
           <i class="bi bi-plus-lg"></i>
           <span>Agregar nuevo CMC</span>
         </button>
-
-
       </div>
 
+      <!-- Fila de configuración general -->
       <div class="row g-3 mb-3 align-items-end">
-        <div class="col-md-3">
-          <label class="form-label fw-bold small text-secondary">
+
+        <!-- Intervalo de calibración con dropdown -->
+        <div class="col-md-4">
+          <label class="form-label fw-bold small text-secondary d-block">
             Intervalo de calibración (meses)
+            <i *ngIf="cmcActivo?.intervaloBloqueado"
+               class="bi bi-lock-fill text-success ms-1"
+               title="Tomado automáticamente del certificado de calibración"></i>
+            <i *ngIf="cmcActivo?.intervaloBloqueado === false"
+               class="bi bi-unlock-fill text-warning ms-1"
+               title="Los certificados tienen intervalos distintos; debes ingresarlo manualmente"></i>
           </label>
-          <input
-            type="number"
-            class="form-control"
-            min="1"
-            [(ngModel)]="cmcActivo!.intervaloCalibracion">
+
+          <div class="input-group" style="position: relative;">
+            <input
+              type="number"
+              class="form-control"
+              [class.is-invalid]="cmcActivo?.intervaloBloqueado === false && !cmcActivo?.intervaloCalibracion"
+              min="1"
+              [disabled]="!!cmcActivo?.intervaloBloqueado"
+              [title]="cmcActivo?.intervaloBloqueado
+                ? 'Se toma automáticamente del certificado de calibración'
+                : 'Los certificados tienen intervalos diferentes; ingresa el valor manualmente'"
+              [(ngModel)]="cmcActivo!.intervaloCalibracion">
+
+            <button
+              *ngIf="cmcActivo?.intervaloBloqueado === false && intervalosCertificadosUnicos.length > 0"
+              type="button"
+              class="btn btn-outline-secondary"
+              (click)="toggleDropdownIntervalo()"
+              [attr.aria-expanded]="dropdownIntervaloAbierto"
+              title="Seleccionar uno de los intervalos detectados en los certificados">
+              <i class="bi" [ngClass]="dropdownIntervaloAbierto ? 'bi-chevron-up' : 'bi-chevron-down'"></i>
+            </button>
+
+            <ul
+              *ngIf="dropdownIntervaloAbierto"
+              class="dropdown-menu show"
+              style="position: absolute; top: 100%; right: 0; left: auto; min-width: 220px; z-index: 1000;">
+              <li class="dropdown-header small text-muted px-3 py-1">
+                Intervalos detectados en los certificados
+              </li>
+              <li *ngFor="let opt of intervalosCertificadosUnicos">
+                <button
+                  type="button"
+                  class="dropdown-item"
+                  (click)="seleccionarIntervaloDesdeDropdown(opt)">
+                  {{ opt }} mes{{ opt === 1 ? '' : 'es' }}
+                </button>
+              </li>
+            </ul>
+          </div>
+
+          <small *ngIf="cmcActivo?.intervaloBloqueado" class="text-success d-block mt-1">
+            <i class="bi bi-check-circle me-1"></i>
+            Tomado del certificado de calibración.
+          </small>
+
+          <small *ngIf="cmcActivo?.intervaloBloqueado === false" class="text-warning d-block mt-1">
+            <i class="bi bi-exclamation-triangle me-1"></i>
+            Los certificados no coinciden en el intervalo. Ingresa el valor o selecciona uno del menú.
+          </small>
         </div>
-        <div class="col-md-3">
-          <button
-            class="btn btn-primary w-100"
-            (click)="seleccionarTodas()"
-            title="Marcar todas las tablas para este CMC">
-            <i class="bi bi-check2-square me-1"></i> Seleccionar todas
-          </button>
+
+        <!-- Toggle global "¿tienen rangos?" -->
+        <div class="col-md-4">
+          <label class="form-label fw-bold small text-secondary d-block">
+            ¿Las tablas tienen rangos?
+          </label>
+          <div class="form-check form-switch d-flex align-items-center mb-0" style="min-height:38px;">
+            <input
+              class="form-check-input"
+              type="checkbox"
+              role="switch"
+              id="chk-todas-rangos"
+              [checked]="todasTablasTienenRangos()"
+              (change)="onToggleTodasTienenRangos($event)"
+              [title]="todasTablasTienenRangos()
+                ? 'Las tablas se calculan por rango/fila seleccionada'
+                : 'Las tablas se usan completas (sin rangos)'">
+            <label class="form-check-label ms-2 small" for="chk-todas-rangos">
+              {{ todasTablasTienenRangos() ? 'Sí (por rango)' : 'No (tabla completa)' }}
+            </label>
+          </div>
+          <small class="text-muted d-block mt-1">
+            <i class="bi bi-info-circle me-1"></i>
+            Aplica a <em>todas</em> las tablas del CMC #{{ cmcActivoId }}
+          </small>
         </div>
-        <div class="col-md-3">
-          <button
-            class="btn btn-danger w-100"
-            (click)="deseleccionarTodas()"
-            title="Desmarcar todas las tablas de este CMC">
-            <i class="bi bi-square me-1"></i> Deseleccionar todas
-          </button>
-        </div>
-        <div class="col-md-3">
-          <button
-            class="btn btn-outline-primary w-100"
-            (click)="sincronizarFilaCmc()"
-            title="Aplicar la misma fila en todas las tablas">
-            <i class="bi bi-arrow-repeat me-1"></i> Sincronizar fila
-          </button>
-        </div>
+
       </div>
 
       <!--Tabla de configuracion del cmc-->
@@ -205,11 +261,6 @@
               <th>#</th>
               <th>CC</th>
               <th>Fecha cal.</th>
-              <th style="min-width:180px;">
-                <i class="bi bi-list-ol text-success me-1"
-                   title="Indica si la tabla tiene rangos/intervalos de medida"></i>
-                ¿Tiene rangos?
-              </th>
               <th style="min-width:200px;">Fila (intervalo)</th>
               <th style="min-width:220px;">
                 Columna Valor de Referencia
@@ -245,37 +296,17 @@
                 {{ getCertificado(tabla) ? formatearFecha(getCertificado(tabla).date_cal || getCertificado(tabla).date_cc) : '—' }}
               </td>
 
-              <!-- NUEVO: Checkbox "¿Tiene rangos?" -->
-              <td class="text-center">
-                <div class="form-check form-switch d-flex justify-content-center mb-0">
-                  <input
-                    class="form-check-input"
-                    type="checkbox"
-                    role="switch"
-                    [id]="'chk-rangos-' + cmcActivoId + '-' + i"
-                    [checked]="tablaTieneRangos(i)"
-                    (change)="onToggleTieneRangos(i, $event)"
-                    [disabled]="!seleccionCmc[i]?.seleccionada"
-                    [title]="tablaTieneRangos(i)
-                      ? 'La tabla tiene rangos: se calcula por rango/fila seleccionada'
-                      : 'La tabla NO tiene rangos: se calcula usando TODA la tabla'">
-                  <label
-                    class="form-check-label small ms-1"
-                    [for]="'chk-rangos-' + cmcActivoId + '-' + i">
-                    {{ tablaTieneRangos(i) ? 'Sí' : 'No' }}
-                  </label>
-                </div>
-              </td>
-
               <td>
                 <select
                   class="form-select form-select-sm"
-                  [(ngModel)]="seleccionCmc[i].filaIndex"
-                  (ngModelChange)="onSelectionChange()"
+                  [ngModel]="getRangoUnicoSeleccionado(i)"
+                  (ngModelChange)="onFilaRangoChange(i, $event)"
                   [disabled]="!seleccionCmc[i]?.seleccionada || !tablaTieneRangos(i)"
-                  [title]="!tablaTieneRangos(i) ? 'Tabla sin rangos: se usa la tabla completa' : ''">
-                  <option *ngFor="let row of tabla.rows; let r = index" [ngValue]="r">
-                    Fila {{ r + 1 }}: {{ getRowDisplayLabel(tabla, row) }}
+                  [title]="!tablaTieneRangos(i)
+                    ? 'Tabla sin rangos: se usa la tabla completa'
+                    : 'Selecciona el intervalo (agrupado por valores únicos)'">
+                  <option *ngFor="let opt of getIntervalosUnicos(i)" [value]="opt.valor">
+                    {{ opt.valor }}
                   </option>
                 </select>
                 <small *ngIf="!tablaTieneRangos(i)" class="text-muted d-block mt-1">
@@ -577,15 +608,15 @@
           ({{ filteredTablas.length }} tabla{{ filteredTablas.length === 1 ? '' : 's' }})
         </small>
       </h4>
-      <!-- Ayuda del bloque 3: selección en tablas y resaltado -->
-      <button
-        type="button"
-        class="btn btn-sm btn-outline-warning"
+      <span
+        class="btn btn-warning"
+        role="button"
+        tabindex="0"
         (click)="ayuda('tablas')"
+        (keydown.enter)="ayuda('tablas')"
         title="Ayuda: selección en las tablas y significado del resaltado">
-        <i class="bi bi-question-circle me-1"></i>
-        Ayuda tablas
-      </button>
+        Ayuda tablas ❓
+      </span>
     </div>
 
     <div *ngFor="let table of filteredTablas; let i = index" class="mb-4">

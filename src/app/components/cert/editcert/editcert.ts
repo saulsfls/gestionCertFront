@@ -980,4 +980,243 @@ export class Editcert implements OnInit {
       this.guardMostrando = false;
     }
   }
+
+  ayuda(modal: string): void {
+    const clave = String(modal ?? '').trim().toLowerCase();
+
+    let detalle = '';
+
+    if (clave === 'general') {
+      detalle = `
+        <h3 style="margin-top:0; color:#0d6efd;">1. Datos generales del certificado (edición)</h3>
+        <p>Esta vista permite <b>corregir</b> un certificado ya existente. Por seguridad, algunos campos están <b>bloqueados</b> y solo se pueden cambiar desde el flujo de creación. Los campos editables son:</p>
+
+        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Campos editables</h4>
+        <ul>
+          <li><b>Fecha de calibración:</b> editable. Debe ser <b>igual o anterior</b> a la fecha del certificado y <b>no puede ser futura</b>.</li>
+          <li><b>Fecha del certificado:</b> editable. No puede ser anterior a la de calibración ni futura.</li>
+          <li><b>Entidad emisora:</b> organismo que emite el certificado (p. ej. <code>LECOE</code>).</li>
+          <li><b>Resolución:</b> resolución del instrumento calibrado.</li>
+          <li><b>Comentarios:</b> notas generales del certificado.</li>
+        </ul>
+
+        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Campos bloqueados</h4>
+        <ul>
+          <li><b>ID del equipo, Nombre del equipo, Folio / CC, PT, Intervalo, Tipo, Activo.</b></li>
+          <li>Se bloquean porque afectan la relación con el patrón, los <code>table_id</code> y la CMC del instrumento. Si necesitas cambiarlos, crea un nuevo certificado o usa el flujo de alta.</li>
+        </ul>
+
+        <p style="color:#6c757d; font-size:0.9em;"><i>Al intentar salir sin guardar, el sistema te preguntará si quieres descartar los cambios. Al guardar se te redirige al listado de certificados.</i></p>
+      `;
+    } else if (clave === 'tablas') {
+      detalle = `
+        <h3 style="margin-top:0; color:#fd7e14;">2. Estructura de las tablas</h3>
+        <p>Cada certificado contiene una o más tablas. En modo edición puedes <b>agregar</b>, <b>eliminar</b> y <b>reordenar</b> columnas y filas sin restricción.</p>
+
+        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Encabezado de la tabla</h4>
+        <ul>
+          <li><b>Título:</b> magnitud general (<code>DC Voltage</code>, <code>AC Voltage</code>, <code>Resistance</code>, …).</li>
+          <li><b>Mesurando:</b> variante específica dentro del título (<code>Voltage</code>, <code>RMS Voltage</code>, <code>PP</code>, …).</li>
+          <li><b>Unidad:</b> unidad de los valores de la tabla.</li>
+          <li><b>Rango:</b> descripción del rango medido (<code>0 V – 100 V</code>).</li>
+          <li><b>Ecuación de calibración:</b> si el certificado la reporta.</li>
+          <li><b>CC ID / Table ID:</b> generados automáticamente. El <code>Table ID</code> conserva la secuencia original del certificado (<code>-T1</code>, <code>-T2</code>, …).</li>
+        </ul>
+
+        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Columnas</h4>
+        <ul>
+          <li>Cada columna tiene cuatro atributos editables:
+            <ul>
+              <li><b>key:</b> identificador técnico (minúsculas, números y guiones bajos). Debe ser único en la tabla.</li>
+              <li><b>label:</b> nombre visible.</li>
+              <li><b>unit:</b> unidad específica de la columna (opcional).</li>
+              <li><b>type:</b> <code>number</code> o <code>string</code>. Al cambiarlo, <b>los valores de la columna se vacían</b> para evitar inconsistencias.</li>
+            </ul>
+          </li>
+          <li>Usa el botón <b>×</b> del encabezado para eliminar una columna (solo si hay más de una).</li>
+        </ul>
+
+        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Filas</h4>
+        <ul>
+          <li>Cada fila es un punto de medición. Las celdas vacías se muestran con el placeholder <code>null</code>.</li>
+          <li>El botón <b>×</b> al final de la fila la elimina (solo si hay más de una).</li>
+        </ul>
+
+        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Navegación con Tab</h4>
+        <ul>
+          <li>Elige entre navegación <b>vertical</b> (↓) u <b>horizontal</b> (→) al moverte con <kbd>Tab</kbd>.</li>
+        </ul>
+
+        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Comentarios de tabla</h4>
+        <p>Notas específicas de esa tabla (condiciones, observaciones). Se guardan dentro de la tabla.</p>
+      `;
+    } else if (clave === 'eliminar-texto') {
+      detalle = `
+        <h3 style="margin-top:0; color:#ffc107;">3. Modo "Eliminar Texto"</h3>
+        <p>Convierte columnas con valores <b>mezclados de texto y números</b> (por ejemplo <code>1.1A</code>, <code>0.5 V</code>, <code>10 mV</code>) en <b>valores numéricos limpios</b> (<code>1.1</code>, <code>0.5</code>, <code>10</code>).</p>
+
+        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">¿Para qué sirve?</h4>
+        <p>Muchos certificados reportan los valores con la unidad incluida. La app de CMC necesita solo el <b>número</b> para calcular promedios, incertidumbres y errores. Este modo evita que tengas que corregir celda por celda.</p>
+
+        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Cómo usarlo (paso a paso)</h4>
+        <ol>
+          <li>Activa el botón <b>Eliminar Texto</b> en la barra superior. Aparecerá el banner amarillo.</li>
+          <li>En cada encabezado de columna verás un pill <b>🎯 Limpiar texto</b>. Haz clic en los que quieras procesar (puedes elegir varios, incluso de <b>tablas diferentes</b>).</li>
+          <li>Cuando estén seleccionados (aparecerán con ✅ y borde amarillo), presiona el botón <b>🧹 Formatear Texto</b> al final de la lista de tablas.</li>
+          <li>Al terminar, cada columna seleccionada:
+            <ul>
+              <li>Queda forzada a <code>type = number</code>.</li>
+              <li>Sus celdas se convierten al número extraído del texto.</li>
+            </ul>
+          </li>
+        </ol>
+
+        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Cómo interpreta los valores</h4>
+        <ul>
+          <li><b>Coma decimal europea</b> se normaliza a punto: <code>1,5</code> → <code>1.5</code>.</li>
+          <li>Se toma el <b>primer número</b> que aparezca en el texto: <code>±0.21 V</code> → <code>0.21</code>.</li>
+          <li>Se respeta el signo negativo: <code>-1.2A</code> → <code>-1.2</code>.</li>
+          <li>Se soporta notación científica: <code>1.2e-3 V</code> → <code>0.0012</code> (aplicado en la conversión).</li>
+        </ul>
+
+        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Casos en los que NO se aplica</h4>
+        <ul>
+          <li>Celdas vacías o con <code>null</code>: se dejan como están.</li>
+          <li>Textos que no contienen ningún número (<code>N/A</code>, <code>--</code>): se dejan tal cual y se cuentan como "no convertidos".</li>
+          <li>Si no se convierte ningún valor, verás un aviso de <em>Sin cambios</em>.</li>
+        </ul>
+
+        <div style="background:#fff3cd; border-left:4px solid #ffc107; padding:.6rem .8rem; border-radius:.35rem; margin:.9rem 0;">
+          <b>⚠ Advertencia</b>
+          <ul style="margin:.35rem 0 0; padding-left:1.2rem;">
+            <li>Este modo <b>sobrescribe los valores originales</b> de la columna. Si querías conservarlos, haz una copia antes (agrega una columna nueva y cópialos).</li>
+            <li>El cambio <b>no se puede deshacer</b> desde la interfaz: si algo sale mal, tendrás que corregir celda por celda o recargar sin guardar.</li>
+          </ul>
+        </div>
+
+        <p style="color:#6c757d; font-size:0.9em;"><i>Ideal para columnas tipo <code>Lectura</code>, <code>Error</code>, <code>Incertidumbre</code> que vienen con unidades embebidas.</i></p>
+      `;
+    } else if (clave === 'separar-simbolo') {
+      detalle = `
+        <h3 style="margin-top:0; color:#0dcaf0;">4. Modo "Separar ±"</h3>
+        <p>Divide una columna que contiene pares del tipo <code>0.226 ± 0.21</code> en <b>dos columnas</b>: <code>Error Relativo</code> e <code>Incertidumbre</code>. Muy útil cuando el certificado reporta ambos valores juntos en una sola celda.</p>
+
+        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">¿Para qué sirve?</h4>
+        <p>La app de CMC necesita los valores de <b>error</b> e <b>incertidumbre</b> por separado. Este modo evita partirlos manualmente fila por fila.</p>
+
+        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Cómo usarlo (paso a paso)</h4>
+        <ol>
+          <li>Activa el botón <b>Separar ±</b> en la barra superior. Aparecerá el banner celeste.</li>
+          <li>En cada encabezado de columna verás un pill <b>✂️ Separar ±</b>. Haz clic en los que quieras procesar (puedes elegir varios, incluso de <b>tablas diferentes</b>).</li>
+          <li>Cuando estén seleccionados (aparecerán con ✅ y borde celeste), presiona el botón <b>✂️ Separar Columnas</b> al final de la lista de tablas.</li>
+          <li>Por cada columna seleccionada:
+            <ul>
+              <li>La columna original se <b>elimina</b>.</li>
+              <li>Se crean dos columnas nuevas en su lugar (con la misma unidad):
+                <ul>
+                  <li><b>Error Relativo</b> — valor antes del <code>±</code>.</li>
+                  <li><b>Incertidumbre</b> — valor después del <code>±</code>.</li>
+                </ul>
+              </li>
+              <li>Ambas quedan forzadas a <code>type = number</code>.</li>
+            </ul>
+          </li>
+        </ol>
+
+        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Ejemplo</h4>
+        <p>Si la columna <code>resultado</code> tiene:</p>
+        <pre style="background:#f8f9fa; padding:.6rem; border-radius:.35rem; font-size:.85em;">0.226 ± 0.21
+  -0.05 ± 0.03
+  1.20 V ± 0.05 V</pre>
+        <p>Al separar quedará:</p>
+        <pre style="background:#f8f9fa; padding:.6rem; border-radius:.35rem; font-size:.85em;">Error Relativo | Incertidumbre
+  0.226          | 0.21
+  -0.05          | 0.03
+  1.20           | 0.05</pre>
+
+        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Cómo interpreta los valores</h4>
+        <ul>
+          <li><b>Se extrae el primer número</b> de cada lado del <code>±</code>. Ignora unidades, símbolos y espacios.</li>
+          <li>Coma decimal → punto: <code>0,226</code> → <code>0.226</code>.</li>
+          <li>Si una fila <b>no tiene</b> <code>±</code>: se usa el valor completo como <code>Error Relativo</code> y <code>Incertidumbre</code> queda en <code>null</code>.</li>
+          <li>Si una fila está vacía: ambas columnas quedan en <code>null</code>.</li>
+        </ul>
+
+        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Comportamiento especial</h4>
+        <ul>
+          <li>Si <b>ninguna</b> columna seleccionada contiene al menos un <code>±</code>, no se hace ningún cambio y se muestra un error.</li>
+          <li>Si <b>algunas</b> columnas no contienen <code>±</code>, esas se omiten y se informa cuántas fueron descartadas.</li>
+          <li>Si ya existían columnas con key <code>error_relativo</code> o <code>incertidumbre</code>, se les añade un sufijo numérico (<code>_1</code>, <code>_2</code>) para evitar colisiones.</li>
+        </ul>
+
+        <div style="background:#fff3cd; border-left:4px solid #ffc107; padding:.6rem .8rem; border-radius:.35rem; margin:.9rem 0;">
+          <b>⚠ Advertencia</b>
+          <ul style="margin:.35rem 0 0; padding-left:1.2rem;">
+            <li>La columna original <b>se elimina</b>. Si querías conservar los datos tal cual venían, agrega una columna de respaldo antes de separar.</li>
+            <li>La operación <b>no se puede deshacer</b> desde la interfaz.</li>
+            <li>Revisa los resultados columna por columna: si el certificado usa otro separador (por ejemplo <code>+/-</code> o <code>+−</code>), este modo <b>no lo detectará</b>.</li>
+          </ul>
+        </div>
+      `;
+    } else if (clave === 'json') {
+      detalle = `
+        <h3 style="margin-top:0; color:#212529;">5. JSON y guardado de cambios</h3>
+        <p>El JSON es la representación estructurada de todas las tablas. Se <b>actualiza automáticamente</b> cada vez que modificas una tabla, una columna o una fila.</p>
+
+        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Acciones</h4>
+        <ul>
+          <li><b>Copiar JSON:</b> copia el contenido al portapapeles.</li>
+          <li><b>Actualizar desde JSON:</b> valida el JSON y reemplaza las tablas del formulario. Útil para cargar datos procesados externamente.</li>
+          <li><b>Guardar Cambios:</b> valida y envía el payload al backend para actualizar el certificado.</li>
+          <li><b>Cancelar:</b> descarta los cambios y vuelve al listado (con confirmación si hay cambios sin guardar).</li>
+        </ul>
+
+        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Validaciones al guardar</h4>
+        <ul>
+          <li>ID y nombre del equipo, folio/CC.</li>
+          <li>Fechas coherentes (<code>calibración ≤ certificado</code>).</li>
+          <li>Cada tabla con título, parámetro y <code>key</code> únicos y válidos.</li>
+          <li>Los <code>table_id</code> conservan la secuencia original del certificado.</li>
+        </ul>
+
+        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Protección contra pérdida de datos</h4>
+        <ul>
+          <li>Si intentas salir sin guardar, el sistema te pedirá confirmación.</li>
+          <li>Tras guardar exitosamente, se te redirige automáticamente al listado de certificados.</li>
+        </ul>
+
+        <p style="color:#6c757d; font-size:0.9em;"><i>Consejo: si vas a hacer cambios masivos (limpiar texto o separar ±), haz una copia del JSON primero con "Copiar JSON" para tener un respaldo.</i></p>
+      `;
+    } else {
+      detalle = `
+        <p>No hay ayuda disponible para <code>${this.escapeHtml(clave)}</code>.</p>
+        <p>Bloques disponibles: <code>general</code>, <code>tablas</code>, <code>eliminar-texto</code>, <code>separar-simbolo</code>, <code>json</code>.</p>
+      `;
+    }
+
+    this.alert.alert(detalle, 'Información', {
+      type: 'info',
+      confirmText: 'Sí, entendido',
+      dismissible: true,
+      size: 'xl',
+      sizeOptions: {
+        width: '1200px',
+        maxWidth: '95vw',
+        maxHeight: '85vh',
+        scrollable: true,
+        messageMaxHeight: '60vh',
+        fontSize: '15px',
+        lineHeight: 1.6,
+      },
+    });
+  }
+
+  private escapeHtml(s: string): string {
+    return String(s ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+}
 }

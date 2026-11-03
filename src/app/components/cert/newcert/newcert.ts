@@ -144,12 +144,28 @@ export class Newcert implements OnInit {
     this.imageStates = [this.crearEstadoImagenVacio()];
     this.regenerarTableIds();
     this.sincronizarJsonTexto();
-    this.alert.success('Se han cargado: ' + this.resultTables.length + ' tablas', 'Datos cargados');
-
+    //this.alert.success('Se han cargado: ' + this.resultTables.length + ' tablas', 'Datos cargados');
+    //this.equipment_catalog();
+    //this.patrones_catalog();
     // 👇 Cargar patrones para el selector
     this.cargarPatrones();
   }
 
+  equipment_catalog(): void{
+    this.equipment.getEquipmentCatalogRaw().subscribe({
+      next: (res) => {
+        console.log('Catálogo de equipos:', res);
+      },
+    });
+  }
+
+  patrones_catalog(): void{
+    this.equipment.getPatronesRaw().subscribe({
+      next: (res) => {
+        console.log('Catálogo de patrones:', res);
+      },
+    });
+  }
 
   cargarPatrones(): void {
     this.cargandoPatrones = true;
@@ -157,7 +173,7 @@ export class Newcert implements OnInit {
       next: (res) => {
         this.patrones = res;
         this.cargandoPatrones = false;
-        console.log(this.patrones);
+        //console.log(this.patrones);
         this.cdr.detectChanges();
       },
       error: (err) => {
@@ -1108,7 +1124,7 @@ export class Newcert implements OnInit {
 
     if (!c.cc?.trim()) {
       errores.push('• El "Folio del Certificado (cc)" es obligatorio.');
-    } else if (!/^[A-Za-z0-9\-_/]+$/.test(c.cc.trim())) {
+    } else if (!/^[A-Za-z0-9\-_/ ]+$/.test(c.cc.trim())) {
       errores.push('• El "Folio (cc)" contiene caracteres no permitidos.');
     }
 
@@ -1424,21 +1440,240 @@ export class Newcert implements OnInit {
   }
 
   ayuda(modal: string): void {
-    const detalle = '';
-    this.alert.alert(detalle, 'Información', {
-      type: 'info',
-      confirmText: 'Sí, entendido',
-      dismissible: true,
-      size: 'xl',
-      sizeOptions: {
-        width: '1200px',       // O '1200px', funcionará bien con el nuevo CSS
-        maxWidth: '95vw',    // Esto se aplicará en línea
-        maxHeight: '85vh',
-        scrollable: true,
-        messageMaxHeight: '60vh',
-        fontSize: '15px',
-        lineHeight: 1.6,
-      },
-    });
+  const clave = String(modal ?? '').trim().toLowerCase();
+
+  let detalle = '';
+
+  if (clave === 'general') {
+    detalle = `
+      <h3 style="margin-top:0; color:#0d6efd;">1. Datos generales del certificado</h3>
+      <p>Esta sección registra la identificación del certificado y del instrumento calibrado. Los campos marcados con <span style="color:#dc3545;">*</span> son obligatorios.</p>
+
+      <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Folio / CC</h4>
+      <ul>
+        <li>Número único del certificado. No puede repetirse en el sistema.</li>
+        <li>Al cambiarlo se <b>regeneran automáticamente</b> los <code>table_id</code> de todas las tablas (<code>CC-XXXX-T1</code>, <code>CC-XXXX-T2</code>, …).</li>
+        <li>Caracteres permitidos: letras, números, guiones, guiones bajos y <code>/</code>.</li>
+      </ul>
+
+      <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Fechas</h4>
+      <ul>
+        <li><b>Fecha de calibración:</b> se autollena al elegir el patrón, pero sigue siendo editable si la del certificado difiere.</li>
+        <li><b>Fecha del certificado:</b> la ingresas manualmente. Debe ser <b>igual o posterior</b> a la de calibración y <b>no puede ser futura</b>.</li>
+        <li>Si hay más de 2 años de diferencia entre ambas fechas, el sistema te lo advertirá antes de guardar.</li>
+      </ul>
+
+      <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Entidad emisora y tipo</h4>
+      <ul>
+        <li><b>Entidad emisora:</b> organismo que emite el certificado (p. ej. <code>LECOE</code>).</li>
+        <li><b>Tipo:</b> <code>Certificado</code> (calibración formal) o <code>Especificaciones del fabricante</code> (hoja de datos).</li>
+      </ul>
+
+      <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Intervalo y resolución</h4>
+      <ul>
+        <li><b>Intervalo de calibración:</b> se autollena desde el patrón y queda bloqueado. Se reporta en <b>meses</b>.</li>
+        <li><b>Resolución:</b> resolución del instrumento calibrado (la del certificado, no la del patrón).</li>
+      </ul>
+
+      <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Comentarios y estado</h4>
+      <ul>
+        <li><b>Comentarios:</b> observaciones generales del certificado.</li>
+        <li><b>Activo:</b> indica si el certificado debe considerarse vigente al calcular la CMC del instrumento.</li>
+      </ul>
+
+      <p style="color:#6c757d; font-size:0.9em;"><i>Al guardar se validan automáticamente fechas, folio único, entidad, tipo y coherencia de cada tabla. Si algo falla, verás un mensaje claro con la lista de correcciones.</i></p>
+    `;
+  } else if (clave === 'patron') {
+    detalle = `
+      <h3 style="margin-top:0; color:#198754;">2. Selección del PT y del patrón</h3>
+      <p>El componente usa una jerarquía <b>PT → Patrón → Datos autollenados</b> para evitar combinaciones inválidas.</p>
+
+      <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Paso 1 — Elegir el Procedimiento Técnico (PT)</h4>
+      <ul>
+        <li>El <b>PT</b> es la llave principal: define qué patrones estarán disponibles.</li>
+        <li>Al cambiar el PT, la lista de patrones se reinicia y se muestran solo los del PT elegido.</li>
+        <li>Si el equipo <b>no tiene procedimiento técnico asociado</b>, elige <code>Equipamiento sin PT</code>. Internamente se guarda como <code>PT-00</code>.</li>
+      </ul>
+
+      <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Paso 2 — Elegir el patrón</h4>
+      <ul>
+        <li>El ID del patrón queda guardado en <code>equipment_id</code>.</li>
+        <li>Al seleccionarlo se autocompletan:
+          <ul>
+            <li><b>Nombre del equipo</b></li>
+            <li><b>PT</b> (reafirmado)</li>
+            <li><b>Fecha de calibración</b></li>
+            <li><b>Intervalo de calibración</b></li>
+          </ul>
+        </li>
+        <li>Estos campos quedan <b>bloqueados</b> para evitar inconsistencias. La <b>Fecha del certificado</b> permanece libre.</li>
+      </ul>
+
+      <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Errores comunes</h4>
+      <ul>
+        <li><b>"Sin patrones para este PT":</b> el catálogo no tiene patrones asociados a ese PT → usa <code>Equipamiento sin PT</code> o revisa el catálogo.</li>
+        <li><b>"El patrón no coincide con el PT":</b> seleccionaste un patrón de otro PT al validar → vuelve a elegirlo.</li>
+        <li><b>No ves tu patrón:</b> verifica que el PT elegido corresponda y que el patrón esté activo en el catálogo.</li>
+      </ul>
+
+      <p style="color:#6c757d; font-size:0.9em;"><i>El catálogo se carga desde el backend. Si la carga falla, verás un mensaje de error; puedes recargar la página para reintentar.</i></p>
+    `;
+  } else if (clave === 'tablas') {
+    detalle = `
+      <h3 style="margin-top:0; color:#fd7e14;">3. Estructura de las tablas de resultados</h3>
+      <p>Cada certificado contiene <b>una o más tablas</b>. Cada tabla representa un conjunto de mediciones del mismo mensurando (por ejemplo, todas las lecturas de <code>DC Voltage</code> para el rango 0–100 V).</p>
+
+      <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Encabezado de la tabla</h4>
+      <ul>
+        <li><b>Título:</b> magnitud general (<code>DC Voltage</code>, <code>AC Voltage</code>, <code>Resistance</code>, …). Al cambiarlo, los parámetros disponibles se actualizan automáticamente.</li>
+        <li><b>Mesurando (Parameter):</b> variante específica dentro del título (<code>Voltage</code>, <code>RMS Voltage</code>, <code>Peak-to-Peak (PP)</code>, …).</li>
+        <li><b>Unidad:</b> unidad de los valores de la tabla (p. ej. <code>kV</code>, <code>mA</code>).</li>
+        <li><b>Rango:</b> texto descriptivo del rango medido (<code>0 V – 100 V</code>).</li>
+        <li><b>Ecuación de calibración:</b> si el certificado la reporta.</li>
+        <li><b>CC ID / Table ID:</b> se generan automáticamente. <code>CC ID</code> toma el folio; <code>Table ID</code> añade <code>-T1</code>, <code>-T2</code>, …</li>
+      </ul>
+
+      <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Columnas</h4>
+      <ul>
+        <li>Cada columna tiene cuatro atributos editables:
+          <ul>
+            <li><b>key:</b> identificador técnico (minúsculas, números y guiones bajos). Debe ser único en la tabla.</li>
+            <li><b>label:</b> nombre visible al usuario.</li>
+            <li><b>unit:</b> unidad específica de la columna (opcional).</li>
+            <li><b>type:</b> <code>number</code> o <code>string</code>. Determina cómo se valida y cómo se guarda el valor.</li>
+          </ul>
+        </li>
+        <li>Para eliminar una columna usa el botón <b>×</b> en su encabezado (solo visible si hay más de una).</li>
+      </ul>
+
+      <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Filas</h4>
+      <ul>
+        <li>Cada fila representa un punto de medición.</li>
+        <li>Si una celda tiene un valor no numérico en una columna <code>number</code>, se marca en rojo y el certificado no se podrá guardar hasta corregirlo.</li>
+        <li>El campo <b>placeholder</b> <code>null</code> indica que la celda está vacía.</li>
+      </ul>
+
+      <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Navegación con Tab</h4>
+      <ul>
+        <li>Puedes elegir entre navegación <b>vertical</b> (↓) u <b>horizontal</b> (→) al moverte con <kbd>Tab</kbd> entre celdas.</li>
+        <li>Útil para transcribir tablas largas de forma fluida.</li>
+      </ul>
+
+      <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Comentarios de la tabla</h4>
+      <p>Notas específicas de esta tabla (por ejemplo, condiciones ambientales, observaciones del metrólogo). Se guardan dentro de la tabla, no en el certificado.</p>
+
+      <p style="color:#6c757d; font-size:0.9em;"><i>Si la tabla viene en una imagen, usa la sección <b>📷 Extraer datos desde imagen</b> para cargar automáticamente columnas y filas.</i></p>
+    `;
+  } else if (clave === 'ocr') {
+    detalle = `
+      <h3 style="margin-top:0; color:#6f42c1;">4. Extracción de tablas desde imagen (OCR)</h3>
+      <p>Esta sección convierte una captura de la tabla del certificado en <b>columnas y filas editables</b>. Es opcional pero ahorra mucho tiempo en tablas grandes.</p>
+
+      <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Paso 1 — Cargar la imagen</h4>
+      <ul>
+        <li><b>Pegar:</b> haz clic en la zona punteada y presiona <kbd>Ctrl</kbd> + <kbd>V</kbd>.</li>
+        <li><b>Subir archivo:</b> usa el selector (acepta imágenes JPG, PNG, etc.).</li>
+      </ul>
+
+      <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Paso 2 — Ajustar el recorte</h4>
+      <p>Recorta para que quede <b>solo la tabla</b>: incluye los encabezados si existen, excluye logos y texto externo.</p>
+
+      <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Paso 3 — Encabezado sí / no</h4>
+      <ul>
+        <li><b>Sí:</b> la primera fila de la imagen es el encabezado. Los nombres de columna se toman de ahí.</li>
+        <li><b>No:</b> la imagen solo contiene datos. Se generan columnas <code>col_1</code>, <code>col_2</code>, …</li>
+      </ul>
+
+      <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Paso 4 — Extraer</h4>
+      <p>Presiona <b>Extraer Tabla</b>. El servidor procesa la imagen y <b>reemplaza</b> las columnas y filas actuales de esta tabla. Si querías conservar lo que tenías, revisa antes de extraer.</p>
+
+      <div style="background:#fff3cd; border-left:4px solid #ffc107; padding:.6rem .8rem; border-radius:.35rem; margin:.9rem 0;">
+        <b>⚠ Advertencia importante</b>
+        <ul style="margin:.35rem 0 0; padding-left:1.2rem;">
+          <li>La IA puede cometer errores al interpretar números, decimales, signos o notación científica. <b>Verifica siempre</b> los valores extraídos contra el certificado original antes de guardar.</li>
+          <li><b>Si el resultado no es bueno</b> (celdas vacías, columnas corridas, texto mezclado, decimales mal ubicados), <b>vuelve a tomar la captura</b>. Una imagen con <b>mayor resolución, mejor luz y la tabla recta</b> puede dar una extracción notablemente mejor.</li>
+          <li>Evita capturas inclinadas, con sombras fuertes, borrosas o con líneas de tabla cortadas: la calidad del OCR depende directamente de la calidad de la imagen.</li>
+          <li>Puedes cancelar y volver a cargar otra imagen con el botón <em>Cancelar y cargar otra imagen</em>. La tabla actual <b>no se modifica</b> hasta que se completa una nueva extracción exitosa.</li>
+        </ul>
+      </div>
+
+      <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Errores comunes y qué hacer</h4>
+      <ul>
+        <li><b>"No se pudo extraer una tabla válida":</b> el recorte no contiene una tabla reconocible → recorta de nuevo con más precisión.</li>
+        <li><b>Valores en notación científica (1e-3):</b> se expanden automáticamente al aplicarse.</li>
+        <li><b>Columnas corridas o vacías:</b> prueba a marcar/desmarcar <em>La imagen tiene encabezado</em> o ajustar el recorte.</li>
+        <li><b>Datos parciales:</b> lo más probable es que la imagen tenga baja resolución → toma una captura nueva.</li>
+      </ul>
+
+      <p style="color:#6c757d; font-size:0.9em;"><i>Tras una extracción exitosa, revisa cada celda como si la hubieras tecleado: la IA acelera el proceso pero no sustituye la verificación humana.</i></p>
+    `;
+  } else if (clave === 'json') {
+    detalle = `
+      <h3 style="margin-top:0; color:#212529;">5. JSON del certificado y guardado</h3>
+      <p>El JSON es la representación estructurada de todas las tablas. Se <b>actualiza automáticamente</b> cada vez que modificas la tabla, pero también puedes editarlo a mano.</p>
+
+      <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Acciones</h4>
+      <ul>
+        <li><b>Copiar JSON:</b> copia el contenido al portapapeles (útil para depurar o guardar respaldo).</li>
+        <li><b>Actualizar desde JSON:</b> valida el JSON y reemplaza las tablas del formulario. Útil para cargar tablas ya procesadas o corregidas fuera de la aplicación.</li>
+        <li><b>Guardar Certificado:</b> valida todo el formulario y envía el payload al backend.</li>
+      </ul>
+
+      <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Validaciones aplicadas al guardar</h4>
+      <ul>
+        <li>PT seleccionado, patrón válido y nombre del equipo.</li>
+        <li>Folio único, entidad y tipo de certificado.</li>
+        <li>Fechas coherentes (<code>calibración ≤ certificado ≤ hoy</code>).</li>
+        <li>Intervalo y resolución razonables.</li>
+        <li>Cada tabla con título, parámetro y columnas válidas (sin <code>key</code> duplicadas).</li>
+        <li>Valores numéricos correctos en las columnas con <code>type = number</code>.</li>
+      </ul>
+
+      <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Errores del servidor</h4>
+      <ul>
+        <li>Los códigos SQL/HTTP se traducen a mensajes claros:
+          <ul>
+            <li><b>Folio duplicado:</b> ya existe un certificado con ese <code>cc</code>.</li>
+            <li><b>Campo obligatorio faltante</b> (<code>23502</code>).</li>
+            <li><b>Formato de dato inválido</b> (<code>22P02</code>, fechas).</li>
+            <li><b>Sin conexión / timeout</b> si el servidor tarda más de 30 s.</li>
+          </ul>
+        </li>
+      </ul>
+
+      <p style="color:#6c757d; font-size:0.9em;"><i>Si tras guardar ves un error de folio duplicado, el campo <code>cc</code> recibe el foco automáticamente para que lo corrijas.</i></p>
+    `;
+  } else {
+    detalle = `
+      <p>No hay ayuda disponible para <code>${this.escapeHtml(clave)}</code>.</p>
+      <p>Bloques disponibles: <code>general</code>, <code>patron</code>, <code>tablas</code>, <code>ocr</code>, <code>json</code>.</p>
+    `;
   }
+
+  this.alert.alert(detalle, 'Información', {
+    type: 'info',
+    confirmText: 'Sí, entendido',
+    dismissible: true,
+    size: 'xl',
+    sizeOptions: {
+      width: '1200px',
+      maxWidth: '95vw',
+      maxHeight: '85vh',
+      scrollable: true,
+      messageMaxHeight: '60vh',
+      fontSize: '15px',
+      lineHeight: 1.6,
+    },
+  });
+}
+
+private escapeHtml(s: string): string {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 }

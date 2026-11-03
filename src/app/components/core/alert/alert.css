@@ -233,8 +233,88 @@
   .nga-root { max-width: 100%; padding: .6rem; }
   .nga-modal-footer .btn { min-width: 0; flex: 1; }
 }
+
+/* ---------- CONTENIDO HTML DENTRO DE MENSAJES ---------- */
+/*
+  Los mensajes ahora pueden contener HTML (h3, p, ol, ul, li, code, span...).
+  Estas reglas solo aplican a esos mensajes concretos y no rompen nada
+  cuando el mensaje es texto plano.
+*/
 .nga-modal-message,
 .nga-toast-message {
-  white-space: pre-line;
+  white-space: normal;
   word-break: break-word;
 }
+
+/* Títulos internos (ej: "3. Selección en las tablas (resaltado)") */
+.nga-modal-message h1,
+.nga-modal-message h2,
+.nga-modal-message h3,
+.nga-modal-message h4,
+.nga-toast-message h1,
+.nga-toast-message h2,
+.nga-toast-message h3,
+.nga-toast-message h4 {
+  margin: .2rem 0 .55rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+/* Párrafos */
+.nga-modal-message p,
+.nga-toast-message p {
+  margin: .35rem 0;
+}
+
+/* Listas ordenadas y no ordenadas */
+.nga-modal-message ol,
+.nga-modal-message ul,
+.nga-toast-message ol,
+.nga-toast-message ul {
+  margin: .4rem 0 .65rem;
+  padding-left: 1.25rem;
+}
+.nga-modal-message ol ol,
+.nga-modal-message ol ul,
+.nga-modal-message ul ol,
+.nga-modal-message ul ul,
+.nga-toast-message ol ol,
+.nga-toast-message ol ul,
+.nga-toast-message ul ol,
+.nga-toast-message ul ul {
+  margin: .25rem 0 .35rem;
+}
+
+.nga-modal-message li,
+.nga-toast-message li {
+  margin: .15rem 0;
+  line-height: 1.45;
+}
+
+/* Negritas y cursivas ya las maneja el navegador, pero reforzamos */
+.nga-modal-message strong,
+.nga-toast-message strong { font-weight: 600; }
+
+/* Código inline (ej: cell-no-usada, DC Voltage...) */
+.nga-modal-message code,
+.nga-toast-message code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: .85em;
+  padding: .05rem .3rem;
+  border-radius: .25rem;
+  background: var(--bs-tertiary-bg, #f1f3f5);
+  color: var(--bs-body-color, #212529);
+}
+
+/* Texto secundario (los <p style="color:#6c757d; font-size:0.9em"> del detalle) */
+.nga-modal-message p[style],
+.nga-toast-message p[style] {
+  font-size: .9em;
+}
+
+/* Separación entre el icono y el bloque de contenido en el modal */
+.nga-modal-message > :first-child { margin-top: 0; }
+.nga-modal-message > :last-child  { margin-bottom: 0; }
+.nga-toast-message > :first-child { margin-top: 0; }
+.nga-toast-message > :last-child  { margin-bottom: 0; }

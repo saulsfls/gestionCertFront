@@ -96,7 +96,7 @@ export class Viewcert implements OnInit {
   }
 
   goBack(): void {
-    this.router.navigate(['/listcert']);
+    this.router.navigate(['/list-cert']);
   }
 
   async exportToExcel(): Promise<void> {

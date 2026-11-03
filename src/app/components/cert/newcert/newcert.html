@@ -1,6 +1,26 @@
 <div class="card mb-4 shadow-sm">
-  <div class="card-header bg-dark text-white">
+  <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center flex-wrap gap-2">
     <h5 class="m-0">Datos Generales del Certificado</h5>
+    <div class="d-flex gap-2 flex-wrap">
+      <span
+        class="btn btn-warning "
+        role="button"
+        tabindex="0"
+        (click)="ayuda('general')"
+        (keydown.enter)="ayuda('general')"
+        title="Ayuda: campos generales del certificado">
+        Ayuda datos ❓
+      </span>
+      <span
+        class="btn btn-warning"
+        role="button"
+        tabindex="0"
+        (click)="ayuda('patron')"
+        (keydown.enter)="ayuda('patron')"
+        title="Ayuda: selección de PT y patrón">
+        Ayuda PT / Patrón ❓
+      </span>
+    </div>
   </div>
   <div class="card-body">
     <div class="row g-3">
@@ -23,7 +43,6 @@
           @for (pt of ptsDisponibles; track pt) {
             <option [ngValue]="pt">{{ mostrarPt(pt) }}</option>
           }
-
         </select>
         @if (cargandoPatrones) {
           <small class="text-muted d-flex align-items-center gap-1 mt-1">
@@ -212,10 +231,10 @@
 
 
 <div class="container my-4">
-  <div class="d-flex justify-content-between align-items-center mb-4">
+  <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
     <h3 class="fw-bold m-0">Resultados del Certificado</h3>
 
-    <div class="d-flex align-items-center gap-3">
+    <div class="d-flex align-items-center gap-3 flex-wrap">
       <div class="d-flex align-items-center bg-light border rounded px-2 py-1">
         <label class="form-label fw-semibold small text-secondary m-0 me-2">
           Navegación con Tab:
@@ -240,6 +259,16 @@
           <label class="btn btn-outline-primary" for="tabHorizontal">Horizontal →</label>
         </div>
       </div>
+
+      <span
+        class="btn btn-warning"
+        role="button"
+        tabindex="0"
+        (click)="ayuda('tablas')"
+        (keydown.enter)="ayuda('tablas')"
+        title="Ayuda: estructura de las tablas de resultados">
+        Ayuda tablas ❓
+      </span>
 
       <button class="btn btn-success" type="button" (click)="agregarTabla()">
         + Agregar Nueva Tabla
@@ -496,11 +525,22 @@
           </div>
 
           <div class="mt-4 p-3 border rounded bg-white">
-            <div class="d-flex justify-content-between align-items-center mb-3">
+            <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
               <h6 class="fw-bold m-0">📷 Extraer datos desde imagen</h6>
-              <small class="text-muted">
-                Pega o sube una imagen, ajusta el recorte sobre la tabla y presiona "Extraer Tabla".
-              </small>
+              <div class="d-flex align-items-center gap-2 flex-wrap">
+                <small class="text-muted">
+                  Pega o sube una imagen, ajusta el recorte sobre la tabla y presiona "Extraer Tabla".
+                </small>
+                <span
+                  class="btn btn-warning"
+                  role="button"
+                  tabindex="0"
+                  (click)="ayuda('ocr')"
+                  (keydown.enter)="ayuda('ocr')"
+                  title="Ayuda: cómo extraer tablas desde una imagen">
+                  Ayuda OCR ❓
+                </span>
+              </div>
             </div>
 
             <!-- Checkbox "La imagen tiene encabezado" -->
@@ -608,7 +648,7 @@
   </ng-container>
 
   <div class="card bg-dark text-white shadow-sm mb-4">
-    <div class="card-header d-flex justify-content-between align-items-center border-secondary p-2">
+    <div class="card-header d-flex justify-content-between align-items-center border-secondary p-2 flex-wrap gap-2">
       <button
         class="btn btn-link text-white text-decoration-none fw-bold p-0 d-flex align-items-center gap-2"
         type="button"
@@ -623,7 +663,16 @@
         <span class="badge bg-primary">Editable</span>
       </button>
 
-      <div class="d-flex gap-2">
+      <div class="d-flex gap-2 flex-wrap">
+        <span
+          class="btn btn-warning "
+          role="button"
+          tabindex="0"
+          (click)="ayuda('json')"
+          (keydown.enter)="ayuda('json')"
+          title="Ayuda: JSON y guardado del certificado">
+          Ayuda JSON ❓
+        </span>
         <button class="btn btn-outline-light btn-sm" type="button" (click)="copiarJson()">
           {{ copiadoExitoso ? 'Copiado' : 'Copiar JSON' }}
         </button>

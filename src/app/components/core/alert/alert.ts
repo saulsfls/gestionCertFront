@@ -21,6 +21,7 @@ import {
   AlertSizeOptions,
   AlertType,
 } from './alert.model';
+import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 
 const ICONS: Record<string, string> = {
   success:
@@ -46,6 +47,7 @@ const CONFIRM_BTN_MAP: Record<AlertType, string> = {
   question: 'btn-primary',
 };
 
+
 @Component({
   selector: 'app-alert',
   standalone: true,
@@ -58,6 +60,12 @@ const CONFIRM_BTN_MAP: Record<AlertType, string> = {
 export class Alert implements AfterViewInit, OnDestroy {
   readonly data = input.required<AlertData>();
   readonly closed = output<AlertResult>();
+
+  private readonly sanitizer = inject(DomSanitizer);
+
+  protected readonly safeMessage = computed<SafeHtml>(() =>
+    this.sanitizer.bypassSecurityTrustHtml(this.data().message ?? '')
+  );
 
   protected readonly hiding = signal<boolean>(false);
   protected readonly visible = signal<boolean>(false);

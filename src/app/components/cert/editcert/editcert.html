@@ -2,11 +2,22 @@
 <!-- Formulario Principal del Certificado (EDIT)   -->
 <!-- ============================================= -->
 <div class="card mb-4 shadow-sm">
-  <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+  <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center flex-wrap gap-2">
     <h5 class="m-0">Editar Certificado</h5>
-    <span class="badge bg-secondary" *ngIf="certificado.id">
-      ID: {{ certificado.id }}
-    </span>
+    <div class="d-flex align-items-center gap-3 flex-wrap">
+      <span class="badge bg-secondary" *ngIf="certificado.id">
+        ID: {{ certificado.id }}
+      </span>
+      <span
+        class="btn btn-warning fw-bold"
+        role="button"
+        tabindex="0"
+        (click)="ayuda('general')"
+        (keydown.enter)="ayuda('general')"
+        title="Ayuda: campos editables del certificado">
+        Ayuda datos ❓
+      </span>
+    </div>
   </div>
   <div class="card-body">
     <div class="row g-3">
@@ -182,25 +193,44 @@
       <button class="btn btn-success" type="button" (click)="agregarTabla()">
         + Agregar Nueva Tabla
       </button>
+
+      <span
+        class="btn btn-warning fw-bold"
+        role="button"
+        tabindex="0"
+        (click)="ayuda('tablas')"
+        (keydown.enter)="ayuda('tablas')"
+        title="Ayuda: estructura de las tablas y navegación">
+        Ayuda tablas ❓
+      </span>
     </div>
   </div>
 
   <!-- Banner informativo: modo eliminar texto -->
-  <div *ngIf="modoEliminarTexto" class="alert alert-warning d-flex align-items-center gap-2 shadow-sm">
+  <div *ngIf="modoEliminarTexto" class="alert alert-warning d-flex align-items-center gap-2 shadow-sm flex-wrap">
     <span class="fs-5">⚠️</span>
-    <div>
+    <div class="flex-grow-1">
       <strong>Modo "Eliminar Texto" activado.</strong>
       Haz clic en las columnas que quieras procesar (en una o varias tablas) y presiona
       <strong>"🧹 Formatear Texto"</strong> al final. Ejemplo: <code>1.1A</code> → <code>1.1</code>.
       <br>
       <small class="text-muted">Puedes seleccionar varias columnas, incluso de tablas distintas.</small>
     </div>
+    <span
+      class="btn btn-warning fw-bold"
+      role="button"
+      tabindex="0"
+      (click)="ayuda('eliminar-texto')"
+      (keydown.enter)="ayuda('eliminar-texto')"
+      title="Ayuda: cómo usar el modo Eliminar Texto">
+      Ayuda ❓
+    </span>
   </div>
 
   <!-- Banner informativo: modo separar ± -->
-  <div *ngIf="modoSepararSimbolo" class="alert alert-info d-flex align-items-center gap-2 shadow-sm">
+  <div *ngIf="modoSepararSimbolo" class="alert alert-info d-flex align-items-center gap-2 shadow-sm flex-wrap">
     <span class="fs-5">ℹ️</span>
-    <div>
+    <div class="flex-grow-1">
       <strong>Modo "Separar ±" activado.</strong>
       Selecciona <strong>una o varias columnas</strong> que contengan valores como
       <code>0.226 ± 0.21</code> y presiona <strong>"✂️ Separar Columnas"</strong>.
@@ -208,6 +238,15 @@
       <br>
       <small class="text-muted">Puedes seleccionar columnas de varias tablas a la vez.</small>
     </div>
+    <span
+      class="btn btn-warning fw-bold"
+      role="button"
+      tabindex="0"
+      (click)="ayuda('separar-simbolo')"
+      (keydown.enter)="ayuda('separar-simbolo')"
+      title="Ayuda: cómo usar el modo Separar ±">
+      Ayuda ❓
+    </span>
   </div>
 
   <!-- Bucle de Tablas -->
@@ -431,9 +470,7 @@
     </div>
   </ng-container>
 
-  <!-- ============================================= -->
-  <!-- Botón global: Formatear Texto                 -->
-  <!-- ============================================= -->
+  <!-- Botón global: Formatear Texto -->
   <div *ngIf="modoEliminarTexto" class="d-flex justify-content-end mb-3">
     <button class="btn btn-warning btn-lg shadow-sm fw-bold" type="button"
       (click)="formatearTexto()" [disabled]="columnasParaLimpiar.size === 0">
@@ -444,9 +481,7 @@
     </button>
   </div>
 
-  <!-- ============================================= -->
-  <!-- Botón global: Separar Columnas                -->
-  <!-- ============================================= -->
+  <!-- Botón global: Separar Columnas -->
   <div *ngIf="modoSepararSimbolo" class="d-flex justify-content-end mb-4">
     <button class="btn btn-info text-white btn-lg shadow-sm fw-bold" type="button"
       (click)="separarColumnas()" [disabled]="columnasParaSeparar.size === 0">
@@ -457,11 +492,9 @@
     </button>
   </div>
 
-  <!-- ============================================= -->
-  <!-- Previsualizador y Editor de JSON              -->
-  <!-- ============================================= -->
+  <!-- Previsualizador y Editor de JSON -->
   <div class="card bg-dark text-white shadow-sm mb-4">
-    <div class="card-header d-flex justify-content-between align-items-center border-secondary p-2">
+    <div class="card-header d-flex justify-content-between align-items-center border-secondary p-2 flex-wrap gap-2">
       <button class="btn btn-link text-white text-decoration-none fw-bold p-0 d-flex align-items-center gap-2"
         type="button" data-bs-toggle="collapse"
         data-bs-target="#collapseJsonArea" aria-expanded="false" aria-controls="collapseJsonArea">
@@ -472,7 +505,16 @@
         <span class="badge bg-primary">Editable</span>
       </button>
 
-      <div class="d-flex gap-2">
+      <div class="d-flex gap-2 flex-wrap">
+        <span
+          class="btn btn-warning fw-bold"
+          role="button"
+          tabindex="0"
+          (click)="ayuda('json')"
+          (keydown.enter)="ayuda('json')"
+          title="Ayuda: JSON y guardado de cambios">
+          Ayuda JSON ❓
+        </span>
         <button class="btn btn-outline-light btn-sm" type="button" (click)="copiarJson()">
           {{ copiadoExitoso ? 'Copiado' : 'Copiar JSON' }}
         </button>

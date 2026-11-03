@@ -51,7 +51,7 @@
       @if (data().title; as t) {
         <div class="nga-toast-title">{{ t }}</div>
       }
-      <div class="nga-toast-message">{{ data().message }}</div>
+      <div class="nga-toast-message" [innerHTML]="safeMessage()"></div>
     </div>
 
     @if (data().closeButton !== false) {
@@ -128,7 +128,7 @@
           @if (data().title; as t) {
             <h3 class="nga-modal-title">{{ t }}</h3>
           }
-          <p class="nga-modal-message">{{ data().message }}</p>
+          <div class="nga-modal-message" [innerHTML]="safeMessage()"></div>
 
           @if (isPrompt()) {
             <input #promptInput
@@ -154,7 +154,7 @@
                 [class]="'btn ' + confirmBtnClass()"
                 (click)="confirm()">
           {{ data().confirmText || (isAlertDialog() ? 'Aceptar' : 'Confirmar') }}
-        </button>        
+        </button>
       </div>
     </div>
   </div>
