@@ -45,13 +45,23 @@
 
         <div class="col-md-3">
           <label class="form-label fw-bold small text-secondary d-block">Acciones</label>
-          <button
-            type="button"
-            class="btn btn-outline-secondary w-100"
-            (click)="resetFiltros()"
-            [disabled]="!selectedTitle && !selectedParameter">
-            Limpiar filtros
-          </button>
+          <div class="d-flex gap-2">
+            <button
+              type="button"
+              class="btn btn-outline-secondary flex-grow-1"
+              (click)="resetFiltros()"
+              [disabled]="!selectedTitle && !selectedParameter">
+              Limpiar filtros
+            </button>
+            <!-- Ayuda del bloque 1: selección del instrumento -->
+            <button
+              type="button"
+              class="btn btn-outline-info"
+              (click)="ayuda('equipo')"
+              title="Ayuda: selección del instrumento (equipo, título y mensurando)">
+              <i class="bi bi-question-circle"></i>
+            </button>
+          </div>
         </div>
 
       </div>
@@ -86,6 +96,15 @@
       </h5>
 
       <div class="d-flex gap-2">
+        <!-- Ayuda del bloque 2: cálculo del CMC -->
+        <button
+          type="button"
+          class="btn btn-sm btn-outline-light"
+          (click)="ayuda('cmc')"
+          title="Ayuda: cálculo del CMC">
+          <i class="bi bi-question-circle me-1"></i>
+          Ayuda CMC
+        </button>
         <button
           type="button"
           class="btn btn-sm btn-light"
@@ -186,6 +205,11 @@
               <th>#</th>
               <th>CC</th>
               <th>Fecha cal.</th>
+              <th style="min-width:180px;">
+                <i class="bi bi-list-ol text-success me-1"
+                   title="Indica si la tabla tiene rangos/intervalos de medida"></i>
+                ¿Tiene rangos?
+              </th>
               <th style="min-width:200px;">Fila (intervalo)</th>
               <th style="min-width:220px;">
                 Columna Valor de Referencia
@@ -221,16 +245,43 @@
                 {{ getCertificado(tabla) ? formatearFecha(getCertificado(tabla).date_cal || getCertificado(tabla).date_cc) : '—' }}
               </td>
 
+              <!-- NUEVO: Checkbox "¿Tiene rangos?" -->
+              <td class="text-center">
+                <div class="form-check form-switch d-flex justify-content-center mb-0">
+                  <input
+                    class="form-check-input"
+                    type="checkbox"
+                    role="switch"
+                    [id]="'chk-rangos-' + cmcActivoId + '-' + i"
+                    [checked]="tablaTieneRangos(i)"
+                    (change)="onToggleTieneRangos(i, $event)"
+                    [disabled]="!seleccionCmc[i]?.seleccionada"
+                    [title]="tablaTieneRangos(i)
+                      ? 'La tabla tiene rangos: se calcula por rango/fila seleccionada'
+                      : 'La tabla NO tiene rangos: se calcula usando TODA la tabla'">
+                  <label
+                    class="form-check-label small ms-1"
+                    [for]="'chk-rangos-' + cmcActivoId + '-' + i">
+                    {{ tablaTieneRangos(i) ? 'Sí' : 'No' }}
+                  </label>
+                </div>
+              </td>
+
               <td>
                 <select
                   class="form-select form-select-sm"
                   [(ngModel)]="seleccionCmc[i].filaIndex"
                   (ngModelChange)="onSelectionChange()"
-                  [disabled]="!seleccionCmc[i]?.seleccionada">
+                  [disabled]="!seleccionCmc[i]?.seleccionada || !tablaTieneRangos(i)"
+                  [title]="!tablaTieneRangos(i) ? 'Tabla sin rangos: se usa la tabla completa' : ''">
                   <option *ngFor="let row of tabla.rows; let r = index" [ngValue]="r">
                     Fila {{ r + 1 }}: {{ getRowDisplayLabel(tabla, row) }}
                   </option>
                 </select>
+                <small *ngIf="!tablaTieneRangos(i)" class="text-muted d-block mt-1">
+                  <i class="bi bi-table me-1"></i>
+                  Se usará la tabla completa ({{ tabla.rows.length }} fila{{ tabla.rows.length === 1 ? '' : 's' }})
+                </small>
               </td>
 
               <!-- Columna Valor de Referencia -->
@@ -316,7 +367,15 @@
                 }">
                 <td>{{ i + 1 }}</td>
                 <td>{{ tabla.cc_id || '—' }}</td>
-                <td>{{ (seleccionCmc[i]?.filaIndex ?? 0) + 1 }}</td>
+                <td>
+                  <span *ngIf="tablaTieneRangos(i)">
+                    {{ (seleccionCmc[i]?.filaIndex ?? 0) + 1 }}
+                  </span>
+                  <span *ngIf="!tablaTieneRangos(i)" class="badge bg-secondary"
+                        title="Tabla sin rangos: se usa la tabla completa">
+                    <i class="bi bi-table me-1"></i>Toda
+                  </span>
+                </td>
                 <td>
                   <span class="badge" style="background:#fff3cd;color:#856404;border:1px solid #ffc107;">
                     {{ getRangoSeleccionado(i) }}
@@ -327,7 +386,7 @@
                 <td>
                   <span class="badge"
                         style="background:#e2e3e5;color:#383d41;border:1px solid #adb5bd;"
-                        title="Valor mínimo del patrón de referencia detectado en las filas del mismo rango">
+                        title="Valor mínimo del patrón de referencia detectado en las filas usadas para el cálculo">
                     {{ getMinReferencia(i) }}
                   </span>
                 </td>
@@ -336,7 +395,7 @@
                 <td>
                   <span class="badge"
                         style="background:#e2e3e5;color:#383d41;border:1px solid #adb5bd;"
-                        title="Valor máximo del patrón de referencia detectado en las filas del mismo rango">
+                        title="Valor máximo del patrón de referencia detectado en las filas usadas para el cálculo">
                     {{ getMaxReferencia(i) }}
                   </span>
                 </td>
@@ -356,7 +415,7 @@
                     [style.background]="!tieneErrorInvalido(i) ? '#f8d7da' : null"
                     [style.color]="!tieneErrorInvalido(i) ? '#842029' : null"
                     [style.border]="!tieneErrorInvalido(i) ? '1px solid #dc3545' : null"
-                    [title]="tieneErrorInvalido(i) ? 'Valor no numérico: la fila no se puede usar para calcular el CMC' : 'Promedio de errores del mismo rango'">
+                    [title]="tieneErrorInvalido(i) ? 'Valor no numérico: la fila no se puede usar para calcular el CMC' : 'Promedio de errores de las filas usadas para el cálculo'">
                     <i *ngIf="tieneErrorInvalido(i)" class="bi bi-exclamation-triangle-fill me-1"></i>
                     {{ getErrorSeleccionado(i) }}
                   </span>
@@ -368,7 +427,7 @@
                     [style.background]="!tieneIncertidumbreInvalida(i) ? '#d1e7dd' : null"
                     [style.color]="!tieneIncertidumbreInvalida(i) ? '#0f5132' : null"
                     [style.border]="!tieneIncertidumbreInvalida(i) ? '1px solid #198754' : null"
-                    [title]="tieneIncertidumbreInvalida(i) ? 'Valor no numérico: la fila no se puede usar para calcular el CMC' : 'Promedio de incertidumbres del mismo rango'">
+                    [title]="tieneIncertidumbreInvalida(i) ? 'Valor no numérico: la fila no se puede usar para calcular el CMC' : 'Incertidumbre máxima de las filas usadas para el cálculo'">
                     <i *ngIf="tieneIncertidumbreInvalida(i)" class="bi bi-exclamation-triangle-fill me-1"></i>
                     {{ getIncertidumbreSeleccionada(i) }}
                   </span>
@@ -381,8 +440,15 @@
         <div class="alert alert-light border mt-2 py-2 small text-muted">
           <i class="bi bi-info-circle me-1"></i>
           Los valores de <strong>Ref. Mín</strong>, <strong>Ref. Máx</strong>, <strong>Días</strong>
-          y los <strong>promedios</strong> se calculan sobre <em>todas</em> las filas del mismo rango
-          dentro de cada certificado, usando la columna de <em>Valor de Referencia</em> seleccionada.
+          y los <strong>promedios</strong> se calculan sobre
+          <span *ngIf="filteredTablas.some((t, idx) => tablaTieneRangos(idx)); else soloCompleta">
+            <em>todas las filas del mismo rango</em> (si la tabla tiene rangos)
+            o sobre <em>toda la tabla</em> (si no tiene rangos),
+          </span>
+          <ng-template #soloCompleta>
+            <em>toda la tabla</em>,
+          </ng-template>
+          usando la columna de <em>Valor de Referencia</em> seleccionada.
           Al presionar <strong>“Calcular y ver CMC”</strong> se pedirá una confirmación y,
           tras calcular, se abrirá la <strong>vista de resultados</strong> del CMC.
         </div>
@@ -504,12 +570,23 @@
 
   <div *ngIf="!cargando && filteredTablas.length > 0">
 
-    <h4 class="fw-bold mb-3">
-      Tablas de Resultados
-      <small class="text-muted fs-6">
-        ({{ filteredTablas.length }} tabla{{ filteredTablas.length === 1 ? '' : 's' }})
-      </small>
-    </h4>
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+      <h4 class="fw-bold mb-0">
+        Tablas de Resultados
+        <small class="text-muted fs-6">
+          ({{ filteredTablas.length }} tabla{{ filteredTablas.length === 1 ? '' : 's' }})
+        </small>
+      </h4>
+      <!-- Ayuda del bloque 3: selección en tablas y resaltado -->
+      <button
+        type="button"
+        class="btn btn-sm btn-outline-warning"
+        (click)="ayuda('tablas')"
+        title="Ayuda: selección en las tablas y significado del resaltado">
+        <i class="bi bi-question-circle me-1"></i>
+        Ayuda tablas
+      </button>
+    </div>
 
     <div *ngFor="let table of filteredTablas; let i = index" class="mb-4">
 
@@ -581,6 +658,10 @@
             </span>
             <span class="badge badge-incertidumbre">
               Incertidumbre
+            </span>
+            <span *ngIf="!tablaTieneRangos(i)" class="badge bg-info text-dark">
+              <i class="bi bi-table me-1"></i>
+              Tabla completa (sin rangos)
             </span>
           </div>
 

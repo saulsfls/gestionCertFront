@@ -53,6 +53,14 @@ export interface ResumenTablaCmc {
   incertidumbre: string;
 }
 
+/**
+ * Extensión local de CmcConfiguracion para almacenar,
+ * por cada tabla, si el usuario indicó que NO tiene rangos/intervalos.
+ */
+type CmcConfiguracionExt = CmcConfiguracion & {
+  tieneRangosPorTabla?: Record<number, boolean>;
+};
+
 @Component({
   selector: 'app-cmcparamsvf',
   standalone: true,
@@ -82,7 +90,7 @@ export class Cmcparamsvf implements OnInit {
   mostrarPanelCmc = false;
   panelCmcColapsado = false;
 
-  cmcs: CmcConfiguracion[] = [];
+  cmcs: CmcConfiguracionExt[] = [];
   cmcActivoId = 1;
 
   copiadoCmc = false;
@@ -170,12 +178,20 @@ export class Cmcparamsvf implements OnInit {
   //   GETTERS DE ESTADO
   // ============================================================
 
-  get cmcActivo(): CmcConfiguracion | undefined {
+  get cmcActivo(): CmcConfiguracionExt | undefined {
     return this.cmcs.find(c => c.id === this.cmcActivoId);
   }
 
   get seleccionCmc(): Record<number, CmcTablaSeleccion> {
     return this.cmcActivo?.selecciones ?? {};
+  }
+
+  /**
+   * Mapa de "tiene rangos" para la CMC activa.
+   * Por defecto true (comportamiento anterior: se calcula por rango/fila).
+   */
+  get tieneRangosActivo(): Record<number, boolean> {
+    return this.cmcActivo?.tieneRangosPorTabla ?? {};
   }
 
   get cmcsParaMostrar(): CmcPayload[] {
@@ -543,8 +559,9 @@ export class Cmcparamsvf implements OnInit {
     this.refresh();
   }
 
-  private crearCmcConfig(id: number): CmcConfiguracion {
+  private crearCmcConfig(id: number): CmcConfiguracionExt {
     const selecciones: Record<number, CmcTablaSeleccion> = {};
+    const tieneRangosPorTabla: Record<number, boolean> = {};
 
     this.filteredTablas.forEach((tabla, idx) => {
       const colError = this.detectarColumnaError(tabla);
@@ -559,6 +576,9 @@ export class Cmcparamsvf implements OnInit {
         columnaErrorKey: colError?.key ?? primeraColKey,
         columnaIncertidumbreKey: colInc?.key ?? primeraColKey
       };
+
+      // Por defecto asumimos que la tabla SÍ tiene rangos (comportamiento anterior).
+      tieneRangosPorTabla[idx] = true;
     });
 
     return {
@@ -566,7 +586,8 @@ export class Cmcparamsvf implements OnInit {
       intervaloCalibracion: 24,
       selecciones,
       payload: null,
-      payloadTexto: ''
+      payloadTexto: '',
+      tieneRangosPorTabla
     };
   }
 
@@ -622,6 +643,115 @@ export class Cmcparamsvf implements OnInit {
       /patr[oó]n|valor.*referencia|referencia.*magnitud|nominal|reference/i.test(c.key) ||
       /patr[oó]n|valor.*referencia|referencia.*magnitud|nominal|reference/i.test(c.label ?? '')
     );
+  }
+
+  // ============================================================
+  //   NUEVO: CHECKBOX "TIENE RANGOS / INTERVALOS"
+  // ============================================================
+
+  /**
+   * Indica si una tabla específica tiene rangos/intervalos de medida.
+   * Por defecto true.
+   */
+  tablaTieneRangos(index: number): boolean {
+    const mapa = this.cmcActivo?.tieneRangosPorTabla ?? {};
+    return mapa[index] !== false; // true salvo que explícitamente sea false
+  }
+
+  /**
+   * Handler del checkbox. Si se desactiva (sin rangos), forzamos filaIndex = 0
+   * porque no aplica; el cálculo usará toda la tabla.
+   */
+  onToggleTieneRangos(index: number, event: Event): void {
+    const checked = (event.target as HTMLInputElement).checked;
+    const cmc = this.cmcActivo;
+    if (!cmc) return;
+
+    if (!cmc.tieneRangosPorTabla) {
+      cmc.tieneRangosPorTabla = {};
+    }
+    cmc.tieneRangosPorTabla[index] = checked;
+
+    const sel = cmc.selecciones[index];
+    if (sel && !checked) {
+      // Sin rangos: la selección de fila no aplica
+      sel.filaIndex = 0;
+    }
+
+    this.refresh();
+  }
+
+  // ============================================================
+  //   LÓGICA DE FILAS (con soporte para "sin rangos")
+  // ============================================================
+
+  /**
+   * Devuelve las filas que participan en el cálculo para una tabla dada.
+   * - Si la tabla TIENE rangos: filtra por el rango de la fila seleccionada.
+   * - Si la tabla NO tiene rangos: devuelve TODAS las filas.
+   */
+  private obtenerFilasParaCalculo(
+    tabla: ResultTable,
+    sel: CmcTablaSeleccion,
+    colIntervaloKey: string,
+    tieneRangos: boolean
+  ): FilaRangoInfo[] {
+    const resultado: FilaRangoInfo[] = [];
+    const rangoObjetivo = tieneRangos
+      ? String(this.getValorCelda(tabla, sel.filaIndex, colIntervaloKey) ?? '').trim()
+      : '';
+    const objetivoNorm = this.normalizarRango(rangoObjetivo);
+
+    for (let i = 0; i < (tabla.rows?.length ?? 0); i++) {
+      const row = tabla.rows[i];
+
+      if (tieneRangos) {
+        const rangoRaw = String(row[colIntervaloKey] ?? '').trim();
+        if (this.normalizarRango(rangoRaw) !== objetivoNorm) continue;
+      }
+
+      const rawError = this.getValorCelda(tabla, i, sel.columnaErrorKey);
+      const rawInc   = this.getValorCelda(tabla, i, sel.columnaIncertidumbreKey);
+      const rawRef   = this.getValorCelda(tabla, i, sel.columnaReferenciaKey);
+
+      if (rawError === null || rawInc === null || rawRef === null) continue;
+      if (!this.esNumeroValido(rawError) ||
+          !this.esNumeroValido(rawInc)) continue;
+
+      const error = Number(String(rawError).replace(',', '.'));
+      const incertidumbre = Number(String(rawInc).replace(',', '.'));
+
+      if (!isFinite(error) || !isFinite(incertidumbre)) continue;
+
+      const parsedRef = this.parsearValorReferencia(String(rawRef));
+      if (!isFinite(parsedRef.numero)) continue;
+
+      resultado.push({
+        error,
+        incertidumbre,
+        valorReferenciaRaw: String(rawRef),
+        valorReferenciaNum: parsedRef.numero,
+        valorReferenciaTexto: parsedRef.texto,
+        valorReferenciaUnidadTexto: parsedRef.unidadTexto
+      });
+    }
+
+    return resultado;
+  }
+
+  /**
+   * Wrapper para compatibilidad con el código existente.
+   * Consulta si la tabla tiene rangos para decidir el comportamiento.
+   */
+  private obtenerFilasMismoRango(
+    tabla: ResultTable,
+    sel: CmcTablaSeleccion,
+    colIntervaloKey: string,
+    rangoObjetivo: string
+  ): FilaRangoInfo[] {
+    const idx = this.filteredTablas.indexOf(tabla);
+    const tieneRangos = idx >= 0 ? this.tablaTieneRangos(idx) : true;
+    return this.obtenerFilasParaCalculo(tabla, sel, colIntervaloKey, tieneRangos);
   }
 
   toggleTablaCmc(index: number): void {
@@ -716,6 +846,18 @@ export class Cmcparamsvf implements OnInit {
     if (!sel) return '';
     const tabla = this.filteredTablas[index];
     if (!tabla) return '';
+
+    if (!this.tablaTieneRangos(index)) {
+      // Sin rangos: mostrar el rango completo de la tabla
+      const colIntervaloKey = tabla.columns[0]?.key ?? '';
+      const valores: string[] = [];
+      (tabla.rows ?? []).forEach((row) => {
+        const v = String(row[colIntervaloKey] ?? '').trim();
+        if (v && !valores.includes(v)) valores.push(v);
+      });
+      return valores.length ? valores.join(' / ') : 'Toda la tabla';
+    }
+
     const firstColKey = tabla.columns[0]?.key ?? '';
     return this.formatearValor(this.getValorCelda(tabla, sel.filaIndex, firstColKey));
   }
@@ -726,17 +868,13 @@ export class Cmcparamsvf implements OnInit {
     if (!sel || !tabla) return '';
 
     const colIntervaloKey = tabla.columns[0]?.key ?? '';
-    const rangoObjetivo = String(
-      this.getValorCelda(tabla, sel.filaIndex, colIntervaloKey) ?? ''
-    ).trim();
+    const tieneRangos = this.tablaTieneRangos(index);
+    const rangoObjetivo = tieneRangos
+      ? String(this.getValorCelda(tabla, sel.filaIndex, colIntervaloKey) ?? '').trim()
+      : '';
 
-    if (!rangoObjetivo) {
-      return this.formatearValor(
-        this.getValorCelda(tabla, sel.filaIndex, sel.columnaErrorKey)
-      );
-    }
+    const filas = this.obtenerFilasParaCalculo(tabla, sel, colIntervaloKey, tieneRangos);
 
-    const filas = this.obtenerFilasMismoRango(tabla, sel, colIntervaloKey, rangoObjetivo);
     if (!filas.length) {
       return this.formatearValor(
         this.getValorCelda(tabla, sel.filaIndex, sel.columnaErrorKey)
@@ -753,24 +891,16 @@ export class Cmcparamsvf implements OnInit {
     if (!sel || !tabla) return '';
 
     const colIntervaloKey = tabla.columns[0]?.key ?? '';
-    const rangoObjetivo = String(
-      this.getValorCelda(tabla, sel.filaIndex, colIntervaloKey) ?? ''
-    ).trim();
+    const tieneRangos = this.tablaTieneRangos(index);
 
-    if (!rangoObjetivo) {
-      return this.formatearValor(
-        this.getValorCelda(tabla, sel.filaIndex, sel.columnaIncertidumbreKey)
-      );
-    }
+    const filas = this.obtenerFilasParaCalculo(tabla, sel, colIntervaloKey, tieneRangos);
 
-    const filas = this.obtenerFilasMismoRango(tabla, sel, colIntervaloKey, rangoObjetivo);
     if (!filas.length) {
       return this.formatearValor(
         this.getValorCelda(tabla, sel.filaIndex, sel.columnaIncertidumbreKey)
       );
     }
 
-    // Tomar la incertidumbre más alta del rango
     const incertidumbreMax = filas.reduce((max, f) => Math.max(max, f.incertidumbre), -Infinity);
     return this.formatearValor(incertidumbreMax);
   }
@@ -785,12 +915,8 @@ export class Cmcparamsvf implements OnInit {
     if (!sel || !tabla) return '—';
 
     const colIntervaloKey = tabla.columns[0]?.key ?? '';
-    const rangoObjetivo = String(
-      this.getValorCelda(tabla, sel.filaIndex, colIntervaloKey) ?? ''
-    ).trim();
-    if (!rangoObjetivo) return '—';
-
-    const filas = this.obtenerFilasMismoRango(tabla, sel, colIntervaloKey, rangoObjetivo);
+    const tieneRangos = this.tablaTieneRangos(index);
+    const filas = this.obtenerFilasParaCalculo(tabla, sel, colIntervaloKey, tieneRangos);
     if (!filas.length) return '—';
 
     let mejor: FilaRangoInfo | null = null;
@@ -813,12 +939,8 @@ export class Cmcparamsvf implements OnInit {
     if (!sel || !tabla) return '—';
 
     const colIntervaloKey = tabla.columns[0]?.key ?? '';
-    const rangoObjetivo = String(
-      this.getValorCelda(tabla, sel.filaIndex, colIntervaloKey) ?? ''
-    ).trim();
-    if (!rangoObjetivo) return '—';
-
-    const filas = this.obtenerFilasMismoRango(tabla, sel, colIntervaloKey, rangoObjetivo);
+    const tieneRangos = this.tablaTieneRangos(index);
+    const filas = this.obtenerFilasParaCalculo(tabla, sel, colIntervaloKey, tieneRangos);
     if (!filas.length) return '—';
 
     let mejor: FilaRangoInfo | null = null;
@@ -888,6 +1010,11 @@ export class Cmcparamsvf implements OnInit {
     return this.paletaCmc[(id - 1) % this.paletaCmc.length];
   }
 
+  /**
+   * Determina qué CMCs afectan una fila.
+   * - Si la tabla del CMC TIENE rangos: solo las filas del rango seleccionado.
+   * - Si la tabla NO tiene rangos: TODAS las filas.
+   */
   getCmcsDeFila(tableIndex: number, rowIndex: number): number[] {
     const ids = new Set<number>();
     const tabla = this.filteredTablas[tableIndex];
@@ -898,6 +1025,14 @@ export class Cmcparamsvf implements OnInit {
     for (const cmc of this.cmcs) {
       const sel = cmc.selecciones[tableIndex];
       if (!sel?.seleccionada) continue;
+
+      const tieneRangos = this.tablaTieneRangosParaCmc(cmc, tableIndex);
+
+      if (!tieneRangos) {
+        // Sin rangos: el CMC afecta a toda la tabla
+        ids.add(cmc.id);
+        continue;
+      }
 
       const rangoObjetivo = String(
         this.getValorCelda(tabla, sel.filaIndex, colIntervaloKey) ?? ''
@@ -916,6 +1051,15 @@ export class Cmcparamsvf implements OnInit {
     return Array.from(ids);
   }
 
+  /**
+   * Variante de tablaTieneRangos que recibe el CMC explícitamente
+   * (útil en getCmcsDeFila, donde el CMC no es necesariamente el activo).
+   */
+  private tablaTieneRangosParaCmc(cmc: CmcConfiguracionExt, index: number): boolean {
+    const mapa = cmc.tieneRangosPorTabla ?? {};
+    return mapa[index] !== false;
+  }
+
   esPrimeraFilaDelRango(tableIndex: number, rowIndex: number, cmcId: number): boolean {
     const tabla = this.filteredTablas[tableIndex];
     if (!tabla) return false;
@@ -925,6 +1069,13 @@ export class Cmcparamsvf implements OnInit {
 
     const sel = cmc.selecciones[tableIndex];
     if (!sel?.seleccionada) return false;
+
+    const tieneRangos = this.tablaTieneRangosParaCmc(cmc, tableIndex);
+
+    if (!tieneRangos) {
+      // Sin rangos: solo la primera fila lleva la etiqueta de inicio de bloque
+      return rowIndex === 0;
+    }
 
     const colIntervaloKey = tabla.columns[0]?.key ?? '';
     const rangoObjetivo = String(
@@ -1163,51 +1314,8 @@ export class Cmcparamsvf implements OnInit {
   }
 
   // ============================================================
-  //   AGRUPACIÓN POR RANGO Y PROMEDIOS
+  //   NORMALIZACIÓN DE RANGO
   // ============================================================
-
-  private obtenerFilasMismoRango(
-    tabla: ResultTable,
-    sel: CmcTablaSeleccion,
-    colIntervaloKey: string,
-    rangoObjetivo: string
-  ): FilaRangoInfo[] {
-    const resultado: FilaRangoInfo[] = [];
-    const objetivoNorm = this.normalizarRango(rangoObjetivo);
-
-    for (let i = 0; i < (tabla.rows?.length ?? 0); i++) {
-      const row = tabla.rows[i];
-      const rangoRaw = String(row[colIntervaloKey] ?? '').trim();
-      if (this.normalizarRango(rangoRaw) !== objetivoNorm) continue;
-
-      const rawError = this.getValorCelda(tabla, i, sel.columnaErrorKey);
-      const rawInc   = this.getValorCelda(tabla, i, sel.columnaIncertidumbreKey);
-      const rawRef   = this.getValorCelda(tabla, i, sel.columnaReferenciaKey);
-
-      if (rawError === null || rawInc === null || rawRef === null) continue;
-      if (!this.esNumeroValido(rawError) ||
-          !this.esNumeroValido(rawInc)) continue;
-
-      const error = Number(String(rawError).replace(',', '.'));
-      const incertidumbre = Number(String(rawInc).replace(',', '.'));
-
-      if (!isFinite(error) || !isFinite(incertidumbre)) continue;
-
-      const parsedRef = this.parsearValorReferencia(String(rawRef));
-      if (!isFinite(parsedRef.numero)) continue;
-
-      resultado.push({
-        error,
-        incertidumbre,
-        valorReferenciaRaw: String(rawRef),
-        valorReferenciaNum: parsedRef.numero,
-        valorReferenciaTexto: parsedRef.texto,
-        valorReferenciaUnidadTexto: parsedRef.unidadTexto
-      });
-    }
-
-    return resultado;
-  }
 
   private normalizarRango(v: string): string {
     return String(v ?? '')
@@ -1268,7 +1376,7 @@ export class Cmcparamsvf implements OnInit {
     );
   }
 
-  private calcularCmcInterno(cmc: CmcConfiguracion): { ok: boolean; motivo?: string } {
+  private calcularCmcInterno(cmc: CmcConfiguracionExt): { ok: boolean; motivo?: string } {
     const limpiar = () => {
       cmc.payload = null;
       cmc.payloadTexto = '';
@@ -1288,8 +1396,10 @@ export class Cmcparamsvf implements OnInit {
       return { ok: false, motivo: 'menos de 2 tablas seleccionadas' };
     }
 
+    // Solo validamos coincidencia de rangos entre tablas que SÍ tienen rangos.
     const rangosNormalizados = new Set<string>();
     const colIntervaloPorTabla: Record<number, string> = {};
+    const tieneRangosPorTabla: Record<number, boolean> = {};
 
     for (const { idx, s } of entradas) {
       const tabla = this.filteredTablas[idx];
@@ -1300,6 +1410,11 @@ export class Cmcparamsvf implements OnInit {
 
       const colIntervaloKey = tabla.columns[0]?.key ?? '';
       colIntervaloPorTabla[idx] = colIntervaloKey;
+
+      const tieneRangos = this.tablaTieneRangosParaCmc(cmc, idx);
+      tieneRangosPorTabla[idx] = tieneRangos;
+
+      if (!tieneRangos) continue; // sin rangos: no valida coincidencia
 
       const rangoRaw = String(
         this.getValorCelda(tabla, s.filaIndex, colIntervaloKey) ?? ''
@@ -1321,14 +1436,17 @@ export class Cmcparamsvf implements OnInit {
       };
     }
 
-    const rangoObjetivo = (() => {
-      const primeraEntrada = entradas[0];
-      const tabla = this.filteredTablas[primeraEntrada.idx];
-      const colIntervaloKey = colIntervaloPorTabla[primeraEntrada.idx];
-      return String(
-        this.getValorCelda(tabla, primeraEntrada.s.filaIndex, colIntervaloKey) ?? ''
-      ).trim();
-    })();
+    // Rango objetivo (solo aplica si al menos una tabla tiene rangos)
+    const primeraConRangos = entradas.find(({ idx }) => tieneRangosPorTabla[idx]);
+    const rangoObjetivo = primeraConRangos
+      ? String(
+          this.getValorCelda(
+            this.filteredTablas[primeraConRangos.idx],
+            primeraConRangos.s.filaIndex,
+            colIntervaloPorTabla[primeraConRangos.idx]
+          ) ?? ''
+        ).trim()
+      : '';
 
     const filasValidas: {
       idx: number;
@@ -1364,13 +1482,17 @@ export class Cmcparamsvf implements OnInit {
       }
 
       const colIntervaloKey = colIntervaloPorTabla[idx];
-      const filasRango = this.obtenerFilasMismoRango(
-        tabla, s, colIntervaloKey, rangoObjetivo
+      const tieneRangos = tieneRangosPorTabla[idx];
+
+      const filasRango = this.obtenerFilasParaCalculo(
+        tabla, s, colIntervaloKey, tieneRangos
       );
 
       if (!filasRango.length) {
         invalidos.push(
-          `tabla #${idx + 1}: no hay filas con el rango "${rangoObjetivo}"`
+          tieneRangos
+            ? `tabla #${idx + 1}: no hay filas con el rango "${rangoObjetivo}"`
+            : `tabla #${idx + 1}: no hay filas válidas en la tabla`
         );
         continue;
       }
@@ -1379,8 +1501,10 @@ export class Cmcparamsvf implements OnInit {
       const sumaError = filasRango.reduce((acc, f) => acc + f.error, 0);
       const errorProm = sumaError / n;
 
-      // CORRECCIÓN: Se toma la incertidumbre máxima del rango en lugar del promedio
-      const incertidumbreMax = filasRango.reduce((max, f) => Math.max(max, f.incertidumbre), -Infinity);
+      // Se toma la incertidumbre máxima del conjunto de filas
+      const incertidumbreMax = filasRango.reduce(
+        (max, f) => Math.max(max, f.incertidumbre), -Infinity
+      );
 
       let filaMin: FilaRangoInfo | null = null;
       let filaMax: FilaRangoInfo | null = null;
@@ -1396,11 +1520,11 @@ export class Cmcparamsvf implements OnInit {
 
       const minRef = filaMin
         ? this.formatearValorConTexto(filaMin.valorReferenciaRaw, filaMin.valorReferenciaNum)
-        : rangoObjetivo;
+        : (tieneRangos ? rangoObjetivo : '—');
 
       const maxRef = filaMax
         ? this.formatearValorConTexto(filaMax.valorReferenciaRaw, filaMax.valorReferenciaNum)
-        : rangoObjetivo;
+        : (tieneRangos ? rangoObjetivo : '—');
 
       filasValidas.push({
         idx,
@@ -1411,7 +1535,7 @@ export class Cmcparamsvf implements OnInit {
         incertidumbre: incertidumbreMax,
         cc: cert.cc || tabla.cc_id || '',
         table_id: tabla.table_id || '',
-        rango: rangoObjetivo,
+        rango: tieneRangos ? rangoObjetivo : 'Toda la tabla',
         minRef,
         maxRef,
         nRegistros: n
@@ -1535,7 +1659,6 @@ export class Cmcparamsvf implements OnInit {
 
     try {
       for (const cmc of this.cmcs) {
-        // Contextualizamos temporalmente el CMC para usar los getters existentes
         this.cmcActivoId = cmc.id;
         const filas: ResumenTablaCmc[] = [];
 
@@ -1545,7 +1668,9 @@ export class Cmcparamsvf implements OnInit {
           filas.push({
             index: i + 1,
             cc: tabla.cc_id || '—',
-            fila: String((cmc.selecciones[i].filaIndex ?? 0) + 1),
+            fila: this.tablaTieneRangosParaCmc(cmc, i)
+              ? String((cmc.selecciones[i].filaIndex ?? 0) + 1)
+              : 'Toda la tabla',
             intervalo: this.getRangoSeleccionado(i),
             refMin: this.getMinReferencia(i),
             refMax: this.getMaxReferencia(i),
@@ -1558,7 +1683,6 @@ export class Cmcparamsvf implements OnInit {
         resumenes[cmc.id] = filas;
       }
     } finally {
-      // Restauramos el estado original incluso si hay errores
       this.cmcActivoId = anteriorId;
     }
 
@@ -1566,11 +1690,7 @@ export class Cmcparamsvf implements OnInit {
   }
 
   /**
-   * Flujo principal al presionar "Calcular y ver CMC":
-   *   1. Pide confirmación al usuario recordándole revisar los parámetros.
-   *   2. Ejecuta el cálculo de todos los CMC.
-   *   3. Redirige a la vista de resultados enviando los parámetros
-   *      y el resumen de la tabla de valores seleccionados.
+   * Flujo principal al presionar "Calcular y ver CMC".
    */
   async calcularYMostrarCmc(): Promise<void> {
     if (!this.cmcs.length) {
@@ -1578,13 +1698,11 @@ export class Cmcparamsvf implements OnInit {
       return;
     }
 
-    // 1) Confirmación del usuario
     const confirmado = await this.confirmarParametrosDelCalculo();
     if (!confirmado) {
       return;
     }
 
-    // 2) Cálculo
     try {
       this.calcularTodosLosCmc();
     } catch (e) {
@@ -1596,7 +1714,6 @@ export class Cmcparamsvf implements OnInit {
       return;
     }
 
-    // 3) Verificar que exista al menos un payload válido
     const payloads = this.cmcsParaMostrar;
     if (!payloads.length) {
       this.alert.warning(
@@ -1606,13 +1723,12 @@ export class Cmcparamsvf implements OnInit {
       return;
     }
 
-    // 4) Redirección con parámetros al componente de resultados
     const navegacionOk = await this.router.navigate([this.rutaResultadosCmc], {
       state: {
-        payload: this.payloadCompleto,          // Parámetros calculados
+        payload: this.payloadCompleto,
         equipmentId: this.selectedEquipmentId,
         mensurando: this.etiquetaMensurando,
-        resumenTablas: this.obtenerResumenValoresSeleccionados() // Resumen de la tabla
+        resumenTablas: this.obtenerResumenValoresSeleccionados()
       }
     });
 
@@ -1624,16 +1740,12 @@ export class Cmcparamsvf implements OnInit {
     }
   }
 
-  /**
-   * Muestra un diálogo de confirmación advirtiendo al usuario que
-   * debe revisar los parámetros antes de proceder con el cálculo.
-   */
   private async confirmarParametrosDelCalculo(): Promise<boolean> {
     try {
       return await this.alert.confirm(
         'Revise que los parámetros ingresados sean correctos antes de continuar:\n' +
         '• Tablas seleccionadas\n' +
-        '• Fila / rango seleccionado\n' +
+        '• Fila / rango seleccionado (o "Sin rangos" si aplica)\n' +
         '• Columnas de error, incertidumbre y referencia\n' +
         '• Intervalo de calibración (meses)\n\n' +
         '¿Está seguro de proceder con el cálculo del CMC?',
@@ -1666,6 +1778,119 @@ export class Cmcparamsvf implements OnInit {
     }
     this.mostrarResultadosCmc = !this.mostrarResultadosCmc;
     this.refresh();
+  }
+
+  // ============================================================
+  //   AYUDA CONTEXTUAL (3 bloques)
+  // ============================================================
+
+  /**
+   * Muestra un modal de ayuda según el bloque solicitado.
+   * Valores aceptados: 'equipo' | 'cmc' | 'tablas'.
+   */
+  ayuda(modal: string): void {
+    const clave = String(modal ?? '').trim().toLowerCase();
+
+    let detalle = '';
+
+    if (clave === 'equipo') {
+      detalle = `
+        <h3 style="margin-top:0; color:#0d6efd;">1. Selección del instrumento</h3>
+        <p>Antes de calcular la CMC debes identificar <b>qué instrumento</b> estás analizando. Para ello se utilizan tres selectores jerárquicos:</p>
+        <ol>
+          <li>
+            <b>Equipo:</b> selecciona el <i>Equipment ID</i> del instrumento (por ejemplo, un multímetro, un calibrador, una fuente, etc.).
+            Al cambiar de equipo se descargan sus tablas de resultados y se limpian los filtros.
+          </li>
+          <li>
+            <b>Título (Mensurando):</b> es la magnitud general que se está midiendo.
+            <br><em>Ejemplos:</em> <code>DC Voltage</code>, <code>AC Voltage</code>, <code>Resistance</code>, <code>Frequency</code>, etc.
+          </li>
+          <li>
+            <b>Mesurando / Parámetro:</b> es la variante específica dentro del título.
+            <br><em>Ejemplo:</em> si el título es <code>AC Voltage</code>, los parámetros pueden ser <code>RMS Voltage</code> o <code>Peak-to-Peak Voltage (PP)</code>.
+          </li>
+        </ol>
+        <p>Cuando seleccionas el título, se filtran automáticamente las tablas disponibles y se cargan los certificados asociados a cada <code>cc_id</code>.</p>
+        <p style="color:#6c757d; font-size:0.9em;"><i>Sugerencia: si no ves tu título/parámetro, prueba con la opción <b>Other</b> al final de cada lista.</i></p>
+      `;
+    } else if (clave === 'cmc') {
+      detalle = `
+        <h3 style="margin-top:0; color:#198754;">2. Cálculo de la CMC</h3>
+        <p>La <b>CMC (Calibración por Mínimos Cuadrados / Capacidad de Medición y Calibración)</b> estima cómo evoluciona el error del instrumento a lo largo del tiempo, usando los certificados de calibración históricos.</p>
+        <p><b>Objetivo:</b> obtener la incertidumbre combinada del instrumento en un intervalo de calibración, para un rango de referencia dado. El resultado es un <i>payload</i> con:</p>
+        <ul>
+          <li><b>errores:</b> promedio del error por cada certificado (un valor por certificado).</li>
+          <li><b>incertidumbres:</b> incertidumbre máxima por certificado.</li>
+          <li><b>tiempo.intermedio:</b> días transcurridos entre calibraciones consecutivas.</li>
+          <li><b>intervalo.calibracion:</b> intervalo declarado (en meses).</li>
+          <li><b>rango / min.referencia / max.referencia:</b> rango trabajado.</li>
+        </ul>
+        <p><b>Requisitos:</b></p>
+        <ul>
+          <li>Seleccionar al menos <b>2 tablas</b> (cada tabla corresponde a un certificado).</li>
+          <li>Cada tabla debe tener certificado con fecha válida.</li>
+          <li>Debe existir una columna de <b>error</b>, una de <b>incertidumbre</b> y una de <b>referencia</b>.</li>
+        </ul>
+        <p>Puedes crear varios CMC con el botón <b>Nuevo CMC</b>; cada uno se calcula con su propia configuración y se identifica por número (CMC #1, CMC #2, …).</p>
+        <p style="color:#6c757d; font-size:0.9em;"><i>El payload generado se muestra en el panel inferior y puede copiarse al portapapeles.</i></p>
+      `;
+    } else if (clave === 'tablas') {
+      detalle = `
+        <h3 style="margin-top:0; color:#fd7e14;">3. Selección en las tablas (resaltado)</h3>
+        <p>En la tabla de resultados, cada fila representa un punto de medición. Para cada tabla debes indicar:</p>
+        <ol>
+          <li><b>¿Tiene rangos / intervalos de medida?</b>
+            <ul>
+              <li><b>Sí</b> (por defecto): el CMC se calcula <i>solo con las filas del rango seleccionado</i>. Debes elegir una fila; todas las filas con el mismo intervalo se agrupan automáticamente.</li>
+              <li><b>No</b>: la tabla completa se usa como un único bloque. Esto aplica a instrumentos que con un mismo rango cubren toda la escala. En este caso la selección de fila se desactiva.</li>
+            </ul>
+          </li>
+          <li><b>Fila / rango:</b> si la tabla tiene rangos, selecciona una fila. El sistema detecta todas las filas que comparten el mismo intervalo y las promedia.</li>
+          <li><b>Columnas:</b> se detectan automáticamente las columnas de <b>error</b>, <b>incertidumbre</b> y <b>referencia</b>. Puedes cambiarlas manualmente si la detección falla.</li>
+        </ol>
+        <p><b>Colores del resaltado:</b></p>
+        <ul>
+          <li><span style="display:inline-block;width:14px;height:14px;background:#0d6efd;vertical-align:middle;border-radius:3px;"></span> <b>Azul</b>: CMC #1</li>
+          <li><span style="display:inline-block;width:14px;height:14px;background:#198754;vertical-align:middle;border-radius:3px;"></span> <b>Verde</b>: CMC #2</li>
+          <li><span style="display:inline-block;width:14px;height:14px;background:#ffc107;vertical-align:middle;border-radius:3px;"></span> <b>Amarillo</b>: CMC #3</li>
+          <li><span style="display:inline-block;width:14px;height:14px;background:#dc3545;vertical-align:middle;border-radius:3px;"></span> <b>Rojo</b>: CMC #4</li>
+          <li>… y así sucesivamente con la paleta cíclica.</li>
+        </ul>
+        <p>Las celdas <b>no usadas</b> por ningún CMC se muestran atenuadas (clase <code>cell-no-usada</code>).</p>
+        <p style="color:#6c757d; font-size:0.9em;"><i>Consejo: usa <b>Seleccionar todas</b> / <b>Deseleccionar todas</b> para activar o desactivar tablas rápidamente, y <b>Sincronizar fila</b> para replicar la fila seleccionada en todas las tablas con rango.</i></p>
+      `;
+    } else {
+      detalle = `
+        <p>No hay ayuda disponible para <code>${this.escapeHtml(clave)}</code>.</p>
+        <p>Bloques disponibles: <code>equipo</code>, <code>cmc</code>, <code>tablas</code>.</p>
+      `;
+    }
+
+    this.alert.alert(detalle, 'Información', {
+      type: 'info',
+      confirmText: 'Sí, entendido',
+      dismissible: true,
+      size: 'xl',
+      sizeOptions: {
+        width: '1200px',
+        maxWidth: '95vw',
+        maxHeight: '85vh',
+        scrollable: true,
+        messageMaxHeight: '60vh',
+        fontSize: '15px',
+        lineHeight: 1.6,
+      },
+    });
+  }
+
+  private escapeHtml(s: string): string {
+    return String(s ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
   }
 
   // ============================================================
