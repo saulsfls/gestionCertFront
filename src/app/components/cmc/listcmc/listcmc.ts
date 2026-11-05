@@ -15,7 +15,7 @@ type FiltroEstado = 'todos' | 'activos' | 'inactivos';
   styleUrl: './listcmc.css',
   templateUrl: './listcmc.html',
 })
-export class Listcmc {
+export class Listcmc implements OnInit {
 
   private readonly alert = inject(AlertService);
 
@@ -40,9 +40,6 @@ export class Listcmc {
     this.obtenerCmc();
   }
 
-  // ---------------------------------------------------------------------------
-  // Navegación
-  // ---------------------------------------------------------------------------
   editarCmc(id?: number): void {
     if (!id) return;
     this.router.navigate(['/cmc-edit', id]);
@@ -53,16 +50,10 @@ export class Listcmc {
     this.router.navigate(['/cmc-view', id]);
   }
 
-  // ---------------------------------------------------------------------------
-  // Helper: active puede venir como 0/1 o boolean
-  // ---------------------------------------------------------------------------
   estaActivo(cmc: CmcData): boolean {
     return cmc.active === 1 || cmc.active === true;
   }
 
-  // ---------------------------------------------------------------------------
-  // Filtro reactivo
-  // ---------------------------------------------------------------------------
   get cmcFiltrados(): CmcData[] {
     return this.listaCmc.filter((cmc) => {
       const activo = this.estaActivo(cmc);
@@ -72,33 +63,40 @@ export class Listcmc {
       if (!this.textoBusqueda.trim()) return true;
 
       const termino = this.textoBusqueda.toLowerCase().trim();
-      const matchEquipment = cmc.id_equipment
-        ? cmc.id_equipment.toLowerCase().includes(termino) : false;
+
+      const matchEquipment = cmc.equipment_id
+        ? cmc.equipment_id.toLowerCase().includes(termino) : false;
+      const matchPt = cmc.pt
+        ? cmc.pt.toLowerCase().includes(termino) : false;
       const matchCert = cmc.cert_associate
         ? cmc.cert_associate.toLowerCase().includes(termino) : false;
       const matchId = cmc.id != null
         ? String(cmc.id).toLowerCase().includes(termino) : false;
 
-      return matchEquipment || matchCert || matchId;
+      return matchEquipment || matchPt || matchCert || matchId;
     });
   }
 
-  // ---------------------------------------------------------------------------
-  // Carga de datos
-  // ---------------------------------------------------------------------------
   obtenerCmc(): void {
     this.cargando = true;
     this.cdr.detectChanges();
 
     this.cmcService.obtenerCmcs().subscribe({
       next: (res: ApiResponse<CmcData[]>) => {
+        let datos: CmcData[] = [];
+
         if (res && res.ok && Array.isArray(res.data)) {
-          this.listaCmc = res.data;
+          datos = res.data;
         } else if (Array.isArray(res)) {
-          this.listaCmc = res as unknown as CmcData[];
-        } else {
-          this.listaCmc = [];
+          datos = res as unknown as CmcData[];
         }
+
+        this.listaCmc = datos.map((c: any) => ({
+          ...c,
+          equipment_id: c.equipment_id ?? c.equipmnet_id ?? '',
+        }));
+
+        console.log('CMC obtenidos:', this.listaCmc);
 
         this.cargando = false;
         this.cdr.detectChanges();
@@ -122,9 +120,6 @@ export class Listcmc {
     });
   }
 
-  // ---------------------------------------------------------------------------
-  // Expansión del resumen
-  // ---------------------------------------------------------------------------
   toggleDetalle(id: number | undefined, cmc: CmcData): void {
     if (!id) return;
     if (this.idExpandido === id) {
@@ -136,14 +131,11 @@ export class Listcmc {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // Desactivación con confirmación
-  // ---------------------------------------------------------------------------
   async desactivarCmc(cmc: CmcData): Promise<void> {
     if (!this.estaActivo(cmc) || !cmc.id) return;
     if (this.desactivando.has(cmc.id)) return;
 
-    const identificador = cmc.id_equipment || cmc.cert_associate || cmc.id;
+    const identificador = cmc.equipment_id || cmc.cert_associate || cmc.id;
 
     const confirmado = await this.alert.confirm(
       `El CMC "${identificador}" se marcará como inactivo. ¿Deseas continuar?`,
