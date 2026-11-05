@@ -2,7 +2,8 @@ export interface CmcData {
   id?: number; //ID del calculo
   id_equipment: string; //ID del equipo
   created_at?: string; //Fecha de creacion
-  id_user?: string; //Usuario que crea y calcula el CMC
+  id_user: string; //Usuario que crea y calcula el CMC
+  pt: string; //El calculo del cmc debe estar asociados a un pt
   value_ref_min: string; //Valor de referencia maximo
   value_ref_max: string; //Valor de referencia minimo
   interval_value: string; //intevalo del cmc
@@ -45,6 +46,7 @@ export interface CmcFilaDetalle {
 
 export interface CmcPayload {
   id: string;
+  pt: string;
   cmcNumero: number;
   errores: number[];
   incertidumbres: number[];

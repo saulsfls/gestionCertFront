@@ -1473,17 +1473,32 @@ export class Cmcparamsvf implements OnInit {
 
     const exitosos: number[] = [];
     const fallidos: { id: number; motivo: string }[] = [];
+    const ptCorrupto: { id: number; detalle: string }[] = [];
 
     for (const cmc of this.cmcs) {
       const resultado = this.calcularCmcInterno(cmc);
       if (resultado.ok) {
         exitosos.push(cmc.id);
+      } else if (resultado.ptInconsistente) {
+        ptCorrupto.push({ id: cmc.id, detalle: resultado.motivo ?? 'PT inconsistente' });
       } else {
         fallidos.push({ id: cmc.id, motivo: resultado.motivo ?? 'Error desconocido' });
       }
     }
 
     this.refresh();
+
+    if (ptCorrupto.length) {
+      const detalle = ptCorrupto
+        .map(p => `CMC #${p.id}: ${p.detalle}`)
+        .join(' | ');
+      this.alert.error(
+        `Datos corruptos: los certificados involucrados no tienen el mismo PT (patrón de referencia). ` +
+        `Revise los certificados antes de calcular. Detalle: ${detalle}`,
+        'Datos corruptos – PT inconsistente'
+      );
+      return;
+    }
 
     if (!fallidos.length) {
       this.alert.success(
@@ -1513,7 +1528,11 @@ export class Cmcparamsvf implements OnInit {
     );
   }
 
-  private calcularCmcInterno(cmc: CmcConfiguracionExt): { ok: boolean; motivo?: string } {
+  private calcularCmcInterno(cmc: CmcConfiguracionExt): {
+    ok: boolean;
+    motivo?: string;
+    ptInconsistente?: boolean;
+  } {
     const limpiar = () => {
       cmc.payload = null;
       cmc.payloadTexto = '';
@@ -1599,6 +1618,7 @@ export class Cmcparamsvf implements OnInit {
       minRef: string;
       maxRef: string;
       nRegistros: number;
+      pt: string;
     }[] = [];
 
     const invalidos: string[] = [];
@@ -1663,6 +1683,11 @@ export class Cmcparamsvf implements OnInit {
         ? this.formatearValorConTexto(filaMax.valorReferenciaRaw, filaMax.valorReferenciaNum)
         : (tieneRangos ? rangoObjetivo : '—');
 
+      const ptRaw = cert.pt;
+      const pt = (ptRaw === null || ptRaw === undefined)
+        ? ''
+        : String(ptRaw).trim();
+
       filasValidas.push({
         idx,
         tabla,
@@ -1675,7 +1700,8 @@ export class Cmcparamsvf implements OnInit {
         rango: tieneRangos ? rangoObjetivo : 'Toda la tabla',
         minRef,
         maxRef,
-        nRegistros: n
+        nRegistros: n,
+        pt
       });
     }
 
@@ -1688,6 +1714,34 @@ export class Cmcparamsvf implements OnInit {
       limpiar();
       return { ok: false, motivo: 'filas válidas insuficientes (mínimo 2)' };
     }
+
+    // Validar que todos los certificados tengan el mismo PT
+    const ptsRaw = filasValidas.map(x => x.pt);
+    const ptsSinVaciar = ptsRaw.filter(p => p !== '');
+
+    if (ptsSinVaciar.length !== ptsRaw.length) {
+      limpiar();
+      return {
+        ok: false,
+        ptInconsistente: true,
+        motivo: 'hay certificados sin PT definido'
+      };
+    }
+
+    const ptUnico = ptsSinVaciar[0];
+    const todosMismoPt = ptsSinVaciar.every(p => p === ptUnico);
+
+    if (!todosMismoPt) {
+      const distintos = Array.from(new Set(ptsSinVaciar)).join(', ');
+      limpiar();
+      return {
+        ok: false,
+        ptInconsistente: true,
+        motivo: `PTs distintos: ${distintos}`
+      };
+    }
+
+    const ptPayload = ptUnico;
 
     filasValidas.sort((a, b) => a.fecha.getTime() - b.fecha.getTime());
 
@@ -1724,6 +1778,7 @@ export class Cmcparamsvf implements OnInit {
 
     const payload: CmcPayload = {
       id: this.selectedEquipmentId,
+      pt: ptPayload,
       cmcNumero: cmc.id,
       errores,
       incertidumbres,
@@ -1753,6 +1808,7 @@ export class Cmcparamsvf implements OnInit {
     return [
       `# === CMC #${p.cmcNumero} ===`,
       `#ID ${p.id}`,
+      `#pt ${p.pt}`,
       `#Cálculo de la CMC para un valor de referencia en el intervalo de calibración`,
       ``,
       `#Certificados involucrados: ${p.certificados.join(', ')}`,
@@ -1942,6 +1998,7 @@ export class Cmcparamsvf implements OnInit {
         <p>La <b>CMC (Calibración por Mínimos Cuadrados / Capacidad de Medición y Calibración)</b> estima cómo evoluciona el error del instrumento a lo largo del tiempo, usando los certificados de calibración históricos.</p>
         <p><b>Objetivo:</b> obtener la incertidumbre combinada del instrumento en un intervalo de calibración, para un rango de referencia dado. El resultado es un <i>payload</i> con:</p>
         <ul>
+          <li><b>pt:</b> patrón de referencia (debe ser el mismo en todos los certificados).</li>
           <li><b>errores:</b> promedio del error por cada certificado (un valor por certificado).</li>
           <li><b>incertidumbres:</b> incertidumbre máxima por certificado.</li>
           <li><b>tiempo.intermedio:</b> días transcurridos entre calibraciones consecutivas.</li>
@@ -1952,6 +2009,7 @@ export class Cmcparamsvf implements OnInit {
         <ul>
           <li>Seleccionar al menos <b>2 tablas</b> (cada tabla corresponde a un certificado).</li>
           <li>Cada tabla debe tener certificado con fecha válida.</li>
+          <li>Todos los certificados deben tener el <b>mismo PT</b> (patrón de referencia). Si no coinciden, se mostrará una alerta de datos corruptos.</li>
           <li>Debe existir una columna de <b>error</b>, una de <b>incertidumbre</b> y una de <b>referencia</b>.</li>
         </ul>
         <p>Puedes crear varios CMC con el botón <b>Nuevo CMC</b>; cada uno se calcula con su propia configuración y se identifica por número (CMC #1, CMC #2, …).</p>
