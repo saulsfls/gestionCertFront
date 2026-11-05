@@ -1,4 +1,5 @@
-<div class="cmc-resultado">
+
+<div class="cmc-resultado" style="padding-top: 90px;">
   <!-- Encabezado -->
   <header class="encabezado">
     <div>
@@ -44,6 +45,10 @@
         {{ c.value_ref_min || '—' }} – {{ c.value_ref_max || '—' }}
       </span>
       <span><strong>Intervalo:</strong> {{ c.interval_value || '—' }}</span>
+      <span>
+        <strong>Procedimiento técnico (PT): </strong>
+        {{ c.pt || '—' }}
+      </span>
       <span>
         <strong>Certificados: </strong>
         {{ c.cert_associate || 'Sin certificados asociados' }}
@@ -114,3 +119,4 @@
     </table>
   </ng-container>
 </div>
+

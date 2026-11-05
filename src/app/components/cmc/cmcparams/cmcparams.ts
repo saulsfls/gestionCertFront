@@ -33,6 +33,7 @@ export interface CmcFilaDetalle {
 
 export interface CmcPayload {
   id: string;
+  pt: string;
   cmcNumero: number;
   errores: number[];
   incertidumbres: number[];
@@ -1003,6 +1004,7 @@ export class Cmcparams implements OnInit {
 
     const payload: CmcPayload = {
       id: this.selectedEquipmentId,
+      pt: this.selectedEquipmentId,
       cmcNumero: cmc.id,
       errores,
       incertidumbres,

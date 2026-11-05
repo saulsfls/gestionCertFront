@@ -61,20 +61,8 @@ export interface ResumenTablaCmc {
  * Extensión local de CmcConfiguracion.
  */
 type CmcConfiguracionExt = CmcConfiguracion & {
-  /**
-   * true  → las tablas se calculan por rango/fila seleccionada (default)
-   * false → la tabla completa se usa como un único bloque
-   */
   todasTienenRangos?: boolean;
-  /**
-   * true  → el campo de intervalo está bloqueado (los certificados coinciden)
-   * false → el campo es editable (intervalos distintos o sin datos)
-   */
   intervaloBloqueado?: boolean;
-  /**
-   * Bandera para no repetir la alerta de "intervalos distintos" hasta
-   * que cambie el estado de la selección.
-   */
   intervaloAlertaMostrada?: boolean;
 };
 
@@ -115,15 +103,12 @@ export class Cmcparamsvf implements OnInit {
   mostrarResultadosCmc = false;
   resultadosCmc: CmcResultado[] = [];
 
-  /**
-   * Estado del dropdown de intervalos junto al input.
-   */
   dropdownIntervaloAbierto = false;
 
   private readonly rutaResultadosCmc = '/cmc-resultados';
 
-  private _cmcsParaMostrarCache: CmcPayload[] = [];
-  private _claveCacheCmcs = '';
+  // 🔧 NG0103: caché explícito de payloads (se recalcula SOLO desde eventos)
+  private _payloadsCache: CmcPayload[] = [];
 
   private readonly opcionesParametroPorTitulo: Record<string, string[]> = {
     'DC Voltage': ['Voltage'],
@@ -193,20 +178,9 @@ export class Cmcparamsvf implements OnInit {
     return this.cmcActivo?.selecciones ?? {};
   }
 
+  // 🔧 NG0103: getter puro, sin mutación
   get cmcsParaMostrar(): CmcPayload[] {
-    const clave = this.cmcs
-      .filter(c => c.payload !== null)
-      .map(c => c.id)
-      .join('|');
-
-    if (clave !== this._claveCacheCmcs) {
-      this._claveCacheCmcs = clave;
-      this._cmcsParaMostrarCache = this.cmcs
-        .filter(c => c.payload !== null)
-        .map(c => c.payload as CmcPayload);
-    }
-
-    return this._cmcsParaMostrarCache;
+    return this._payloadsCache;
   }
 
   get payloadCompleto(): CmcMultiPayload {
@@ -238,11 +212,6 @@ export class Cmcparamsvf implements OnInit {
       : this.selectedTitle;
   }
 
-  /**
-   * Intervalos únicos detectados en los certificados de las tablas
-   * seleccionadas del CMC activo. Se usa en el dropdown del input
-   * cuando el campo está desbloqueado.
-   */
   get intervalosCertificadosUnicos(): number[] {
     const cmc = this.cmcActivo;
     if (!cmc) return [];
@@ -261,6 +230,13 @@ export class Cmcparamsvf implements OnInit {
     }
 
     return Array.from(nums).sort((a, b) => a - b);
+  }
+
+  // 🔧 NG0103: recalcula el caché explícitamente (nunca dentro de getters)
+  private recalcularCachePayloads(): void {
+    this._payloadsCache = this.cmcs
+      .filter(c => c.payload !== null)
+      .map(c => c.payload as CmcPayload);
   }
 
   // Helpers de unidad
@@ -332,6 +308,7 @@ export class Cmcparamsvf implements OnInit {
     this.availableParameters = [];
     this.certificadosPorCc = {};
     this.certificadosEnProceso = false;
+    this._payloadsCache = [];   // 🔧 NG0103
     this.cerrarPanelCmc();
     this.cerrarResultadosCmc();
 
@@ -504,6 +481,14 @@ export class Cmcparamsvf implements OnInit {
 
           this.certificadosPorCc = nuevosCertificados;
 
+          // 🔍 DIAGNÓSTICO PT
+          console.groupCollapsed('%c[CMC → CERTIFICADOS] pt por CC', 'color:#6f42c1;font-weight:bold;');
+          pendientes.forEach(cc => {
+            const cert = this.certificadosPorCc[cc];
+            console.log(`cc=${cc} → cert.pt =`, cert?.pt, '| procedimiento_tecnico =', cert?.procedimiento_tecnico);
+          });
+          console.groupEnd();
+
           if (this.mostrarPanelCmc && this.cmcActivo) {
             this.sincronizarIntervaloDesdeCertificados(this.cmcActivo, false);
           }
@@ -536,6 +521,7 @@ export class Cmcparamsvf implements OnInit {
     this.filteredTablas = [...this.tablas];
     this.certificadosPorCc = {};
     this.certificadosEnProceso = false;
+    this._payloadsCache = [];   // 🔧 NG0103
     this.cerrarPanelCmc();
     this.cerrarResultadosCmc();
     this.refresh();
@@ -577,6 +563,7 @@ export class Cmcparamsvf implements OnInit {
     this.cmcs = [];
     this.cmcActivoId = 1;
     this.dropdownIntervaloAbierto = false;
+    this._payloadsCache = [];   // 🔧 NG0103
     this.cerrarResultadosCmc();
     this.refresh();
   }
@@ -659,6 +646,7 @@ export class Cmcparamsvf implements OnInit {
     } else {
       this.resultadosCmc = this.resultadosCmc.filter(r => r.cmcNumero !== id);
     }
+    this.recalcularCachePayloads();   // 🔧 NG0103
     this.dropdownIntervaloAbierto = false;
     this.refresh();
     this.alert.info(`CMC #${id} eliminado.`, 'Eliminado');
@@ -685,10 +673,6 @@ export class Cmcparamsvf implements OnInit {
 
   // Sincronización del intervalo de calibración desde los certificados
 
-  /**
-   * Parsea el intervalo del certificado a un número (meses).
-   * Acepta números o cadenas tipo "12 meses", "24", "36 months".
-   */
   private parsearIntervaloMeses(raw: any): number {
     if (raw === null || raw === undefined) return NaN;
     if (typeof raw === 'number') {
@@ -702,13 +686,6 @@ export class Cmcparamsvf implements OnInit {
     return isFinite(num) && num > 0 ? num : NaN;
   }
 
-  /**
-   * Recalcula el intervalo del CMC a partir de los certificados de las
-   * tablas seleccionadas:
-   *  - Si todos coinciden → bloquea el campo con ese valor.
-   *  - Si difieren        → deja el campo en 0, editable, y avisa al usuario.
-   *  - Si no hay datos    → campo en 0, editable, sin aviso.
-   */
   private sincronizarIntervaloDesdeCertificados(
     cmc: CmcConfiguracionExt,
     mostrarAlerta: boolean
@@ -763,7 +740,7 @@ export class Cmcparamsvf implements OnInit {
     }
   }
 
-  // Dropdown del input de intervalo (cuando los certificados difieren)
+  // Dropdown del input de intervalo
 
   toggleDropdownIntervalo(): void {
     this.dropdownIntervaloAbierto = !this.dropdownIntervaloAbierto;
@@ -808,13 +785,8 @@ export class Cmcparamsvf implements OnInit {
     this.onToggleTodasTienenRangos(event);
   }
 
-  // Intervalos únicos por tabla (para el dropdown "Fila / rango")
+  // Intervalos únicos por tabla
 
-  /**
-   * Devuelve los intervalos únicos (sin duplicados) de la tabla indicada.
-   * Cada entrada guarda el valor original y el índice de la primera fila
-   * que lo contiene, para que al seleccionar se use esa fila como ancla.
-   */
   getIntervalosUnicos(index: number): IntervaloUnico[] {
     const tabla = this.filteredTablas[index];
     if (!tabla) return [];
@@ -834,10 +806,6 @@ export class Cmcparamsvf implements OnInit {
     return Array.from(vistos.values());
   }
 
-  /**
-   * Devuelve el valor del rango actualmente seleccionado para la fila `index`.
-   * Se usa como valor del <select> en el template.
-   */
   getRangoUnicoSeleccionado(index: number): string {
     const sel = this.seleccionCmc[index];
     const tabla = this.filteredTablas[index];
@@ -847,10 +815,6 @@ export class Cmcparamsvf implements OnInit {
     return String(this.getValorCelda(tabla, sel.filaIndex, colIntervaloKey) ?? '').trim();
   }
 
-  /**
-   * Handler del dropdown "Fila / rango" cuando se selecciona un rango único.
-   * Busca la primera fila de la tabla que tenga ese valor y ajusta filaIndex.
-   */
   onFilaRangoChange(index: number, valor: string): void {
     const tabla = this.filteredTablas[index];
     const sel = this.seleccionCmc[index];
@@ -870,7 +834,7 @@ export class Cmcparamsvf implements OnInit {
     this.refresh();
   }
 
-  // Lógica de filas (con soporte para "sin rangos")
+  // Lógica de filas
 
   private obtenerFilasParaCalculo(
     tabla: ResultTable,
@@ -1004,6 +968,7 @@ export class Cmcparamsvf implements OnInit {
     return '(sin valor)';
   }
 
+  // 🔧 NG0103: versiones puramente visuales (template del CMC activo)
   getRangoSeleccionado(index: number): string {
     const sel = this.seleccionCmc[index];
     if (!sel) return '';
@@ -1063,8 +1028,6 @@ export class Cmcparamsvf implements OnInit {
     const incertidumbreMax = filas.reduce((max, f) => Math.max(max, f.incertidumbre), -Infinity);
     return this.formatearValor(incertidumbreMax);
   }
-
-  // Helpers para min/max y días
 
   getMinReferencia(index: number): string {
     const sel = this.seleccionCmc[index];
@@ -1126,6 +1089,144 @@ export class Cmcparamsvf implements OnInit {
     const fechas: { idx: number; fecha: Date }[] = [];
 
     Object.entries(this.seleccionCmc).forEach(([idxStr, s]) => {
+      if (!s.seleccionada) return;
+      const t = this.filteredTablas[Number(idxStr)];
+      const c = this.getCertificado(t);
+      if (!c) return;
+      const fRaw = c.date_cal || c.date_cc;
+      const f = fRaw ? new Date(fRaw) : null;
+      if (!f || isNaN(f.getTime())) return;
+      fechas.push({ idx: Number(idxStr), fecha: f });
+    });
+
+    if (fechas.length < 2) return null;
+
+    fechas.sort((a, b) => a.fecha.getTime() - b.fecha.getTime());
+
+    const pos = fechas.findIndex(f => f.idx === index);
+    if (pos <= 0) return null;
+
+    const ms = fechas[pos].fecha.getTime() - fechas[pos - 1].fecha.getTime();
+    return Math.round(ms / (1000 * 60 * 60 * 24));
+  }
+
+  // 🔧 NG0103: versiones parametrizadas para el resumen (sin tocar cmcActivoId)
+  private getRangoSeleccionadoParaCmc(cmc: CmcConfiguracionExt, index: number): string {
+    const sel = cmc.selecciones[index];
+    if (!sel) return '';
+    const tabla = this.filteredTablas[index];
+    if (!tabla) return '';
+
+    const tieneRangos = this.tablaTieneRangosParaCmc(cmc, index);
+
+    if (!tieneRangos) {
+      const colIntervaloKey = tabla.columns[0]?.key ?? '';
+      const valores: string[] = [];
+      (tabla.rows ?? []).forEach((row) => {
+        const v = String(row[colIntervaloKey] ?? '').trim();
+        if (v && !valores.includes(v)) valores.push(v);
+      });
+      return valores.length ? valores.join(' / ') : 'Toda la tabla';
+    }
+
+    const firstColKey = tabla.columns[0]?.key ?? '';
+    return this.formatearValor(this.getValorCelda(tabla, sel.filaIndex, firstColKey));
+  }
+
+  private getErrorSeleccionadoParaCmc(cmc: CmcConfiguracionExt, index: number): string {
+    const sel = cmc.selecciones[index];
+    const tabla = this.filteredTablas[index];
+    if (!sel || !tabla) return '';
+
+    const colIntervaloKey = tabla.columns[0]?.key ?? '';
+    const tieneRangos = this.tablaTieneRangosParaCmc(cmc, index);
+
+    const filas = this.obtenerFilasParaCalculo(tabla, sel, colIntervaloKey, tieneRangos);
+
+    if (!filas.length) {
+      return this.formatearValor(
+        this.getValorCelda(tabla, sel.filaIndex, sel.columnaErrorKey)
+      );
+    }
+
+    const errorProm = filas.reduce((acc, f) => acc + f.error, 0) / filas.length;
+    return this.formatearValor(errorProm);
+  }
+
+  private getIncertidumbreSeleccionadaParaCmc(cmc: CmcConfiguracionExt, index: number): string {
+    const sel = cmc.selecciones[index];
+    const tabla = this.filteredTablas[index];
+    if (!sel || !tabla) return '';
+
+    const colIntervaloKey = tabla.columns[0]?.key ?? '';
+    const tieneRangos = this.tablaTieneRangosParaCmc(cmc, index);
+
+    const filas = this.obtenerFilasParaCalculo(tabla, sel, colIntervaloKey, tieneRangos);
+
+    if (!filas.length) {
+      return this.formatearValor(
+        this.getValorCelda(tabla, sel.filaIndex, sel.columnaIncertidumbreKey)
+      );
+    }
+
+    const incertidumbreMax = filas.reduce((max, f) => Math.max(max, f.incertidumbre), -Infinity);
+    return this.formatearValor(incertidumbreMax);
+  }
+
+  private getMinReferenciaParaCmc(cmc: CmcConfiguracionExt, index: number): string {
+    const sel = cmc.selecciones[index];
+    const tabla = this.filteredTablas[index];
+    if (!sel || !tabla) return '—';
+
+    const colIntervaloKey = tabla.columns[0]?.key ?? '';
+    const tieneRangos = this.tablaTieneRangosParaCmc(cmc, index);
+    const filas = this.obtenerFilasParaCalculo(tabla, sel, colIntervaloKey, tieneRangos);
+    if (!filas.length) return '—';
+
+    let mejor: FilaRangoInfo | null = null;
+    for (const f of filas) {
+      if (mejor === null || f.valorReferenciaNum < mejor.valorReferenciaNum) {
+        mejor = f;
+      }
+    }
+    if (!mejor) return '—';
+
+    return this.formatearValorConTexto(mejor.valorReferenciaRaw, mejor.valorReferenciaNum);
+  }
+
+  private getMaxReferenciaParaCmc(cmc: CmcConfiguracionExt, index: number): string {
+    const sel = cmc.selecciones[index];
+    const tabla = this.filteredTablas[index];
+    if (!sel || !tabla) return '—';
+
+    const colIntervaloKey = tabla.columns[0]?.key ?? '';
+    const tieneRangos = this.tablaTieneRangosParaCmc(cmc, index);
+    const filas = this.obtenerFilasParaCalculo(tabla, sel, colIntervaloKey, tieneRangos);
+    if (!filas.length) return '—';
+
+    let mejor: FilaRangoInfo | null = null;
+    for (const f of filas) {
+      if (mejor === null || f.valorReferenciaNum > mejor.valorReferenciaNum) {
+        mejor = f;
+      }
+    }
+    if (!mejor) return '—';
+
+    return this.formatearValorConTexto(mejor.valorReferenciaRaw, mejor.valorReferenciaNum);
+  }
+
+  private getDiasDesdeAnteriorParaCmc(cmc: CmcConfiguracionExt, index: number): number | null {
+    const tabla = this.filteredTablas[index];
+    const cert = this.getCertificado(tabla);
+    if (!cert) return null;
+
+    const fechaRaw = cert.date_cal || cert.date_cc;
+    const fecha = fechaRaw ? new Date(fechaRaw) : null;
+    if (!fecha || isNaN(fecha.getTime())) return null;
+
+    const fechas: { idx: number; fecha: Date }[] = [];
+
+    Object.entries(cmc.selecciones).forEach(([idxStr, s]) => {
       if (!s.seleccionada) return;
       const t = this.filteredTablas[Number(idxStr)];
       const c = this.getCertificado(t);
@@ -1463,6 +1564,39 @@ export class Cmcparamsvf implements OnInit {
       .toLowerCase();
   }
 
+  // 🔍 DIAGNÓSTICO PT: log del payload que se va a enviar
+  private logPayloadEnvio(contexto: string, resumen?: Record<number, ResumenTablaCmc[]>): void {
+    const payloads = this.cmcsParaMostrar;
+
+    console.groupCollapsed(
+      `%c[CMC → ENVÍO] ${contexto}`,
+      'color:#0d6efd;font-weight:bold;font-size:12px;'
+    );
+
+    console.log('Equipo:', this.selectedEquipmentId);
+    console.log('Mensurando:', this.etiquetaMensurando);
+    console.log('CMC calculados:', payloads.length);
+
+    payloads.forEach((p, i) => {
+      console.log(`CMC #${p.cmcNumero} (índice ${i}) → pt="${p.pt}" (tipo ${typeof p.pt})`);
+      console.log('payload COMPLETO:', JSON.parse(JSON.stringify(p)));
+    });
+
+    console.log('--- payloadTexto ---');
+    console.log(this.textoPayloadCompleto);
+
+    const estadoFinal: any = {
+      payload: this.payloadCompleto,
+      equipmentId: this.selectedEquipmentId,
+      mensurando: this.etiquetaMensurando
+    };
+    if (resumen) estadoFinal.resumenTablas = resumen;
+
+    console.log('--- router.state FINAL ---');
+    console.log(JSON.parse(JSON.stringify(estadoFinal)));
+    console.groupEnd();
+  }
+
   // Cálculo de todos los CMC
 
   calcularTodosLosCmc(): void {
@@ -1486,7 +1620,16 @@ export class Cmcparamsvf implements OnInit {
       }
     }
 
+    // 🔧 NG0103: recalcular caché UNA vez, fuera de getters
+    this.recalcularCachePayloads();
     this.refresh();
+
+    // 🔍 DIAGNÓSTICO PT
+    console.log(
+      '%c[CMC → POST-CÁLCULO] pt por CMC:',
+      'color:#198754;font-weight:bold;',
+      this.cmcsParaMostrar.map(p => ({ cmc: p.cmcNumero, pt: p.pt }))
+    );
 
     if (ptCorrupto.length) {
       const detalle = ptCorrupto
@@ -1683,10 +1826,16 @@ export class Cmcparamsvf implements OnInit {
         ? this.formatearValorConTexto(filaMax.valorReferenciaRaw, filaMax.valorReferenciaNum)
         : (tieneRangos ? rangoObjetivo : '—');
 
-      const ptRaw = cert.pt;
+      // 🔍 DIAGNÓSTICO PT
+      const ptRaw = cert.pt ?? cert.procedimiento_tecnico;
       const pt = (ptRaw === null || ptRaw === undefined)
         ? ''
         : String(ptRaw).trim();
+
+      console.log(
+        `%c[CMC → CALC] tabla #${idx + 1} cc=${cert.cc || tabla.cc_id} → cert.pt=${cert.pt} | cert.procedimiento_tecnico=${cert.procedimiento_tecnico} | pt usado=${pt}`,
+        'color:#6c757d;'
+      );
 
       filasValidas.push({
         idx,
@@ -1715,7 +1864,6 @@ export class Cmcparamsvf implements OnInit {
       return { ok: false, motivo: 'filas válidas insuficientes (mínimo 2)' };
     }
 
-    // Validar que todos los certificados tengan el mismo PT
     const ptsRaw = filasValidas.map(x => x.pt);
     const ptsSinVaciar = ptsRaw.filter(p => p !== '');
 
@@ -1840,37 +1988,32 @@ export class Cmcparamsvf implements OnInit {
 
   // Integración con el componente de resultados
 
+  // 🔧 NG0103: pura, sin mutar cmcActivoId
   public obtenerResumenValoresSeleccionados(): Record<number, ResumenTablaCmc[]> {
     const resumenes: Record<number, ResumenTablaCmc[]> = {};
-    const anteriorId = this.cmcActivoId;
 
-    try {
-      for (const cmc of this.cmcs) {
-        this.cmcActivoId = cmc.id;
-        const filas: ResumenTablaCmc[] = [];
+    for (const cmc of this.cmcs) {
+      const filas: ResumenTablaCmc[] = [];
 
-        this.filteredTablas.forEach((tabla, i) => {
-          if (!cmc.selecciones[i]?.seleccionada) return;
+      this.filteredTablas.forEach((tabla, i) => {
+        if (!cmc.selecciones[i]?.seleccionada) return;
 
-          filas.push({
-            index: i + 1,
-            cc: tabla.cc_id || '—',
-            fila: this.tablaTieneRangosParaCmc(cmc, i)
-              ? String((cmc.selecciones[i].filaIndex ?? 0) + 1)
-              : 'Toda la tabla',
-            intervalo: this.getRangoSeleccionado(i),
-            refMin: this.getMinReferencia(i),
-            refMax: this.getMaxReferencia(i),
-            dias: this.getDiasDesdeAnterior(i),
-            sesgo: this.getErrorSeleccionado(i),
-            incertidumbre: this.getIncertidumbreSeleccionada(i)
-          });
+        filas.push({
+          index: i + 1,
+          cc: tabla.cc_id || '—',
+          fila: this.tablaTieneRangosParaCmc(cmc, i)
+            ? String((cmc.selecciones[i].filaIndex ?? 0) + 1)
+            : 'Toda la tabla',
+          intervalo: this.getRangoSeleccionadoParaCmc(cmc, i),
+          refMin: this.getMinReferenciaParaCmc(cmc, i),
+          refMax: this.getMaxReferenciaParaCmc(cmc, i),
+          dias: this.getDiasDesdeAnteriorParaCmc(cmc, i),
+          sesgo: this.getErrorSeleccionadoParaCmc(cmc, i),
+          incertidumbre: this.getIncertidumbreSeleccionadaParaCmc(cmc, i)
         });
+      });
 
-        resumenes[cmc.id] = filas;
-      }
-    } finally {
-      this.cmcActivoId = anteriorId;
+      resumenes[cmc.id] = filas;
     }
 
     return resumenes;
@@ -1907,12 +2050,18 @@ export class Cmcparamsvf implements OnInit {
       return;
     }
 
+    // Calcular el resumen UNA vez (fuera del log y fuera de cualquier getter)
+    const resumenTablas = this.obtenerResumenValoresSeleccionados();
+
+    // 🔍 DIAGNÓSTICO PT
+    this.logPayloadEnvio('Antes de router.navigate', resumenTablas);
+
     const navegacionOk = await this.router.navigate([this.rutaResultadosCmc], {
       state: {
         payload: this.payloadCompleto,
         equipmentId: this.selectedEquipmentId,
         mensurando: this.etiquetaMensurando,
-        resumenTablas: this.obtenerResumenValoresSeleccionados()
+        resumenTablas
       }
     });
 
