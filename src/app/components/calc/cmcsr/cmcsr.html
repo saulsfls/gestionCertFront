@@ -1,8 +1,12 @@
-<div class="cmc-resultado">
+<div class="cmc-resultado" style="padding-top: 2rem;">
   <header *ngIf="mostrarEncabezado" class="encabezado">
     <div>
       <h3>Resultados del CMC</h3>
       <p *ngIf="titulo" class="subtitulo">{{ titulo }}</p>
+
+      <!-- PT en el header (del CMC activo si existe) -->
+      <p *ngIf="cmcActivo?.payload?.pt as pt" class="subtitulo mb-0">
+      </p>
     </div>
     <div class="acciones">
       <button type="button" class="btn btn-outline-danger mb-1" (click)="volver()" title="Regresar al configurador">
@@ -85,6 +89,10 @@
     <ng-container *ngIf="activo.resultado as res">
       <!-- Cabecera del CMC -->
       <div class="meta">
+        <span *ngIf="activo.payload.pt">
+          <strong>Procedimiento Tecnico: </strong>
+          <span class="">{{ activo.payload.pt }}</span>
+        </span>
         <span><strong>Rango de referencia:</strong> {{ res.rangoReferencia }}</span>
         <span><strong>Certificados:</strong> {{ res.certificados.join(', ') }}</span>
       </div>

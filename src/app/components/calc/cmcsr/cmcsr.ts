@@ -305,7 +305,7 @@ export class Cmcsr implements OnChanges, OnInit {
     return {
       id_equipment: payload.id,
       id_user: user,
-      pt:'PT-00', 
+      pt: payload.pt, 
       value_ref_min: payload.minReferencia || payload.rangoReferencia,
       value_ref_max: payload.maxReferencia || payload.rangoReferencia,
       interval_value: payload.rangoReferencia,
