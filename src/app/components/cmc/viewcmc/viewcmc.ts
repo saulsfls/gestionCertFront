@@ -56,6 +56,7 @@ export class Viewcmc implements OnInit {
       .subscribe({
         next: (res: any) => {
           const data: CmcData = res.data || res;
+          //console.log(res);
           if (!data) {
             this.errorMsg = 'No CMC data received.';
             this.alert.error('No se recibieron datos del CMC.', 'Sin datos');
@@ -119,7 +120,7 @@ export class Viewcmc implements OnInit {
       sheetData.push([]);
       const generalFields: Array<[string, any]> = [
         ['ID', c.id ?? ''],
-        ['ID del Equipo', c.id_equipment ?? ''],
+        ['ID del Equipo', c.equipment_id ?? ''],
         ['Usuario', c.id_user ?? ''],
         ['Fecha de Creación', c.created_at ?? ''],
         ['Activo', this.isActive() ? 'Sí' : 'No'],
@@ -195,7 +196,7 @@ export class Viewcmc implements OnInit {
       }
 
       const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-      const safeId = String(c.id_equipment || c.id || 'cmc').replace(/[^\w\-]+/g, '_');
+      const safeId = String(c.equipment_id || c.id || 'cmc').replace(/[^\w\-]+/g, '_');
       const fileName = `CMC_${safeId}.xlsx`;
 
       const link = document.createElement('a');

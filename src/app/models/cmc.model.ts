@@ -1,6 +1,6 @@
 export interface CmcData {
   id?: number; //ID del calculo
-  id_equipment: string; //ID del equipo
+  equipment_id: string; //ID del equipo
   created_at?: string; //Fecha de creacion
   id_user: string; //Usuario que crea y calcula el CMC
   pt: string; //El calculo del cmc debe estar asociados a un pt
