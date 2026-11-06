@@ -358,6 +358,7 @@ export class Pimage implements OnInit, OnDestroy {
 
   // ============================================================
   //  PARSEADOR DE HTML (detecta encabezados duplicados y rowspan)
+  //  — Ignora <td></td> vacíos que rompen la tabla y avisa al usuario.
   // ============================================================
   private parseTableHtml(html: string): void {
     if (!this.isBrowser) return;
@@ -416,10 +417,30 @@ export class Pimage implements OnInit, OnDestroy {
 
     const headerRow = allRows[headerRowIndex];
     const headerCells = headerRow.querySelectorAll('th, td');
+
+    // ==== Construir headers saltando celdas vacías / respetando colspan ====
     const headers: string[] = [];
-    headerCells.forEach((cell) =>
-      headers.push(cell.textContent?.trim() || '')
-    );
+    let celdasHeaderVaciasDescartadas = 0;
+    headerCells.forEach((cell) => {
+      const text = cell.textContent?.trim() || '';
+      const colspan = parseInt(cell.getAttribute('colspan') || '1', 10);
+      if (text === '') {
+        // Reservamos posiciones si hay colspan, pero contamos el descarte
+        for (let c = 1; c < colspan; c++) headers.push('');
+        celdasHeaderVaciasDescartadas++;
+        return;
+      }
+      headers.push(text);
+      for (let c = 1; c < colspan; c++) headers.push(text);
+    });
+
+    if (headers.length === 0) {
+      this.alertService.error(
+        'No se encontraron encabezados de columna.',
+        'Parseo'
+      );
+      return;
+    }
 
     const dataRows = Array.from(allRows).slice(dataStartIndex);
     if (dataRows.length === 0) {
@@ -435,10 +456,14 @@ export class Pimage implements OnInit, OnDestroy {
     } = {};
     const rowsData: string[][] = [];
 
-    dataRows.forEach((row) => {
-      const cells = row.querySelectorAll('td');
-      const rowData: string[] = new Array(headers.length).fill('');
+    // 🚩 Contador global de celdas vacías descartadas (data + header)
+    let celdasVaciasDescartadas = celdasHeaderVaciasDescartadas;
 
+    dataRows.forEach((row) => {
+      const cells = Array.from(row.querySelectorAll('td, th'));
+
+      // ==== PASO 1: pre-llenar fila con rowspans activos ====
+      const rowData: string[] = new Array(headers.length).fill('');
       for (let col = 0; col < headers.length; col++) {
         if (activeRowspan[col] && activeRowspan[col].remaining > 0) {
           rowData[col] = activeRowspan[col].value;
@@ -447,13 +472,23 @@ export class Pimage implements OnInit, OnDestroy {
         }
       }
 
+      // ==== PASO 2: colocar las celdas reales en las posiciones LIBRES ====
       let cellIndex = 0;
       for (let col = 0; col < headers.length; col++) {
-        if (rowData[col] === '' && cellIndex < cells.length) {
+        if (rowData[col] !== '') continue;
+
+        while (cellIndex < cells.length) {
           const cell = cells[cellIndex];
           const value = cell.textContent?.trim() || '';
           const rowspan = parseInt(cell.getAttribute('rowspan') || '1', 10);
           const colspan = parseInt(cell.getAttribute('colspan') || '1', 10);
+
+          // 🚩 CLAVE: descartar <td></td> sin rowspan/colspan útil.
+          if (value === '' && rowspan <= 1 && colspan <= 1) {
+            cellIndex++;
+            celdasVaciasDescartadas++;
+            continue;
+          }
 
           rowData[col] = value;
           if (rowspan > 1) {
@@ -463,12 +498,21 @@ export class Pimage implements OnInit, OnDestroy {
             if (col + c < headers.length) rowData[col + c] = value;
           }
           cellIndex++;
+          break;
         }
+      }
+
+      // 🚩 Si la fila quedó completamente vacía, la omitimos (y avisamos)
+      const tieneAlgunValor = rowData.some((v) => v !== '');
+      if (!tieneAlgunValor) {
+        celdasVaciasDescartadas++;
+        return;
       }
 
       rowsData.push(rowData);
     });
 
+    // ==== Relleno con el último valor por columna (rowspan implícito) ====
     const lastValues: string[] = new Array(headers.length).fill('');
     const finalData: string[][] = [];
     rowsData.forEach((row) => {
@@ -485,5 +529,14 @@ export class Pimage implements OnInit, OnDestroy {
     this.tablaHeaders = headers;
     this.tablaRows = finalData;
     this.mostrarTabla = true;
+
+    // 🚩 Aviso al usuario SOLO si se descartó al menos una celda vacía
+    if (celdasVaciasDescartadas > 0) {
+      this.alertService.info(
+        `Se ignoraron ${celdasVaciasDescartadas} celda(s) vacía(s) que rompían la estructura de la tabla. ` +
+        `La tabla se muestra sin esos huecos.`,
+        'Celdas vacías eliminadas'
+      );
+    }
   }
 }

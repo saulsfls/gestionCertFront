@@ -897,15 +897,27 @@ export class Newcert implements OnInit {
 
     const headerRow = allRows[headerRowIndex];
     const headerCells = headerRow.querySelectorAll('th, td');
+
     const headers: string[] = [];
-    headerCells.forEach(cell => headers.push(cell.textContent?.trim() || ''));
+    headerCells.forEach(cell => {
+      const text = cell.textContent?.trim() || '';
+      const colspan = parseInt(cell.getAttribute('colspan') || '1', 10);
+      if (text === '') {
+        for (let c = 1; c < colspan; c++) headers.push('');
+        return;
+      }
+      headers.push(text);
+      for (let c = 1; c < colspan; c++) headers.push(text);
+    });
+
+    if (headers.length === 0) return { headers: [], rows: [] };
 
     const dataRows = Array.from(allRows).slice(dataStartIndex);
     const rows: string[][] = [];
     const activeRowspan: { [col: number]: { value: string; remaining: number } } = {};
 
     dataRows.forEach(row => {
-      const cells = row.querySelectorAll('td');
+      const cells = Array.from(row.querySelectorAll('td, th'));
       const rowData: string[] = new Array(headers.length).fill('');
 
       for (let col = 0; col < headers.length; col++) {
@@ -918,11 +930,18 @@ export class Newcert implements OnInit {
 
       let cellIndex = 0;
       for (let col = 0; col < headers.length; col++) {
-        if (rowData[col] === '' && cellIndex < cells.length) {
+        if (rowData[col] !== '') continue;
+
+        while (cellIndex < cells.length) {
           const cell = cells[cellIndex];
           const value = cell.textContent?.trim() || '';
           const rowspan = parseInt(cell.getAttribute('rowspan') || '1', 10);
           const colspan = parseInt(cell.getAttribute('colspan') || '1', 10);
+
+          if (value === '' && rowspan <= 1 && colspan <= 1) {
+            cellIndex++;
+            continue;
+          }
 
           rowData[col] = value;
           if (rowspan > 1) activeRowspan[col] = { value, remaining: rowspan - 1 };
@@ -930,8 +949,12 @@ export class Newcert implements OnInit {
             if (col + c < headers.length) rowData[col + c] = value;
           }
           cellIndex++;
+          break;
         }
       }
+
+      const tieneAlgunValor = rowData.some(v => v !== '');
+      if (!tieneAlgunValor) return;
 
       rows.push(rowData);
     });
