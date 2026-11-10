@@ -166,7 +166,6 @@ export class Listcert implements OnInit {
       { clave: 'equipment_id',      etiqueta: 'ID Equipo',          valor: c.equipment_id || '—' },
       { clave: 'name_equipment',    etiqueta: 'Nombre Equipo',      valor: c.name_equipment || '—' },
       { clave: 'id_user',           etiqueta: 'ID Usuario',         valor: c.id_user || '—' },
-      { clave: 'pt',                etiqueta: 'PT',                 valor: c.pt || '—' },
       { clave: 'date_cal',          etiqueta: 'Fecha Calibración',  valor: this.formatearFecha(c.date_cal) },
       { clave: 'date_cc',           etiqueta: 'Fecha Emisión',      valor: this.formatearFecha(c.date_cc) },
       {

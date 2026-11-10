@@ -6,7 +6,6 @@ export interface Certificado {
   equipment_id: string; // Equipment ID (Patron)
   name_equipment: string; // Equipment name
   id_user: string; // ID del usuario que creeo o edito
-  pt: string; //Pt al que pertenece el patron
   date_cal?: string; // Calibration date
   date_cc?: string; // Issue date
   calibration_interval?: number; // Intervalo de calibracion en meses
@@ -22,6 +21,7 @@ export interface ResultTable {
   title: string; //Titulo de la tabla
   equipment_id: string; //Id del equipo
   cc_id: string; //Id del certificado asociado a la tabla
+  pt: string; //Id del procedimiento tecnico asociado a la tabla
   table_id: string; //Id de la tabla
   parameter: string; //Mesureament de la tabla
   calibration_equation: string; //Ecuacion de calibracion

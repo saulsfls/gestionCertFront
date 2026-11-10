@@ -55,10 +55,10 @@
             <th>Estado</th>
             <th>ID BD</th>
             <th>Equipment ID</th>
-            <th>Folio / CC</th>
+            <!---<th>Folio / CC</th>-->
             <th>Nombre del Equipo</th>
             <th>F. Calibración</th>
-            <th>F. Certificado</th>
+            <!--<th>F. Certificado</th>-->
             <th class="text-center">Acciones</th>
           </tr>
         </thead>
@@ -73,10 +73,10 @@
               </td>
               <td>{{ cert.id }}</td>
               <td class="fw-bold text-primary">{{ cert.equipment_id }}</td>
-              <td><span class="badge bg-light text-dark border">{{ cert.cc || 'N/A' }}</span></td>
+              <!--<td><span class="badge bg-light text-dark border">{{ cert.cc || 'N/A' }}</span></td>-->
               <td>{{ cert.name_equipment }}</td>
               <td>{{ cert.date_cal | date:'dd/MM/yyyy' }}</td>
-              <td>{{ cert.date_cc | date:'dd/MM/yyyy' }}</td>
+              <!--<td>{{ cert.date_cc | date:'dd/MM/yyyy' }}</td>-->
               <td class="text-center">
                 <div class="btn-group btn-group-sm">
                   <!-- Botón para desplegar resumen rápido del certificado -->
@@ -150,10 +150,6 @@
                           <li class="list-group-item d-flex justify-content-between">
                             <strong>Entidad emisora</strong>
                             <span>{{ cert.entity || 'N/A' }}</span>
-                          </li>
-                          <li class="list-group-item d-flex justify-content-between">
-                            <strong>PT</strong>
-                            <span>{{ cert.pt || 'N/A' }}</span>
                           </li>
                           <li class="list-group-item d-flex justify-content-between">
                             <strong>Tipo Certificado</strong>

@@ -45,7 +45,7 @@
             <th>V. Ref. Mín</th>
             <th>V. Ref. Máx</th>
             <th>Intervalo</th>
-            <th>Certificados Asociados</th>
+            <!--<th>Certificados Asociados</th>-->
             <th class="text-center">Acciones</th>
           </tr>
         </thead>
@@ -66,7 +66,7 @@
               <td>{{ cmc.value_ref_min }}</td>
               <td>{{ cmc.value_ref_max }}</td>
               <td><span class="badge bg-light text-dark border">{{ cmc.interval_value }}</span></td>
-              <td>{{ cmc.cert_associate || 'N/A' }}</td>
+              <!--<td>{{ cmc.cert_associate || 'N/A' }}</td>-->
               <td class="text-center">
                 <div class="btn-group btn-group-sm">
                   <!-- Ver Resumen (expande) -->
@@ -105,16 +105,30 @@
               <td colspan="9" class="p-4">
                 <div class="card border-secondary shadow-sm">
                   <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
-                    <span class="fw-bold font-monospace text-warning">
+                    <span class="fw-bold  text-white">
                       Resumen del CMC — Equipment ID: {{ cmc.equipment_id }}
                     </span>
                     <div class="d-flex gap-2">
-                      <span class="badge bg-info text-dark">PT: {{ cmc.pt || 'N/A' }}</span>
-                      <span class="badge bg-info text-dark">ID: {{ cmc.id }}</span>
+                      <span class="badge bg-secondary text-white">Procedimiento Técnico: {{ cmc.pt || 'N/A' }}</span>
+                      <span class="badge bg-secondary text-white">ID: {{ cmc.id }}</span>
                     </div>
                   </div>
                   <div class="card-body">
                     <div class="row g-3">
+                      <div *ngIf="cmc.cert_associate" class="mb-3 col-md-12">
+                        <div class="p-3 bg-light rounded border">
+                          <strong class="d-block mb-2 text-secondary">Certificados Asociados:</strong>
+                          <div class="d-flex flex-wrap gap-2">
+                            <span
+                              *ngFor="let cert of cmc.cert_associate.split(',')"
+                              class="btn btn-outline-primary btn-sm text-start fs-6 fw-normal shadow-sm">
+                              <i class="bi bi-file-earmark-text me-1"></i> <!-- Icono opcional si usas Bootstrap Icons -->
+                              {{ cert.trim() }}
+                            </span>
+                          </div>
+
+                        </div>
+                      </div>
                       <div class="col-md-6">
                         <ul class="list-group list-group-flush">
                           <li class="list-group-item d-flex justify-content-between">

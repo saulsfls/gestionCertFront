@@ -3,7 +3,7 @@
     <h5 class="m-0">Datos Generales del Certificado</h5>
     <div class="d-flex gap-2 flex-wrap">
       <span
-        class="btn btn-warning "
+        class="btn btn-warning"
         role="button"
         tabindex="0"
         (click)="ayuda('general')"
@@ -17,47 +17,16 @@
         tabindex="0"
         (click)="ayuda('patron')"
         (keydown.enter)="ayuda('patron')"
-        title="Ayuda: selección de PT y patrón">
-        Ayuda PT / Patrón ❓
+        title="Ayuda: selección del patrón y PT por tabla">
+        Ayuda Patrón / PT ❓
       </span>
     </div>
   </div>
   <div class="card-body">
     <div class="row g-3">
 
-      <!-- Procedimiento Técnico (PT) — llave principal del flujo -->
-      <div class="col-md-3">
-        <label for="pt" class="form-label fw-bold">
-          Procedimiento Técnico <span class="text-danger">*</span>
-        </label>
-        <select
-          id="pt"
-          class="form-select"
-          [(ngModel)]="ptSeleccionado"
-          (ngModelChange)="onPtChange()"
-          [disabled]="cargandoPatrones || ptsDisponibles.length === 0"
-          required>
-          <option [ngValue]="''" disabled>
-            {{ cargandoPatrones ? 'Cargando PTs…' : '-- Selecciona un PT --' }}
-          </option>
-          @for (pt of ptsDisponibles; track pt) {
-            <option [ngValue]="pt">{{ mostrarPt(pt) }}</option>
-          }
-        </select>
-        @if (cargandoPatrones) {
-          <small class="text-muted d-flex align-items-center gap-1 mt-1">
-            <span class="spinner-border spinner-border-sm"></span>
-            Cargando catálogo…
-          </small>
-        } @else if (!cargandoPatrones && ptsDisponibles.length === 0) {
-          <small class="text-danger d-block mt-1">
-            No hay PTs disponibles en el catálogo.
-          </small>
-        }
-      </div>
-
-      <!-- Selector de Patrón (filtrado por PT) -->
-      <div class="col-md-3">
+      <!-- Selector de Patrón (Única llave del formulario principal) -->
+      <div class="col-md-6">
         <label for="equipment_id" class="form-label fw-bold">
           Patrón / ID del Equipo <span class="text-danger">*</span>
         </label>
@@ -66,24 +35,29 @@
           class="form-select"
           [(ngModel)]="certificado.equipment_id"
           (ngModelChange)="onPatronChange()"
-          [disabled]="!hayPtSeleccionado || patronesFiltradosPorPt.length === 0"
+          [disabled]="cargandoPatrones || patrones.length === 0"
           required>
           <option [ngValue]="''" disabled>
-            @if (!hayPtSeleccionado) {
-              Selecciona primero un PT
-            } @else if (patronesFiltradosPorPt.length === 0) {
-              Sin patrones para este PT
-            } @else {
-              -- Selecciona un patrón --
-            }
+            {{ cargandoPatrones ? 'Cargando patrones…' : '-- Selecciona un patrón --' }}
           </option>
-          @for (p of patronesFiltradosPorPt; track p.id) {
-            <option [ngValue]="p.id">{{ p.id }} — {{ p.name }}</option>
+          @for (p of patrones; track p.id) {
+            <option [ngValue]="p.id">
+              {{ p.id }} {{ p.name && p.name !== p.id ? '— ' + p.name : '' }}
+            </option>
           }
         </select>
-        @if (hayPtSeleccionado && patronesFiltradosPorPt.length === 0) {
+        @if (cargandoPatrones) {
+          <small class="text-muted d-flex align-items-center gap-1 mt-1">
+            <span class="spinner-border spinner-border-sm"></span>
+            Cargando catálogo…
+          </small>
+        } @else if (!cargandoPatrones && patrones.length === 0) {
           <small class="text-danger d-block mt-1">
-            Este PT no tiene patrones asociados.
+            No hay patrones disponibles en el catálogo.
+          </small>
+        } @else if (hayPatronSeleccionado) {
+          <small class="text-muted d-block mt-1">
+            El PT se elige por tabla en la sección "Resultados del Certificado".
           </small>
         }
       </div>
@@ -114,7 +88,7 @@
           maxlength="50"
           class="form-control"
           [(ngModel)]="certificado.cc"
-          (ngModelChange)="onTableChange()"
+          (ngModelChange)="onCcChange()"
           placeholder="Ej: CC-89421">
       </div>
 
@@ -130,7 +104,7 @@
           [(ngModel)]="certificado.date_cal">
       </div>
 
-      <!-- Fecha del Certificado (vacía, la llena el usuario) -->
+      <!-- Fecha del Certificado -->
       <div class="col-md-3">
         <label for="date_cc" class="form-label fw-bold">
           Fecha del Certificado
@@ -165,7 +139,7 @@
           id="cert_type"
           class="form-select"
           [(ngModel)]="certificado.cert_type">
-          <option value="" disabled selected>Seleccione una opción</option>
+          <option value="" disabled>Seleccione una opción</option>
           <option value="Certificado">Certificado</option>
           <option value="Especificaciones del fabricante">Especificaciones del fabricante</option>
         </select>
@@ -290,7 +264,10 @@
           aria-expanded="true"
           [attr.aria-controls]="'collapseTabla' + i">
           <span>▼</span>
-          <span class="fs-5">Tabla #{{ i + 1 }} {{ tabla.title }}</span>
+          <span class="fs-5">
+            Tabla #{{ i + 1 }} {{ tabla.title }}
+            <span class="badge bg-secondary ms-2" *ngIf="tabla.pt">{{ tabla.pt }}</span>
+          </span>
         </button>
 
         <button
@@ -308,10 +285,10 @@
 
           <!-- Propiedades de la Tabla -->
           <div class="row g-3 p-3 mb-4 bg-light rounded border">
-            <h6 class="text-secondary fw-bold mb-0">Tablas del certificado</h6>
+            <h6 class="text-secondary fw-bold mb-0">Propiedades de la tabla</h6>
 
             <!-- Título -->
-            <div class="col-md-6">
+            <div class="col-md-3">
               <label class="form-label fw-semibold small">Título:</label>
               <div class="d-flex gap-2 align-items-center">
                 <select
@@ -358,15 +335,49 @@
               </ng-template>
             </div>
 
+            <!-- PT de la tabla (selector por tabla) -->
+            <div class="col-md-3">
+              <label [for]="'tablePt' + i" class="form-label fw-semibold small">
+                Procedimiento Técnico (PT) de la tabla:
+                <span class="text-danger" *ngIf="patronTienePts">*</span>
+              </label>
+              <select
+                [id]="'tablePt' + i"
+                class="form-select"
+                [ngModel]="tabla.pt"
+                (ngModelChange)="onTablePtChange(tabla, $event)"
+                [disabled]="!hayPatronSeleccionado || ptsDelPatron.length === 0">
+                <option [ngValue]="''">
+                  @if (!hayPatronSeleccionado) {
+                    Selecciona primero un patrón
+                  } @else if (ptsDelPatron.length === 0) {
+                    Sin PT
+                  } @else {
+                    -- Selecciona un PT --
+                  }
+                </option>
+                @for (pt of ptsDisponiblesParaTabla(tabla); track pt) {
+                  <option [ngValue]="pt">{{ pt }} — {{ descripcionPt(pt) }}</option>
+                }
+              </select>
+              @if (hayPatronSeleccionado && ptsDelPatron.length === 0) {
+                <small class="text-muted d-block mt-1">
+                  Este patrón no tiene PTs asociados; se guardará sin PT.
+                </small>
+              } @else if (hayPatronSeleccionado && ptsDelPatron.length === 1) {
+                <small class="text-muted d-block mt-1">
+                  Único PT disponible para este patrón.
+                </small>
+              }
+            </div>
+
             <div class="col-md-3">
               <label class="form-label fw-semibold small">CC ID:</label>
               <input
                 type="text"
                 class="form-control"
                 [(ngModel)]="tabla.cc_id"
-                (ngModelChange)="onTableChange()"
-                placeholder="{{certificado.cc || 'Ej: CC-89421'}}"
-                value="{{certificado.cc || 'Ej: CC-89421'}}"
+                placeholder="{{ certificado.cc || 'Ej: CC-89421' }}"
                 disabled>
             </div>
 
@@ -376,9 +387,7 @@
                 type="text"
                 class="form-control"
                 [(ngModel)]="tabla.table_id"
-                (ngModelChange)="onTableChange()"
-                placeholder="{{certificado.cc || 'Ej: CC-89421'}}"
-                value="{{ tabla.table_id || 'Ej: CC-89421'}}"
+                placeholder="{{ tabla.table_id || 'Ej: CC-89421-T1' }}"
                 disabled>
             </div>
 
@@ -665,7 +674,7 @@
 
       <div class="d-flex gap-2 flex-wrap">
         <span
-          class="btn btn-warning "
+          class="btn btn-warning"
           role="button"
           tabindex="0"
           (click)="ayuda('json')"

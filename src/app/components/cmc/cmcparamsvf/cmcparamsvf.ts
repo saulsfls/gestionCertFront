@@ -107,7 +107,6 @@ export class Cmcparamsvf implements OnInit {
 
   private readonly rutaResultadosCmc = '/cmc-resultados';
 
-  // 🔧 NG0103: caché explícito de payloads (se recalcula SOLO desde eventos)
   private _payloadsCache: CmcPayload[] = [];
 
   private readonly opcionesParametroPorTitulo: Record<string, string[]> = {
@@ -331,6 +330,7 @@ export class Cmcparamsvf implements OnInit {
         next: (response: ApiResponse<ResultTable[]>) => {
           if (response.ok && response.data?.length) {
             this.tablas = response.data;
+            console.log(`Tablas cargadas para equipo ${this.selectedEquipmentId}:`, this.tablas);
             this.filteredTablas = [...this.tablas];
             this.construirTitulos();
 
@@ -476,18 +476,11 @@ export class Cmcparamsvf implements OnInit {
 
           respuestas.forEach((response, index) => {
             const cc = pendientes[index];
+            console.log(`Certificado ${cc} cargado:`, response);
             nuevosCertificados[cc] = (response && response.ok && response.data) ? response.data : null;
           });
 
           this.certificadosPorCc = nuevosCertificados;
-
-          // 🔍 DIAGNÓSTICO PT
-          console.groupCollapsed('%c[CMC → CERTIFICADOS] pt por CC', 'color:#6f42c1;font-weight:bold;');
-          pendientes.forEach(cc => {
-            const cert = this.certificadosPorCc[cc];
-            console.log(`cc=${cc} → cert.pt =`, cert?.pt, '| procedimiento_tecnico =', cert?.procedimiento_tecnico);
-          });
-          console.groupEnd();
 
           if (this.mostrarPanelCmc && this.cmcActivo) {
             this.sincronizarIntervaloDesdeCertificados(this.cmcActivo, false);
@@ -1564,39 +1557,6 @@ export class Cmcparamsvf implements OnInit {
       .toLowerCase();
   }
 
-  // 🔍 DIAGNÓSTICO PT: log del payload que se va a enviar
-  private logPayloadEnvio(contexto: string, resumen?: Record<number, ResumenTablaCmc[]>): void {
-    const payloads = this.cmcsParaMostrar;
-
-    console.groupCollapsed(
-      `%c[CMC → ENVÍO] ${contexto}`,
-      'color:#0d6efd;font-weight:bold;font-size:12px;'
-    );
-
-    console.log('Equipo:', this.selectedEquipmentId);
-    console.log('Mensurando:', this.etiquetaMensurando);
-    console.log('CMC calculados:', payloads.length);
-
-    payloads.forEach((p, i) => {
-      console.log(`CMC #${p.cmcNumero} (índice ${i}) → pt="${p.pt}" (tipo ${typeof p.pt})`);
-      console.log('payload COMPLETO:', JSON.parse(JSON.stringify(p)));
-    });
-
-    console.log('--- payloadTexto ---');
-    console.log(this.textoPayloadCompleto);
-
-    const estadoFinal: any = {
-      payload: this.payloadCompleto,
-      equipmentId: this.selectedEquipmentId,
-      mensurando: this.etiquetaMensurando
-    };
-    if (resumen) estadoFinal.resumenTablas = resumen;
-
-    console.log('--- router.state FINAL ---');
-    console.log(JSON.parse(JSON.stringify(estadoFinal)));
-    console.groupEnd();
-  }
-
   // Cálculo de todos los CMC
 
   calcularTodosLosCmc(): void {
@@ -1624,20 +1584,13 @@ export class Cmcparamsvf implements OnInit {
     this.recalcularCachePayloads();
     this.refresh();
 
-    // 🔍 DIAGNÓSTICO PT
-    console.log(
-      '%c[CMC → POST-CÁLCULO] pt por CMC:',
-      'color:#198754;font-weight:bold;',
-      this.cmcsParaMostrar.map(p => ({ cmc: p.cmcNumero, pt: p.pt }))
-    );
-
     if (ptCorrupto.length) {
       const detalle = ptCorrupto
         .map(p => `CMC #${p.id}: ${p.detalle}`)
         .join(' | ');
       this.alert.error(
-        `Datos corruptos: los certificados involucrados no tienen el mismo PT (patrón de referencia). ` +
-        `Revise los certificados antes de calcular. Detalle: ${detalle}`,
+        `Datos corruptos: las tablas seleccionadas no tienen el mismo PT (procedimiento técnico). ` +
+        `Revise las tablas antes de calcular. Detalle: ${detalle}`,
         'Datos corruptos – PT inconsistente'
       );
       return;
@@ -1826,16 +1779,14 @@ export class Cmcparamsvf implements OnInit {
         ? this.formatearValorConTexto(filaMax.valorReferenciaRaw, filaMax.valorReferenciaNum)
         : (tieneRangos ? rangoObjetivo : '—');
 
-      // 🔍 DIAGNÓSTICO PT
-      const ptRaw = cert.pt ?? cert.procedimiento_tecnico;
-      const pt = (ptRaw === null || ptRaw === undefined)
-        ? ''
-        : String(ptRaw).trim();
 
-      console.log(
-        `%c[CMC → CALC] tabla #${idx + 1} cc=${cert.cc || tabla.cc_id} → cert.pt=${cert.pt} | cert.procedimiento_tecnico=${cert.procedimiento_tecnico} | pt usado=${pt}`,
-        'color:#6c757d;'
-      );
+      let ptRaw = tabla.pt;
+      let pt = (ptRaw === null || ptRaw === undefined) ? '' : String(ptRaw).trim();
+
+      // Limpiamos si viene como "NA", "N/A" o variantes (ignorando mayúsculas/minúsculas)
+      if (pt.toUpperCase() === 'NA' || pt.toUpperCase() === 'N/A' || pt === 'null') {
+        pt = '';
+      }
 
       filasValidas.push({
         idx,
@@ -1872,7 +1823,7 @@ export class Cmcparamsvf implements OnInit {
       return {
         ok: false,
         ptInconsistente: true,
-        motivo: 'hay certificados sin PT definido'
+        motivo: 'hay tablas sin PT definido'
       };
     }
 
@@ -1891,16 +1842,18 @@ export class Cmcparamsvf implements OnInit {
 
     const ptPayload = ptUnico;
 
+    // Ordenamos de más antiguo a más reciente (necesario para los tiempos intermedios)
     filasValidas.sort((a, b) => a.fecha.getTime() - b.fecha.getTime());
+    const filaMasReciente = filasValidas[filasValidas.length - 1];
 
     const errores = filasValidas.map(x => x.error);
     const incertidumbres = filasValidas.map(x => x.incertidumbre);
     const fechasCalibracion = filasValidas.map(x => x.fecha.toISOString());
     const certificados = filasValidas.map(x => x.cc);
-    const rangoReferencia = filasValidas[0].rango;
-    const minReferencia = filasValidas[0].minRef;
-    const maxReferencia = filasValidas[0].maxRef;
 
+    const rangoReferencia = filaMasReciente.rango;
+    const minReferencia = filaMasReciente.minRef;
+    const maxReferencia = filaMasReciente.maxRef;
     const tiempoIntermedio: number[] = [];
     const detalle: CmcFilaDetalle[] = [];
 
@@ -2053,9 +2006,6 @@ export class Cmcparamsvf implements OnInit {
     // Calcular el resumen UNA vez (fuera del log y fuera de cualquier getter)
     const resumenTablas = this.obtenerResumenValoresSeleccionados();
 
-    // 🔍 DIAGNÓSTICO PT
-    this.logPayloadEnvio('Antes de router.navigate', resumenTablas);
-
     const navegacionOk = await this.router.navigate([this.rutaResultadosCmc], {
       state: {
         payload: this.payloadCompleto,
@@ -2147,7 +2097,7 @@ export class Cmcparamsvf implements OnInit {
         <p>La <b>CMC (Calibración por Mínimos Cuadrados / Capacidad de Medición y Calibración)</b> estima cómo evoluciona el error del instrumento a lo largo del tiempo, usando los certificados de calibración históricos.</p>
         <p><b>Objetivo:</b> obtener la incertidumbre combinada del instrumento en un intervalo de calibración, para un rango de referencia dado. El resultado es un <i>payload</i> con:</p>
         <ul>
-          <li><b>pt:</b> patrón de referencia (debe ser el mismo en todos los certificados).</li>
+          <li><b>pt:</b> procedimiento técnico asociado a la tabla de resultados (debe ser el mismo en todos los certificados).</li>
           <li><b>errores:</b> promedio del error por cada certificado (un valor por certificado).</li>
           <li><b>incertidumbres:</b> incertidumbre máxima por certificado.</li>
           <li><b>tiempo.intermedio:</b> días transcurridos entre calibraciones consecutivas.</li>
@@ -2158,7 +2108,7 @@ export class Cmcparamsvf implements OnInit {
         <ul>
           <li>Seleccionar al menos <b>2 tablas</b> (cada tabla corresponde a un certificado).</li>
           <li>Cada tabla debe tener certificado con fecha válida.</li>
-          <li>Todos los certificados deben tener el <b>mismo PT</b> (patrón de referencia). Si no coinciden, se mostrará una alerta de datos corruptos.</li>
+          <li>Todas las tablas seleccionadas deben tener el <b>mismo PT</b> (procedimiento técnico). Si no coinciden, se mostrará una alerta de datos corruptos.</li>
           <li>Debe existir una columna de <b>error</b>, una de <b>incertidumbre</b> y una de <b>referencia</b>.</li>
         </ul>
         <p>Puedes crear varios CMC con el botón <b>Nuevo CMC</b>; cada uno se calcula con su propia configuración y se identifica por número (CMC #1, CMC #2, …).</p>

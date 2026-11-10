@@ -33,14 +33,11 @@ export class Editcert implements OnInit {
 
   /**
    * Campos generales del certificado que NO se pueden editar en esta vista.
-   * Solo `resolution`, `entity`, `comments`, `date_cal` y `date_cc`
-   * quedan habilitados para el usuario.
    */
   readonly camposBloqueados: ReadonlyArray<keyof Certificado> = [
     'equipment_id',
     'name_equipment',
     'cc',
-    'pt',
     'calibration_interval',
     'cert_type',
     'active',
@@ -90,7 +87,6 @@ export class Editcert implements OnInit {
     name_equipment: '',
     cc: '',
     id_user: '',
-    pt: '',
     date_cal: '',
     date_cc: '',
     calibration_interval: 0,
@@ -123,6 +119,9 @@ export class Editcert implements OnInit {
 
   private salirSinConfirmar = false;
 
+  textoExcel = '';
+  excelTarget: { tableIndex: number, columnIndex: number, label: string, key: string, filasActuales: number } | null = null;
+
   constructor(
     private certificadoService: CertService,
     private route: ActivatedRoute,
@@ -139,11 +138,6 @@ export class Editcert implements OnInit {
     }
   }
 
-  /**
-   * Devuelve `true` si el campo del certificado NO se puede editar
-   * en esta vista (solo lectura).
-   * Úsalo en el template: `[disabled]="estaBloqueado('equipment_id')"`.
-   */
   estaBloqueado(campo: keyof Certificado): boolean {
     return this.camposBloqueados.includes(campo);
   }
@@ -205,8 +199,8 @@ export class Editcert implements OnInit {
             title: table.title || '',
             equipment_id: table.equipment_id || this.certificado.equipment_id || '',
             cc_id: table.cc_id || this.certificado.cc || '',
+            pt: table.pt || '',
             table_id: table.table_id || '',
-            cmc: table.cmc || '',
             parameter: table.parameter || '',
             unit: table.unit || '',
             calibration_equation: table.calibration_equation || '',
@@ -252,6 +246,7 @@ export class Editcert implements OnInit {
       title: 'DC Voltage',
       equipment_id: this.certificado.equipment_id || '',
       cc_id: this.certificado.cc || '',
+      pt: this.certificado.data?.['Result Tables']?.[0]?.pt || '',
       table_id: tableId,
       parameter: this.obtenerOpcionesParametro('DC Voltage')[0] || 'Voltage',
       unit: '',
@@ -329,15 +324,15 @@ export class Editcert implements OnInit {
           title: t.title || '',
           equipment_id: t.equipment_id || this.certificado.equipment_id || '',
           cc_id: t.cc_id || this.certificado.cc || '',
+          pt: t.pt || '',
           table_id: t.table_id || '',
-          cmc: t.cmc || '',
           parameter: t.parameter || '',
           unit: t.unit || '',
           calibration_equation: t.calibration_equation || '',
           range: t.range || '',
           comments: t.comments || '',
           columns: t.columns,
-          rows: t.rows
+          rows: t.rows,
         };
       });
 
@@ -459,6 +454,151 @@ export class Editcert implements OnInit {
   }
 
   // ============================================================
+  // 🆕 MODO: CARGAR DATOS DESDE EXCEL (columna completa)
+  // ============================================================
+  /**
+   * Abre un diálogo con un textarea para pegar los datos copiados
+   * de Excel. El usuario debe incluir el encabezado en la primera línea.
+   * La cantidad de datos (sin contar el encabezado) debe ser igual o
+   * menor a la cantidad de filas actuales de la columna.
+   */
+    // ============================================================
+  // 🆕 MODO: CARGAR DATOS DESDE EXCEL (columna completa)
+  // ============================================================
+ abrirCargaExcel(tableIndex: number, columnIndex: number): void {
+    const table = this.resultTables[tableIndex];
+    if (!table) return;
+    const col = table.columns[columnIndex];
+    if (!col) return;
+
+    this.excelTarget = {
+      tableIndex,
+      columnIndex,
+      label: col.label,
+      key: col.key,
+      filasActuales: table.rows.length
+    };
+    this.textoExcel = '';
+    this.cdr.detectChanges();
+
+    // Abrir el modal nativo de Bootstrap
+    const modalElement = document.getElementById('modalCargaExcel');
+    if (modalElement) {
+      // @ts-ignore
+      const modal = new bootstrap.Modal(modalElement);
+      modal.show();
+    }
+  }
+
+  confirmarCargaExcel(): void {
+    if (!this.excelTarget) return;
+    const { tableIndex, columnIndex } = this.excelTarget;
+    const table = this.resultTables[tableIndex];
+    const col = table?.columns[columnIndex];
+
+    if (!table || !col) return;
+
+    const texto = this.textoExcel;
+
+    // Cerrar el modal
+    const modalElement = document.getElementById('modalCargaExcel');
+    if (modalElement) {
+      // @ts-ignore
+      const modal = bootstrap.Modal.getInstance(modalElement);
+      modal?.hide();
+    }
+
+    this.excelTarget = null;
+
+    if (!texto || texto.trim() === '') {
+      this.alert.warning('No se recibió ningún texto para procesar.', 'Sin datos');
+      return;
+    }
+
+    // Reutilizamos el método que ya teníamos
+    this.aplicarDatosExcel(table, col, texto);
+  }
+
+  /**
+   * Procesa el texto pegado y lo aplica a la columna.
+   * Formato esperado:
+   *   Línea 1: encabezado (label de la columna)
+   *   Líneas 2..N: datos
+   */
+  private aplicarDatosExcel(
+    table: ResultTable,
+    col: Column,
+    textoRaw: string
+  ): void {
+    const lineas = textoRaw
+      .replace(/\r\n/g, '\n')
+      .replace(/\r/g, '\n')
+      .split('\n')
+      .map(l => l.trim())
+      .filter(l => l !== '');
+
+    if (lineas.length === 0) {
+      this.alert.warning('No se encontraron líneas válidas.', 'Sin datos');
+      return;
+    }
+
+    // Primera línea = encabezado
+    const encabezado = lineas[0];
+    const datos = lineas.slice(1);
+
+    const filasActuales = table.rows.length;
+
+    if (datos.length === 0) {
+      this.alert.warning(
+        'Solo se recibió el encabezado, no hay datos para cargar.',
+        'Sin datos'
+      );
+      return;
+    }
+
+    if (datos.length > filasActuales) {
+      this.alert.error(
+        `El número de filas no coincide: recibiste ${datos.length} dato(s) ` +
+        `pero la columna solo tiene ${filasActuales} fila(s). ` +
+        `Recorta los datos o agrega más filas antes de volver a intentar.`,
+        'Filas no coinciden'
+      );
+      return;
+    }
+
+    // Convertir cada valor según el tipo de la columna
+    const convertir = (v: string): any => {
+      if (col.type === 'number') {
+        const num = this.extraerNumeroDeTexto(v);
+        return num;
+      }
+      return v;
+    };
+
+    // Aplicar los datos a las filas existentes
+    table.rows.forEach((row, idx) => {
+      if (idx < datos.length) {
+        row[col.key] = convertir(datos[idx]);
+      }
+      // Si hay más filas que datos, las restantes se dejan intactas
+    });
+
+    // Actualizar el label si el encabezado es distinto
+    if (encabezado && encabezado !== col.label) {
+      col.label = encabezado;
+    }
+
+    this.sincronizarJsonTexto();
+    this.cdr.detectChanges();
+
+    this.alert.success(
+      `Se cargaron ${datos.length} dato(s) en la columna "${col.label}". ` +
+      `Encabezado: "${encabezado}".`,
+      'Datos cargados'
+    );
+  }
+
+  // ============================================================
   // MODO 1: ELIMINAR TEXTO (soporta múltiples tablas/columnas)
   // ============================================================
   toggleModoEliminarTexto(): void {
@@ -493,7 +633,6 @@ export class Editcert implements OnInit {
     let str = String(valor).trim();
     if (str === '') return null;
 
-    // Normaliza coma decimal europea a punto
     str = str.replace(/,/g, '.');
 
     const match = str.match(/-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/);
@@ -598,7 +737,6 @@ export class Editcert implements OnInit {
     let valoresConSimbolo = 0;
     let columnasSinSimbolo = 0;
 
-    // Ordenar de mayor a menor índice para evitar problemas al reemplazar in-place
     const seleccionadas = Array.from(this.columnasParaSeparar)
       .map(id => {
         const [tIdx, cIdx] = id.split('-').map(Number);
@@ -643,7 +781,6 @@ export class Editcert implements OnInit {
       }
 
       const key1 = this.generarKeyUnica(table, 'error_relativo');
-      // Recalcular unicidad considerando que agregaremos key1 también
       const existentesParaKey2 = new Set(table.columns.map(c => c.key));
       existentesParaKey2.add(key1);
       let key2 = 'incertidumbre';
@@ -753,6 +890,7 @@ export class Editcert implements OnInit {
       return {
         table_id: table.table_id,
         cc_id: this.certificado.cc || '',
+        pt: table.pt || '',
         title: table.title || '',
         equipment_id: this.certificado.equipment_id,
         parameter: table.parameter || '',
@@ -871,7 +1009,7 @@ export class Editcert implements OnInit {
       ...this.certificado,
       equipment_id: this.certificado.equipment_id.trim(),
       name_equipment: this.certificado.name_equipment.trim(),
-      id_user: String(user.id_user),           // ← añadido (sobrescribe)
+      id_user: String(user.id_user),
       data: this.obtenerJsonEstructurado()
     };
 
@@ -898,7 +1036,7 @@ export class Editcert implements OnInit {
         );
 
         setTimeout(() => {
-          this.router.navigate(['/listcert']);
+          this.router.navigate(['/list-cert']);
         }, 2000);
       },
       error: (err: any) => {
@@ -931,7 +1069,7 @@ export class Editcert implements OnInit {
     this.salirSinConfirmar = true;
     this.alert.info('Operación cancelada por el usuario.', 'Cancelado');
     setTimeout(() => {
-      this.router.navigate(['/listcert']);
+      this.router.navigate(['/list-cert']);
     }, 1200);
   }
 
@@ -1158,9 +1296,73 @@ export class Editcert implements OnInit {
           </ul>
         </div>
       `;
+    // 🆕 NUEVO APARTADO DE AYUDA: CARGAR DATOS DESDE EXCEL
+    } else if (clave === 'cargar-excel') {
+      detalle = `
+        <h3 style="margin-top:0; color:#198754;">5. Modo "Cargar datos desde Excel"</h3>
+        <p>Permite <b>pegar una columna completa</b> copiada desde Excel (o cualquier hoja de cálculo) directamente en una columna de la tabla, evitando capturar celda por celda.</p>
+
+        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">¿Para qué sirve?</h4>
+        <p>Cuando el certificado original ya viene en Excel, basta con copiar la columna y pegarla aquí. El sistema respeta el encabezado y asigna cada valor a su fila correspondiente.</p>
+
+        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Cómo usarlo (paso a paso)</h4>
+        <ol>
+          <li>En el encabezado de la columna destino, presiona el botón <b>📋 Cargar datos de Excel</b>.</li>
+          <li>Se abrirá un cuadro de diálogo titulado <b>"Pegar columna"</b> con un área de texto.</li>
+          <li>En Excel, selecciona la columna incluyendo el <b>encabezado</b> y cópiala (<kbd>Ctrl</kbd>+<kbd>C</kbd>).</li>
+          <li>Pega el contenido en el área de texto (<kbd>Ctrl</kbd>+<kbd>V</kbd>).</li>
+          <li>Presiona <b>Cargar datos</b>.</li>
+        </ol>
+
+        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Formato esperado</h4>
+        <pre style="background:#f8f9fa; padding:.6rem; border-radius:.35rem; font-size:.85em;">Lectura
+1.234
+1.235
+1.236</pre>
+        <ul>
+          <li><b>Primera línea:</b> encabezado. Si es distinto al <code>label</code> actual de la columna, se <b>actualiza automáticamente</b>.</li>
+          <li><b>Líneas siguientes:</b> un dato por línea, en el mismo orden en que aparecerán en las filas.</li>
+          <li>Las líneas vacías se ignoran.</li>
+        </ul>
+
+        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Reglas y validaciones</h4>
+        <ul>
+          <li>La cantidad de <b>datos</b> (sin contar el encabezado) debe ser <b>igual o menor</b> a la cantidad de filas actuales de la tabla.</li>
+          <li>Si llegan <b>más datos que filas</b>, se muestra un error indicando cuántos datos llegaron y cuántas filas hay disponibles. <b>No se aplica ningún cambio.</b></li>
+          <li>Si llegan <b>menos datos que filas</b>, solo se llenan las primeras filas; las restantes quedan intactas.</li>
+          <li>Si el encabezado viene vacío (por ejemplo, solo se pegaron números), se trata la primera línea como dato y no se modifica el label. <em>Recomendación: incluye siempre el encabezado.</em></li>
+        </ul>
+
+        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Conversión según el tipo de columna</h4>
+        <ul>
+          <li>Si la columna es <code>type = number</code>: cada dato se convierte con la misma lógica de "Eliminar Texto" (extrae el primer número, normaliza coma decimal, respeta signo y notación científica). Si un valor no contiene número, se guarda como <code>null</code>.</li>
+          <li>Si la columna es <code>type = string</code>: cada dato se guarda tal cual, como texto.</li>
+        </ul>
+
+        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Ejemplo</h4>
+        <p>Supongamos que la tabla tiene 3 filas y pegas:</p>
+        <pre style="background:#f8f9fa; padding:.6rem; border-radius:.35rem; font-size:.85em;">Voltaje
+10,5 V
+11.2 V
+12 V</pre>
+        <p>Resultado en la columna (tipo <code>number</code>):</p>
+        <pre style="background:#f8f9fa; padding:.6rem; border-radius:.35rem; font-size:.85em;">label = "Voltaje"
+Fila 1: 10.5
+Fila 2: 11.2
+Fila 3: 12</pre>
+
+        <div style="background:#cfe2ff; border-left:4px solid #0d6efd; padding:.6rem .8rem; border-radius:.35rem; margin:.9rem 0;">
+          <b>💡 Consejo</b>
+          <ul style="margin:.35rem 0 0; padding-left:1.2rem;">
+            <li>Antes de cargar, verifica que la tabla tenga suficientes filas. Puedes agregarlas con el botón <b>+ Fila</b>.</li>
+            <li>El cambio <b>sobrescribe los valores</b> de las celdas que cubran los datos pegados. Si quieres conservarlos, guarda una copia del JSON primero.</li>
+            <li>Si el diálogo se cierra sin confirmar, <b>no se modifica nada</b>.</li>
+          </ul>
+        </div>
+      `;
     } else if (clave === 'json') {
       detalle = `
-        <h3 style="margin-top:0; color:#212529;">5. JSON y guardado de cambios</h3>
+        <h3 style="margin-top:0; color:#212529;">6. JSON y guardado de cambios</h3>
         <p>El JSON es la representación estructurada de todas las tablas. Se <b>actualiza automáticamente</b> cada vez que modificas una tabla, una columna o una fila.</p>
 
         <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Acciones</h4>
@@ -1190,7 +1392,7 @@ export class Editcert implements OnInit {
     } else {
       detalle = `
         <p>No hay ayuda disponible para <code>${this.escapeHtml(clave)}</code>.</p>
-        <p>Bloques disponibles: <code>general</code>, <code>tablas</code>, <code>eliminar-texto</code>, <code>separar-simbolo</code>, <code>json</code>.</p>
+        <p>Bloques disponibles: <code>general</code>, <code>tablas</code>, <code>eliminar-texto</code>, <code>separar-simbolo</code>, <code>cargar-excel</code>, <code>json</code>.</p>
       `;
     }
 
@@ -1218,5 +1420,5 @@ export class Editcert implements OnInit {
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#039;');
-}
+  }
 }

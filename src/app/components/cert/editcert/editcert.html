@@ -23,7 +23,7 @@
     <div class="row g-3">
 
       <!-- ID del Equipo (bloqueado) -->
-      <div class="col-md-3">
+      <div class="col-md-6">
         <label for="equipment_id" class="form-label fw-bold">
           ID del Equipo <span class="text-danger">*</span>
         </label>
@@ -69,15 +69,6 @@
         <input type="date" id="date_cc" class="form-control"
           [(ngModel)]="certificado.date_cc"
           [disabled]="estaBloqueado('date_cc')">
-      </div>
-
-      <!-- PT / Procedimiento Técnico (bloqueado) -->
-      <div class="col-md-3">
-        <label for="pt" class="form-label fw-bold">Procedimiento Técnico</label>
-        <input type="text" id="pt" class="form-control" maxlength="50"
-          [(ngModel)]="certificado.pt"
-          [disabled]="estaBloqueado('pt')"
-          placeholder="PT-25">
       </div>
 
       <!-- Entidad Emisora (EDITABLE) -->
@@ -203,6 +194,17 @@
         title="Ayuda: estructura de las tablas y navegación">
         Ayuda tablas ❓
       </span>
+
+      <!-- 🆕 Ayuda: Cargar datos desde Excel -->
+      <span
+        class="btn btn-warning fw-bold"
+        role="button"
+        tabindex="0"
+        (click)="ayuda('cargar-excel')"
+        (keydown.enter)="ayuda('cargar-excel')"
+        title="Ayuda: cómo cargar datos desde Excel">
+        Ayuda Excel ❓
+      </span>
     </div>
   </div>
 
@@ -274,7 +276,7 @@
 
           <!-- Propiedades -->
           <div class="row g-3 p-3 mb-4 bg-light rounded border">
-            <h6 class="text-secondary fw-bold mb-0">Tablas del certificado</h6>
+            <h6 class="text-secondary fw-bold mb-0">Propiedades de la tabla</h6>
 
             <div class="col-md-6">
               <label class="form-label fw-semibold small">Título:</label>
@@ -304,6 +306,20 @@
               </ng-template>
             </div>
 
+            <!-- PT de la tabla (solo lectura en edición) -->
+            <div class="col-md-6">
+              <label [for]="'tablePt' + i" class="form-label fw-semibold small">
+                PT asociado a la tabla:
+              </label>
+              <input
+                type="text"
+                [id]="'tablePt' + i"
+                class="form-control"
+                [(ngModel)]="tabla.pt"
+                disabled
+                placeholder="Sin PT">
+            </div>
+
             <div class="col-md-3">
               <label class="form-label fw-semibold small">CC ID:</label>
               <input type="text" class="form-control" [ngModel]="certificado.cc"
@@ -313,7 +329,7 @@
             <div class="col-md-3">
               <label class="form-label fw-semibold small">Tabla ID:</label>
               <input type="text" class="form-control" [ngModel]="tabla.table_id"
-                placeholder="Ej: CC-89421" disabled>
+                placeholder="Ej: CC-89421-T1" disabled>
             </div>
 
             <div class="col-md-3">
@@ -385,6 +401,17 @@
                         <option value="number">Number</option>
                         <option value="string">String</option>
                       </select>
+
+                      <!-- 🆕 Botón: Cargar datos desde Excel -->
+                      <button
+                        type="button"
+                        class="w-100 mt-1 d-flex align-items-center justify-content-center gap-2 py-2 px-2 rounded-3 fw-bold border-2 bg-success bg-opacity-10 text-dark border-success"
+                        style="cursor: pointer; font-size: 0.85rem; transition: all .18s ease; letter-spacing: .3px; border-style: dashed;"
+                        (click)="abrirCargaExcel(i, j)"
+                        title="Pega una columna completa copiada de Excel (incluye el encabezado en la primera línea)">
+                        <span class="fs-6">📋</span>
+                        <span>Cargar datos de Excel</span>
+                      </button>
 
                       <!-- Pill: Limpiar texto -->
                       <button
@@ -548,4 +575,43 @@
     </button>
   </div>
 
+</div>
+
+<!-- ============================================= -->
+<!-- MODAL: Cargar datos desde Excel               -->
+<!-- ============================================= -->
+<div class="modal fade" id="modalCargaExcel" tabindex="-1" aria-labelledby="modalCargaExcelLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header bg-success text-white">
+        <h5 class="modal-title" id="modalCargaExcelLabel">
+          📋 Pegar columna de Excel
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-2">
+          Pega aquí los datos copiados desde <b>Excel</b> (una sola columna).
+          La <b>primera línea debe ser el encabezado</b>.
+        </p>
+        <p class="text-muted small mb-3" *ngIf="excelTarget">
+          Columna destino: <b>{{ excelTarget.label }}</b> (<code>{{ excelTarget.key }}</code>)<br/>
+          Filas actuales en la tabla: <b>{{ excelTarget.filasActuales }}</b>
+        </p>
+        <textarea
+          class="form-control font-monospace"
+          rows="10"
+          [(ngModel)]="textoExcel"
+          placeholder="Encabezado&#10;Dato 1&#10;Dato 2&#10;Dato 3"></textarea>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+          Cancelar
+        </button>
+        <button type="button" class="btn btn-success" (click)="confirmarCargaExcel()">
+          Cargar datos
+        </button>
+      </div>
+    </div>
+  </div>
 </div>

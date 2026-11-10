@@ -82,9 +82,9 @@
   </div>
 
   <!--Panel de configuracion del cmc-->
-  <div *ngIf="mostrarPanelCmc" class="card shadow-sm mb-4 border-black">
+  <div *ngIf="mostrarPanelCmc" class="card shadow-sm mb-4 border-success">
 
-    <div class="card-header bg-black text-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <div class="card-header bg-outline-secondary text-black d-flex justify-content-between align-items-center flex-wrap gap-2">
       <h5 class="mb-0 d-flex align-items-center flex-wrap gap-2">
         <i class="bi bi-sliders"></i>
         <span>Configuración del cálculo de CMC</span>
@@ -629,18 +629,17 @@
           </div>
           <div class="card-body">
             <div class="row g-2">
-              <div class="col-md-4"><strong>ID:</strong> {{ certificado.id }}</div>
-              <div class="col-md-4"><strong>Equipment ID:</strong> {{ certificado.equipment_id }}</div>
-              <div class="col-md-4"><strong>Nombre Equipo:</strong> {{ certificado.name_equipment }}</div>
-              <div class="col-md-4"><strong>Procedimiento Tecnico:</strong> {{ certificado.pt }}</div>
-              <div class="col-md-4"><strong>Folio/CC:</strong> {{ certificado.cc || 'N/A' }}</div>
-              <div class="col-md-4"><strong>Intervalo de Calibración:</strong> {{ certificado.calibration_interval }}</div>
-              <div class="col-md-4"><strong>Fecha Calibración:</strong> {{ certificado.date_cal | date:'dd/MM/yyyy' }}</div>
-              <div class="col-md-4"><strong>Fecha Certificado:</strong> {{ certificado.date_cc | date:'dd/MM/yyyy' }}</div>
-              <div class="col-md-4"><strong>Entidad:</strong> {{ certificado.entity || 'N/A' }}</div>
-              <div class="col-md-4"><strong>Tipo:</strong> {{ certificado.cert_type || 'N/A' }}</div>
-              <div class="col-md-4">
-                <strong>Activo:</strong>
+              <div class="col-md-3"><strong>ID:</strong> {{ certificado.id }}</div>
+              <div class="col-md-3"><strong>Equipment ID:</strong> {{ certificado.equipment_id }}</div>
+              <div class="col-md-6"><strong>Nombre Equipo:</strong> {{ certificado.name_equipment }}</div>
+              <div class="col-md-3"><strong>Folio/CC:</strong> {{ certificado.cc || 'N/A' }}</div>
+              <div class="col-md-3"><strong>Intervalo de Calibración:</strong> {{ certificado.calibration_interval }}</div>
+              <div class="col-md-3"><strong>Fecha Calibración:</strong> {{ certificado.date_cal | date:'dd/MM/yyyy' }}</div>
+              <div class="col-md-3"><strong>Fecha Certificado:</strong> {{ certificado.date_cc | date:'dd/MM/yyyy' }}</div>
+              <div class="col-md-3"><strong>Entidad:</strong> {{ certificado.entity || 'N/A' }}</div>
+              <div class="col-md-6"><strong>Tipo:</strong> {{ certificado.cert_type || 'N/A' }}</div>
+              <div class="col-md-3">
+                <strong>Activo: </strong>
                 <span class="badge" [ngClass]="certificado.active ? 'bg-success' : 'bg-danger'">
                   {{ certificado.active ? 'Sí' : 'No' }}
                 </span>
@@ -654,7 +653,7 @@
       </ng-container>
 
       <div class="card shadow-sm">
-        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+        <div class="card-header bg-outline-secondary text-black d-flex justify-content-between align-items-center">
           <span class="fw-bold">Tabla #{{ i + 1 }}: {{ table.title || 'Sin título' }}</span>
           <span class="badge bg-light text-dark">
             Equipment ID: {{ table.equipment_id || selectedEquipmentId }}
@@ -666,6 +665,7 @@
           <div class="row g-2 mb-3">
             <div class="col-md-4"><strong>Parámetro:</strong> {{ table.parameter || 'N/A' }}</div>
             <div class="col-md-4"><strong>Folio del certificado:</strong> {{ table.cc_id || 'N/A' }}</div>
+            <div class="col-md-4"><strong>Procedimiento Técnico:</strong> {{ table.pt || 'N/A' }}</div>
             <div class="col-md-4"><strong>ID de la tabla:</strong> {{ table.table_id || 'N/A' }}</div>
             <div class="col-md-4"><strong>Unidad:</strong> {{ table.unit || 'N/A' }}</div>
             <div class="col-md-4"><strong>Rango:</strong> {{ table.range || 'N/A' }}</div>
