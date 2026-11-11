@@ -49,15 +49,15 @@
   <!-- Tabla Principal de Certificados (siempre visible) -->
   <div class="card shadow-sm">
     <div class="table-responsive">
-      <table class="table table-hover align-middle mb-0">
+      <table class="table table-hover align-middle mb-0 " >
         <thead class="table-dark">
           <tr>
-            <th>Estado</th>
+            <!--<th>Estado</th>-->
             <th>ID BD</th>
             <th>Equipment ID</th>
-            <!---<th>Folio / CC</th>-->
+            <th>Folio / CC</th>
             <th>Nombre del Equipo</th>
-            <th>F. Calibración</th>
+            <!--<th>F. Calibración</th>-->
             <!--<th>F. Certificado</th>-->
             <th class="text-center">Acciones</th>
           </tr>
@@ -66,16 +66,16 @@
           <ng-container *ngFor="let cert of certificadosFiltrados">
             <!-- Fila Principal del Registro -->
             <tr>
-              <td>
+              <!--<td>
                 <span class="badge" [ngClass]="cert.active ? 'bg-success' : 'bg-danger'">
                   {{ cert.active ? 'Activo' : 'Inactivo' }}
                 </span>
-              </td>
+              </td>-->
               <td>{{ cert.id }}</td>
-              <td class="fw-bold text-primary">{{ cert.equipment_id }}</td>
-              <!--<td><span class="badge bg-light text-dark border">{{ cert.cc || 'N/A' }}</span></td>-->
+              <td class="fw-bold">{{ cert.equipment_id }}</td>
+              <td><span class="badge bg-light text-dark border">{{ cert.cc || 'N/A' }}</span></td>
               <td>{{ cert.name_equipment }}</td>
-              <td>{{ cert.date_cal | date:'dd/MM/yyyy' }}</td>
+              <!--<td>{{ cert.date_cal | date:'dd/MM/yyyy' }}</td>-->
               <!--<td>{{ cert.date_cc | date:'dd/MM/yyyy' }}</td>-->
               <td class="text-center">
                 <div class="btn-group btn-group-sm">
@@ -85,36 +85,8 @@
                     [ngClass]="idExpandido === cert.id ? 'btn-secondary' : 'btn-outline-primary'"
                     (click)="toggleDetalle(cert.id, cert)"
                   >
-                    {{ idExpandido === cert.id ? 'Ocultar Resumen' : 'Ver Resumen' }}
-                  </button>
-
-                  <!-- Botón Ver Detalle (redirige a viewcert para ver tablas completas) -->
-                  <button
-                    class="btn btn-outline-success"
-                    (click)="detalleCertificado(cert.id)"
-                    title="Ver Detalle del Certificado (incluye tablas)"
-                  >
-                    Ver Detalle
-                  </button>
-
-                  <!-- Botón Editar Certificado -->
-                  <button
-                    class="btn btn-outline-warning"
-                    (click)="editarCertificado(cert.id)"
-                    title="Editar Certificado en nuevo componente"
-                  >
-                    Editar
-                  </button>
-
-                  <!-- Botón Desactivar con Alerta Confirmación -->
-                  <button
-                    class="btn btn-outline-danger"
-                    [disabled]="!cert.active"
-                    (click)="desactivarCertificado(cert)"
-                    title="Desactivar Certificado"
-                  >
-                    Desactivar
-                  </button>
+                    {{ idExpandido === cert.id ? 'Ocultar opciones' : 'Mostrar opciones' }}
+                  </button>                               
                 </div>
               </td>
             </tr>
@@ -124,25 +96,37 @@
               <td colspan="8" class="p-4">
                 <div class="card border-secondary shadow-sm">
                   <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
-                    <span class="fw-bold font-monospace text-warning">
-                      Resumen del Certificado — Equipment ID: {{ cert.equipment_id }}
+                    <span class="fw-bold">
+                      Resumen del Certificado {{ cert.cc }}
                     </span>
-                    <span class="badge bg-info text-dark">ID: {{ cert.id }}</span>
+                    <span class="badge bg-black ">ID: {{ cert.id }}</span>
                   </div>
                   <div class="card-body">
 
                     <!-- Datos generales del certificado -->
+                    
+                    <div class="row g-3">
+                      <div class="col-md-12">
+                        <ul class="list-group list-group-flush">
+                          <li class="list-group-item d-flex justify-content">
+                            <strong>Equipo patron: </strong>
+                            <span>&nbsp;&nbsp;</span>
+                            <strong><span class="text-primary">{{ cert.equipment_id }}</span></strong>
+                          </li>
+                        </ul>
+                        <ul class="list-group list-group-flush">
+                          <li class="list-group-item d-flex justify-content">
+                            <strong>Nombre del equipo Patron:</strong>
+                            <span>&nbsp;&nbsp;</span>
+                            <span>{{ cert.name_equipment }}</span>
+                          </li>
+                        </ul>                          
+                      </div>
+                    </div>
+                    <div class="card-body">
                     <div class="row g-3">
                       <div class="col-md-6">
                         <ul class="list-group list-group-flush">
-                          <li class="list-group-item d-flex justify-content-between">
-                            <strong>Equipment ID</strong>
-                            <span>{{ cert.equipment_id }}</span>
-                          </li>
-                          <li class="list-group-item d-flex justify-content-between">
-                            <strong>Nombre del Equipo</strong>
-                            <span>{{ cert.name_equipment }}</span>
-                          </li>
                           <li class="list-group-item d-flex justify-content-between">
                             <strong>Folio / CC</strong>
                             <span>{{ cert.cc || 'N/A' }}</span>
@@ -155,14 +139,15 @@
                             <strong>Tipo Certificado</strong>
                             <span>{{ cert.cert_type || 'N/A' }}</span>
                           </li>
-                        </ul>
-                      </div>
-                      <div class="col-md-6">
-                        <ul class="list-group list-group-flush">
                           <li class="list-group-item d-flex justify-content-between">
                             <strong>Fecha Calibración: </strong>
                             <span>{{ cert.date_cal | date:'dd/MM/yyyy' }}</span>
                           </li>
+                          
+                        </ul>
+                      </div>
+                      <div class="col-md-6">
+                        <ul class="list-group list-group-flush">
                           <li class="list-group-item d-flex justify-content-between">
                             <strong>Fecha Certificado: </strong>
                             <span>{{ cert.date_cc | date:'dd/MM/yyyy' }}</span>
@@ -176,10 +161,6 @@
                             <span>{{ cert.resolution ?? 'N/A' }}</span>
                           </li>
                           <li class="list-group-item d-flex justify-content-between">
-                            <strong>Comentarios:  </strong>
-                            <span>  {{ cert.comments || 'N/A' }}</span>
-                          </li>
-                          <li class="list-group-item d-flex justify-content-between">
                             <strong>Estado: </strong>
                             <span class="badge" [ngClass]="cert.active ? 'bg-success' : 'bg-danger'">
                               {{ cert.active ? 'Activo' : 'Inactivo' }}
@@ -187,27 +168,56 @@
                           </li>
                         </ul>
                       </div>
+                     </div>
                     </div>
-
-                    <!-- Opcional: mostrar el JSON completo en forma colapsable (solo para depuración) -->
-                    <div class="mt-4">
-                      <button
-                        class="btn btn-outline-secondary btn-sm"
-                        type="button"
-                        data-bs-toggle="collapse"
-                        [attr.data-bs-target]="'#jsonRaw' + cert.id"
-                        aria-expanded="false"
-                      >
-                        Ver JSON completo (datos)
-                      </button>
-                      <div [id]="'jsonRaw' + cert.id" class="collapse mt-2">
-                        <pre class="bg-dark text-success p-3 rounded font-monospace m-0" style="max-height: 250px; overflow-y: auto;"><code>{{ obtenerJsonString(cert.data) }}</code></pre>
+                    <div class="row g-3">
+                      <div class="col-md-12">
+                        <ul class="list-group list-group-flush">
+                          <li class="list-group-item d-flex justify-content">
+                            <strong>Comentarios:</strong>
+                            <span>&nbsp;</span>
+                            <span>{{ cert.comments }}</span>
+                          </li>
+                        </ul>                       
                       </div>
                     </div>
-
                     <div class="mt-3 text-muted small">
                       <i class="bi bi-info-circle"></i> Para ver las tablas de resultados, haz clic en <strong>"Ver Detalle"</strong>.
+                      <br>
+                      <i class="bi bi-info-circle"></i> En caso de que sea un certificado obsoleto, haz click en <strong>"Desactivar Certificado"</strong>. 
+                      <br>
+                      <i class="bi bi-info-circle"></i> En caso de algun cambio o error, haz click en<strong>"Editar Certificado"</strong>.
                     </div>
+                    
+                    <div class="mt-4 d-flex justify-content-between align-items-center">
+                    <!-- Botón Izquierdo -->
+                    <button
+                      class="btn btn-outline-danger"
+                      [disabled]="!cert.active"
+                      (click)="desactivarCertificado(cert)"
+                      title="Desactivar Certificado"
+                    >
+                      Desactivar Certificado
+                    </button>
+
+                    <!-- Grupo Derecho -->
+                    <div class="d-flex gap-2">
+                      <button
+                        class="btn btn-outline-warning"
+                        (click)="editarCertificado(cert.id)"
+                        title="Editar Certificado en nuevo componente"
+                      >
+                        Editar Certificado
+                      </button>
+                      <button
+                        class="btn btn-outline-success"
+                        (click)="detalleCertificado(cert.id)"
+                        title="Ver Detalle del Certificado (incluye tablas)"
+                      >
+                        Ver Detalle
+                      </button>    
+                    </div>
+                  </div>
                   </div>
                 </div>
               </td>

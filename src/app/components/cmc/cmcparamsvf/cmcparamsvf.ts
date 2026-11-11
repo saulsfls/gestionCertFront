@@ -35,6 +35,8 @@ interface FilaRangoInfo {
   valorReferenciaNum: number;
   valorReferenciaTexto: string;
   valorReferenciaUnidadTexto: string;
+  unidadCertificado: string;   // 👈 NUEVO: unidad declarada en el certificado
+  unidadColumna: string;       // 👈 NUEVO: unidad declarada en la columna de la tabla
 }
 
 interface IntervaloUnico {
@@ -247,6 +249,96 @@ export class Cmcparamsvf implements OnInit {
     const unitStr = unit === null || unit === undefined ? '' : String(unit).trim();
     if (!unitStr || unitStr.toUpperCase() === 'N/A') return label;
     return `${label} (${unitStr})`;
+  }
+
+  /**
+   * Devuelve la unidad declarada en el certificado, si existe.
+   * Busca en los campos habituales: unit, unidades, unidad, measurement_unit, etc.
+   */
+  private obtenerUnidadCertificado(cert: any): string {
+    if (!cert) return '';
+    const candidatos = [
+      cert.unit,
+      cert.unidad,
+      cert.units,
+      cert.unidades,
+      cert.measurement_unit,
+      cert.measurement_units,
+      cert.unit_of_measure,
+    ];
+    for (const c of candidatos) {
+      if (c !== null && c !== undefined) {
+        const s = String(c).trim();
+        if (s && s.toUpperCase() !== 'N/A' && s.toUpperCase() !== 'NA') {
+          return s;
+        }
+      }
+    }
+    return '';
+  }
+
+  /**
+   * Devuelve la unidad declarada en la columna de referencia de la tabla, si existe.
+   */
+  private obtenerUnidadColumna(col: Column | undefined): string {
+    if (!col) return '';
+    const unit = (col as any)?.unit;
+    if (unit === null || unit === undefined) return '';
+    const s = String(unit).trim();
+    if (!s || s.toUpperCase() === 'N/A' || s.toUpperCase() === 'NA') return '';
+    return s;
+  }
+
+  /**
+   * Construye el texto de min/max referencia aplicando la precedencia:
+   *   1) unidad del certificado
+   *   2) unidad de la columna de la tabla
+   *   3) lo que ya traiga el valor raw (si no hay unidad en ninguno de los dos)
+   *
+   * Si la unidad elegida ya está presente en el raw, no la duplica.
+   */
+  private formatearReferenciaConUnidad(
+    fila: FilaRangoInfo,
+    fallbackRaw?: string
+  ): string {
+    const raw = String(fila.valorReferenciaRaw ?? '').trim();
+    const unidadElegida = fila.unidadCertificado || fila.unidadColumna || '';
+
+    // Si no hay unidad elegida, devolvemos el raw tal cual (o el fallback).
+    if (!unidadElegida) {
+      return raw || (fallbackRaw ?? '');
+    }
+
+    // ¿El raw ya incluye la unidad? (comparación laxa por prefijo/sufijo)
+    const unidadNorm = unidadElegida.toLowerCase().replace(/\s+/g, '');
+    const rawNorm = raw.toLowerCase().replace(/\s+/g, '');
+    const yaIncluida =
+      rawNorm.endsWith(unidadNorm) ||
+      rawNorm.startsWith(unidadNorm) ||
+      rawNorm.includes(` ${unidadNorm}`);
+
+    if (yaIncluida) {
+      return raw;
+    }
+
+    // Insertamos la unidad respetando el formato "valor unidad" (con espacio).
+    const match = raw.match(/-?\d+(?:[.,]\d+)?(?:[eE][+-]?\d+)?/);
+    if (!match || match.index === undefined) {
+      // No hay número: devolvemos raw + unidad
+      return `${raw} ${unidadElegida}`.trim();
+    }
+
+    const antes = raw.slice(0, match.index).trim();
+    const despues = raw.slice(match.index + match[0].length).trim();
+    const numero = match[0];
+
+    const partes: string[] = [];
+    if (antes) partes.push(antes);
+    partes.push(numero);
+    partes.push(unidadElegida);
+    if (despues) partes.push(despues);
+
+    return partes.join(' ');
   }
 
   // Validación numérica
@@ -841,6 +933,12 @@ export class Cmcparamsvf implements OnInit {
       : '';
     const objetivoNorm = this.normalizarRango(rangoObjetivo);
 
+    // 👇 NUEVO: unidad de la columna de referencia y del certificado
+    const colReferencia = tabla.columns.find(c => c.key === sel.columnaReferenciaKey);
+    const unidadColumna = this.obtenerUnidadColumna(colReferencia);
+    const cert = this.getCertificado(tabla);
+    const unidadCertificado = this.obtenerUnidadCertificado(cert);
+
     for (let i = 0; i < (tabla.rows?.length ?? 0); i++) {
       const row = tabla.rows[i];
 
@@ -871,7 +969,9 @@ export class Cmcparamsvf implements OnInit {
         valorReferenciaRaw: String(rawRef),
         valorReferenciaNum: parsedRef.numero,
         valorReferenciaTexto: parsedRef.texto,
-        valorReferenciaUnidadTexto: parsedRef.unidadTexto
+        valorReferenciaUnidadTexto: parsedRef.unidadTexto,
+        unidadCertificado,   // 👈 NUEVO
+        unidadColumna        // 👈 NUEVO
       });
     }
 
@@ -1040,10 +1140,7 @@ export class Cmcparamsvf implements OnInit {
     }
     if (!mejor) return '—';
 
-    return this.formatearValorConTexto(
-      mejor.valorReferenciaRaw,
-      mejor.valorReferenciaNum
-    );
+    return this.formatearReferenciaConUnidad(mejor);
   }
 
   getMaxReferencia(index: number): string {
@@ -1064,10 +1161,7 @@ export class Cmcparamsvf implements OnInit {
     }
     if (!mejor) return '—';
 
-    return this.formatearValorConTexto(
-      mejor.valorReferenciaRaw,
-      mejor.valorReferenciaNum
-    );
+    return this.formatearReferenciaConUnidad(mejor);
   }
 
   getDiasDesdeAnterior(index: number): number | null {
@@ -1184,7 +1278,7 @@ export class Cmcparamsvf implements OnInit {
     }
     if (!mejor) return '—';
 
-    return this.formatearValorConTexto(mejor.valorReferenciaRaw, mejor.valorReferenciaNum);
+    return this.formatearReferenciaConUnidad(mejor);
   }
 
   private getMaxReferenciaParaCmc(cmc: CmcConfiguracionExt, index: number): string {
@@ -1205,7 +1299,7 @@ export class Cmcparamsvf implements OnInit {
     }
     if (!mejor) return '—';
 
-    return this.formatearValorConTexto(mejor.valorReferenciaRaw, mejor.valorReferenciaNum);
+    return this.formatearReferenciaConUnidad(mejor);
   }
 
   private getDiasDesdeAnteriorParaCmc(cmc: CmcConfiguracionExt, index: number): number | null {
@@ -1771,14 +1865,14 @@ export class Cmcparamsvf implements OnInit {
         }
       }
 
+      // 👇 CAMBIO: min/max referencia ahora incluyen la unidad (certificado > columna > raw)
       const minRef = filaMin
-        ? this.formatearValorConTexto(filaMin.valorReferenciaRaw, filaMin.valorReferenciaNum)
+        ? this.formatearReferenciaConUnidad(filaMin, tieneRangos ? rangoObjetivo : '—')
         : (tieneRangos ? rangoObjetivo : '—');
 
       const maxRef = filaMax
-        ? this.formatearValorConTexto(filaMax.valorReferenciaRaw, filaMax.valorReferenciaNum)
+        ? this.formatearReferenciaConUnidad(filaMax, tieneRangos ? rangoObjetivo : '—')
         : (tieneRangos ? rangoObjetivo : '—');
-
 
       let ptRaw = tabla.pt;
       let pt = (ptRaw === null || ptRaw === undefined) ? '' : String(ptRaw).trim();

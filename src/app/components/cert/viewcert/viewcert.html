@@ -24,21 +24,21 @@
   <!-- Datos del certificado (se oculta mientras cargando) -->
   <ng-container *ngIf="!loading && certificado">
     <div class="card shadow-sm mb-4">
-      <div class="card-header bg-dark text-white">
+      <div class="card-header bg-dark text-white d-flex justify-content-between">
         <h5 class="mb-0">Información del Certificado</h5>
+        <span class="badge bg-light text-dark">ID: {{ certificado.id }}</span>
       </div>
       <div class="card-body">
         <div class="row">
-          <div class="col-md-4"><strong>ID:</strong> {{ certificado.id }}</div>
-          <div class="col-md-4"><strong>Equipment ID:</strong> {{ certificado.equipment_id }}</div>
-          <div class="col-md-4"><strong>Nombre Equipo:</strong> {{ certificado.name_equipment }}</div>
-          <div class="col-md-4"><strong>Folio/CC:</strong> {{ certificado.cc || 'N/A' }}</div>
-          <div class="col-md-4"><strong>Intervalo de Calibración:</strong> {{ certificado.calibration_interval }}</div>
-          <div class="col-md-4"><strong>Fecha Calibración:</strong> {{ certificado.date_cal | date:'dd/MM/yyyy' }}</div>
-          <div class="col-md-4"><strong>Fecha Certificado:</strong> {{ certificado.date_cc | date:'dd/MM/yyyy' }}</div>
-          <div class="col-md-4"><strong>Entidad:</strong> {{ certificado.entity || 'N/A' }}</div>
-          <div class="col-md-4"><strong>Tipo:</strong> {{ certificado.cert_type || 'N/A' }}</div>
-          <div class="col-md-4"><strong>Activo: </strong> <span class="badge" [ngClass]="certificado.active ? 'bg-success' : 'bg-danger'">{{ certificado.active ? 'Sí' : 'No' }}</span></div>
+          <div class="col-md-12"><strong>Nombre Equipo:</strong> {{ certificado.name_equipment }}</div>
+          <div class="col-md-6"><strong>Equipment ID:</strong> {{ certificado.equipment_id }}</div>  
+          <div class="col-md-6"><strong>Folio/CC:</strong> {{ certificado.cc || 'N/A' }}</div>
+          <div class="col-md-3"><strong>Intervalo de Calibración:</strong> {{ certificado.calibration_interval }}</div>
+          <div class="col-md-3"><strong>Fecha Calibración:</strong> {{ certificado.date_cal | date:'dd/MM/yyyy' }}</div>
+          <div class="col-md-3"><strong>Fecha Certificado:</strong> {{ certificado.date_cc | date:'dd/MM/yyyy' }}</div>
+          <div class="col-md-3"><strong>Entidad:</strong> {{ certificado.entity || 'N/A' }}</div>
+          <div class="col-md-6"><strong>Tipo:</strong> {{ certificado.cert_type || 'N/A' }}</div>
+          <div class="col-md-6"><strong>Activo: </strong> <span class="badge" [ngClass]="certificado.active ? 'bg-success' : 'bg-danger'">{{ certificado.active ? 'Sí' : 'No' }}</span></div>
           <div class="col-12"><strong>Comentarios:</strong> {{ certificado.comments || 'Sin comentarios' }}</div>
         </div>
       </div>
@@ -48,7 +48,7 @@
     <div *ngIf="resultTables.length > 0; else sinTablas">
       <h4 class="fw-bold mb-3">Tablas de Resultados</h4>
       <div *ngFor="let table of resultTables; let i = index" class="card mb-4 shadow-sm">
-        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+        <div class="card-header bg-light d-flex justify-content-between align-items-center">
           <span class="fw-bold">Tabla #{{ i + 1 }}: {{ table.title || 'Sin título' }}</span>
           <span class="badge bg-light text-dark">Equipment ID: {{ table.equipment_id }}</span>
         </div>

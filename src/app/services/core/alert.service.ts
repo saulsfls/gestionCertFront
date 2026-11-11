@@ -38,7 +38,7 @@ export class AlertService implements OnDestroy {
   private sequence = 0;
 
   private config: AlertServiceConfig = {
-    position:     'top-right',
+    position:     'bottom-right',
     duration:     5000,
     maxVisible:   5,
     pauseOnHover: true,
