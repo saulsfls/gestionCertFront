@@ -1,6 +1,5 @@
 // src/app/app.routes.ts
 import { Routes } from '@angular/router';
-import { RenderMode, ServerRoute } from '@angular/ssr';
 import { authGuard } from './guard/auth.guard';
 import { Newcert } from './components/cert/newcert/newcert';
 import { Viewcert } from './components/cert/viewcert/viewcert';
@@ -10,14 +9,13 @@ import { admincert } from './components/cert/admincert/admincert';
 import { Listcert } from './components/cert/listcert/listcert';
 import { Calcmc } from './components/cmc/calcmc/calcmc';
 import { Inicio } from './components/core/inicio/inicio';
-import { Cmcparams } from './components/cmc/cmcparams/cmcparams';
 import { Cmcparamsvf } from './components/cmc/cmcparamsvf/cmcparamsvf';
-import { Cmcsr } from './components/calc/cmcsr/cmcsr';
 import { Viewcmc } from './components/cmc/viewcmc/viewcmc';
 import { Listcmc } from './components/cmc/listcmc/listcmc';
 import { Editcmc } from './components/cmc/editcmc/editcmc';
 import { Alertconf } from './components/test/alertconf/alertconf';
 import { Viewdata } from './components/test/viewdata/viewdata';
+import { Cmcsr } from './components/cmc/cmcsr/cmcsr';
 
 export const routes: Routes = [
   //Rutas publicas
@@ -41,13 +39,12 @@ export const routes: Routes = [
       { path: 'view-cert/:id', component: Viewcert, title: 'Detalle del Certificado'},
       //Rutas del CMC
       { path: 'calcmc', component: Calcmc, title: 'Modulo de calculo del CMC'},
-      { path: 'cmc-params', component: Cmcparams, title: 'Parametros del CMC' },
-      { path: 'cmc-paramsvf', component: Cmcparamsvf,  title: 'Parametros del CMC'},
-      { path: 'cmc-resultados', component: Cmcsr, title:'Resultados del CMC' },
+      { path: 'cmc-create', component: Cmcparamsvf,  title: 'Parametros del CMC'},
       { path: 'cmc-view/:id', component: Viewcmc, title: 'Detalle del Calculo'},
+      { path: 'cmc-view', component: Viewcmc, title: 'Detalle del Calculo'},
+      { path: 'cmc-results', component: Cmcsr, title: 'Detalle y guardado del calculo del CMC'},
       { path: 'cmc-list', component: Listcmc, title: 'Lista de CMC'},
       { path: 'cmc-edit', component: Editcmc, title: 'Editar CMC'},
-
     ]
   },
   // Fallback

@@ -107,7 +107,7 @@ export class Cmcparamsvf implements OnInit {
 
   dropdownIntervaloAbierto = false;
 
-  private readonly rutaResultadosCmc = '/cmc-resultados';
+  private readonly rutaResultadosCmc = '/cmc-results';
 
   private _payloadsCache: CmcPayload[] = [];
 
