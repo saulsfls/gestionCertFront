@@ -4,6 +4,7 @@ import {
   CmcPayload,
   CmcResultado,
 } from '../../models/cmc.model';
+import { RStatsUtils } from '../../models/r.stats.util';
 
 /**
  * Estructura que representa una fila de la tabla "Valores seleccionados".
@@ -32,6 +33,13 @@ export interface CmcVistaResultado {
   error?: string;
 }
 
+/** Definición estática de cada fuente de incertidumbre. */
+interface FuenteDefinicion {
+  clave: string;
+  nombre: string;
+  dof: number;
+}
+
 @Injectable({ providedIn: 'root' })
 export class CmcCalculatorService {
   /** Convenciones del script R cuando no hay datos de R&R */
@@ -41,6 +49,26 @@ export class CmcCalculatorService {
   /** Grados de libertad por defecto */
   private readonly DOF_REPETIBILIDAD = 27;      // 9 * 3
   private readonly DOF_REPRODUCIBILIDAD = 2;    // 3 - 1
+
+  /** Nivel de confianza para la t de Student (95%, una cola) — solo referencia */
+  private readonly CONFIANZA_UNA_COLA = 0.95;
+
+  /** Factor de cobertura k para la incertidumbre expandida */
+  private readonly FACTOR_COBERTURA_K = 2;
+
+  /**
+   * Orden y metadatos de las fuentes de incertidumbre.
+   * Debe coincidir 1:1 con el arreglo `incEstandar` que se construye en `calcular`.
+   */
+  private readonly FUENTES_DEF: FuenteDefinicion[] = [
+    { clave: 'estabilidad',            nombre: 'Estabilidad',                    dof: 2 },
+    { clave: 'sesgo',                  nombre: 'Sesgo (BIAS)',                   dof: 1 },
+    { clave: 'deriva',                 nombre: 'Deriva (Drift)',                 dof: 2 },
+    { clave: 'incertRefEstandar',      nombre: 'Incertidumbre de la referencia', dof: 99 },
+    { clave: 'estabilidadRefEstandar', nombre: 'Estabilidad de la referencia',   dof: 2 },
+    { clave: 'repetibilidad',          nombre: 'Repetibilidad',                  dof: this.DOF_REPETIBILIDAD },
+    { clave: 'reproducibilidad',       nombre: 'Reproducibilidad',               dof: this.DOF_REPRODUCIBILIDAD },
+  ];
 
   // ============================================================
   //   API PRINCIPAL (Intermediario para la Vista)
@@ -60,7 +88,10 @@ export class CmcCalculatorService {
         const resultado = this.calcular(payload);
         return { payload, resultado, resumen };
       } catch (e: any) {
-        console.error(`[CmcCalculatorService] Error calculando CMC #${payload?.cmcNumero}:`, e);
+        console.error(
+          `[CmcCalculatorService] Error calculando CMC #${payload?.cmcNumero}:`,
+          e
+        );
         return {
           payload,
           resultado: null,
@@ -100,9 +131,9 @@ export class CmcCalculatorService {
     }
 
     // --------------------------------------------------------
-    //   Estabilidad  = sqrt(var(errores))
+    //   Estabilidad  = sd(errores)   [R: sd(x) === sqrt(var(x))]
     // --------------------------------------------------------
-    const estabilidad = Math.sqrt(this.varianzaMuestral(errores));
+    const estabilidad = RStatsUtils.sd(errores);
 
     // --------------------------------------------------------
     //   Sesgo = último error
@@ -112,21 +143,17 @@ export class CmcCalculatorService {
     // --------------------------------------------------------
     //   Deriva
     // --------------------------------------------------------
-    const derivaIndividual: number[] = [];
-    for (let i = 0; i < tiempoIntermedio.length; i++) {
-      derivaIndividual.push(
-        Math.abs(errores[i + 1] - errores[i]) / tiempoIntermedio[i]
-      );
-    }
-    const deriva = this.media(derivaIndividual) * intervaloCalibracion * (365 / 12);
+    const derivaIndividual = tiempoIntermedio.map(
+      (t, i) => Math.abs(errores[i + 1] - errores[i]) / t
+    );
+    const deriva =
+      RStatsUtils.mean(derivaIndividual) * intervaloCalibracion * (365 / 12);
 
     // --------------------------------------------------------
     //   Incertidumbre y estabilidad de la referencia
     // --------------------------------------------------------
     const incertRefEstandar = incertidumbres[incertidumbres.length - 1] / 2;
-    const estabilidadRefEstandar = Math.sqrt(
-      this.varianzaMuestral(incertidumbres)
-    );
+    const estabilidadRefEstandar = RStatsUtils.sd(incertidumbres);
 
     // --------------------------------------------------------
     //   R&R (por convención)
@@ -135,7 +162,7 @@ export class CmcCalculatorService {
     const reproducibilidad = this.REPRODUCIBILIDAD_DEFAULT;
 
     // --------------------------------------------------------
-    //   Incertidumbres estándar y grados de libertad
+    //   Incertidumbres estándar (mismo orden que FUENTES_DEF)
     // --------------------------------------------------------
     const incEstandar: number[] = [
       estabilidad,
@@ -145,33 +172,6 @@ export class CmcCalculatorService {
       estabilidadRefEstandar,
       repetibilidad,
       reproducibilidad,
-    ];
-    const dofs: number[] = [
-      2,                            // estabilidad
-      1,                            // sesgo
-      2,                            // deriva
-      99,                           // incert. ref.
-      2,                            // estabilidad ref.
-      this.DOF_REPETIBILIDAD,       // repetibilidad
-      this.DOF_REPRODUCIBILIDAD,    // reproducibilidad
-    ];
-    const claves = [
-      'estabilidad',
-      'sesgo',
-      'deriva',
-      'incertRefEstandar',
-      'estabilidadRefEstandar',
-      'repetibilidad',
-      'reproducibilidad',
-    ];
-    const nombres = [
-      'Estabilidad',
-      'Sesgo (BIAS)',
-      'Deriva (Drift)',
-      'Incertidumbre de la referencia',
-      'Estabilidad de la referencia',
-      'Repetibilidad',
-      'Reproducibilidad',
     ];
 
     // --------------------------------------------------------
@@ -184,31 +184,38 @@ export class CmcCalculatorService {
     //   Grados de libertad efectivos (Welch–Satterthwaite)
     // --------------------------------------------------------
     const denominador = incEstandar.reduce(
-      (s, v, i) => s + Math.pow(v, 4) / dofs[i],
+      (s, v, i) => s + Math.pow(v, 4) / this.FUENTES_DEF[i].dof,
       0
     );
-    const dofEfectivos = Math.round(
-      Math.pow(incertidumbreCombinada, 4) / denominador
-    );
+    const dofEfectivos =
+      denominador === 0 || incertidumbreCombinada === 0
+        ? 0
+        : Math.round(Math.pow(incertidumbreCombinada, 4) / denominador);
 
     // --------------------------------------------------------
     //   Coeficiente de expansión (t de Student, 95% una cola)
+    //   R equivalente: qt(0.95, dofEfectivos)
+    //   ⚠️ Solo REFERENCIA: la incertidumbre expandida usa k = 2.
     // --------------------------------------------------------
-    const coefExpansion = this.tQuantile(0.05, dofEfectivos);
+    const coefExpansion =
+      dofEfectivos > 0
+        ? RStatsUtils.qt(this.CONFIANZA_UNA_COLA, dofEfectivos)
+        : NaN;
 
     // --------------------------------------------------------
-    //   Incertidumbre expandida
+    //   Incertidumbre expandida con k = 2 (cobertura fija)
     // --------------------------------------------------------
-    const incertidumbreExpandida = coefExpansion * incertidumbreCombinada;
+    const incertidumbreExpandida =
+      this.FACTOR_COBERTURA_K * incertidumbreCombinada;
 
     // --------------------------------------------------------
     //   Pesos porcentuales
     // --------------------------------------------------------
     const fuentes: CmcFuenteIncertidumbre[] = incEstandar.map((valor, i) => ({
-      clave: claves[i],
-      nombre: nombres[i],
+      clave: this.FUENTES_DEF[i].clave,
+      nombre: this.FUENTES_DEF[i].nombre,
       valor,
-      dof: dofs[i],
+      dof: this.FUENTES_DEF[i].dof,
       pesoPct: sumaCuadrados === 0 ? 0 : (100 * valor * valor) / sumaCuadrados,
     }));
 
@@ -229,125 +236,5 @@ export class CmcCalculatorService {
       rangoReferencia,
       certificados,
     };
-  }
-
-  // ============================================================
-  //   HELPERS ESTADÍSTICOS
-  // ============================================================
-
-  private media(xs: number[]): number {
-    if (!xs.length) return 0;
-    return xs.reduce((s, v) => s + v, 0) / xs.length;
-  }
-
-  /** Varianza muestral (denominador n-1), igual que var() en R. */
-  private varianzaMuestral(xs: number[]): number {
-    const n = xs.length;
-    if (n < 2) return 0;
-    const m = this.media(xs);
-    return xs.reduce((s, v) => s + (v - m) * (v - m), 0) / (n - 1);
-  }
-
-  // ============================================================
-  //   DISTRIBUCIÓN T DE STUDENT
-  // ============================================================
-
-  /** Devuelve t tal que P(T > t) = p  (p.ej. p=0.05 → 95% una cola). */
-  private tQuantile(p: number, df: number): number {
-    if (df <= 0) return NaN;
-    const objetivo = 1 - p; // acumulada
-
-    // Bisección sobre la CDF
-    let lo = -1e3;
-    let hi = 1e3;
-    for (let i = 0; i < 200; i++) {
-      const mid = (lo + hi) / 2;
-      if (this.tCdf(mid, df) < objetivo) lo = mid;
-      else hi = mid;
-    }
-    return (lo + hi) / 2;
-  }
-
-  /** CDF de la t de Student. */
-  private tCdf(t: number, df: number): number {
-    const x = df / (df + t * t);
-    const ib = this.betai(df / 2, 0.5, x);
-    return t > 0 ? 1 - ib / 2 : ib / 2;
-  }
-
-  /** Regularized incomplete beta function I_x(a,b). */
-  private betai(a: number, b: number, x: number): number {
-    if (x <= 0) return 0;
-    if (x >= 1) return 1;
-    const bt = Math.exp(
-      this.logGamma(a + b) -
-        this.logGamma(a) -
-        this.logGamma(b) +
-        a * Math.log(x) +
-        b * Math.log(1 - x)
-    );
-    if (x < (a + 1) / (a + b + 2)) {
-      return (bt * this.betacf(a, b, x)) / a;
-    }
-    return 1 - (bt * this.betacf(b, a, 1 - x)) / b;
-  }
-
-  /** Continued fraction para la beta incompleta (Numerical Recipes). */
-  private betacf(a: number, b: number, x: number): number {
-    const MAXIT = 200;
-    const EPS = 3e-12;
-    const FPMIN = 1e-300;
-
-    const qab = a + b;
-    const qap = a + 1;
-    const qam = a - 1;
-
-    let c = 1;
-    let d = 1 - (qab * x) / qap;
-    if (Math.abs(d) < FPMIN) d = FPMIN;
-    d = 1 / d;
-    let h = d;
-
-    for (let m = 1; m <= MAXIT; m++) {
-      const m2 = 2 * m;
-      let aa = (m * (b - m) * x) / ((qam + m2) * (a + m2));
-      d = 1 + aa * d;
-      if (Math.abs(d) < FPMIN) d = FPMIN;
-      c = 1 + aa / c;
-      if (Math.abs(c) < FPMIN) c = FPMIN;
-      d = 1 / d;
-      h *= d * c;
-
-      aa = (-(a + m) * (qab + m) * x) / ((a + m2) * (qap + m2));
-      d = 1 + aa * d;
-      if (Math.abs(d) < FPMIN) d = FPMIN;
-      c = 1 + aa / c;
-      if (Math.abs(c) < FPMIN) c = FPMIN;
-      d = 1 / d;
-      const del = d * c;
-      h *= del;
-      if (Math.abs(del - 1) < EPS) break;
-    }
-    return h;
-  }
-
-  /** Log-gamma (aproximación de Lanczos). */
-  private logGamma(x: number): number {
-    const cof = [
-      76.18009172947146,
-      -86.50532032941677,
-      24.01409824083091,
-      -1.231739572450155,
-      0.1208650973866179e-2,
-      -0.5395239384953e-5,
-    ];
-    let y = x;
-    let tmp = x + 5.5;
-    tmp -= (x + 0.5) * Math.log(tmp);
-    let ser = 1.000000000190015;
-    for (let j = 0; j < 6; j++) {
-      ser += cof[j] / ++y;
-    }
-    return -tmp + Math.log((2.5066282746310005 * ser) / x);
   }
 }

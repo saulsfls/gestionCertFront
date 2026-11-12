@@ -43,7 +43,7 @@
       <span>
         <strong>Rango de referencia: </strong>
         {{ c.value_ref_min || '—' }} – {{ c.value_ref_max || '—' }}
-      </span>
+      </span> 
       <span><strong>Intervalo:</strong> {{ c.interval_value || '—' }}</span>
       <span>
         <strong>Procedimiento técnico (PT): </strong>
@@ -77,11 +77,12 @@
         <span class="valor">{{ c.coefficient_expansion | number:'1.2-4' }}</span>
       </div>
       <div class="tarjeta destacada">
-        <span class="label">U expandida (k·u<sub>c</sub>)</span>
+        <span class="label">U expandida (K=2)</span>
         <span class="valor">{{ c.u_expanded | number:'1.2-4' }}</span>
       </div>
     </div>
-
+    <span class="text-muted">La incertidumbre expandida se calcula bajo la normal con (k=2)</span><br>
+    <span class="text-muted">El coeficioente de expancion y grados de libertad son de <strong>"referencia"</strong></span>
     <!-- Tabla de fuentes de incertidumbre -->
     <table class="tabla-fuentes">
       <thead>
