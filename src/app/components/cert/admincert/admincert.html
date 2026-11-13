@@ -1,12 +1,29 @@
 <div class="container-fluid py-4">
-  <!-- Barra de título y botón de regreso -->
-  <div class="d-flex justify-content-between align-items-center mb-4">
-    <h2 class="fw-bold text-primary">
-      <i class="bi bi-trash3-fill"></i> Administracion de Certificados
+
+  <!-- Barra de título y acciones -->
+  <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <h2 class="fw-bold text-primary mb-0">
+      <i class="bi bi-shield-lock-fill"></i> Administración de Certificados
     </h2>
-    <button class="btn btn-secondary" (click)="volver()">
-      Volver a la lista
-    </button>
+    <div class="d-flex gap-2">
+      <button
+        type="button"
+        class="btn btn-outline-primary shadow-sm px-3"
+        (click)="generarReporteGeneral()"
+        [disabled]="cargando || generandoReporte || certificadosFiltrados.length === 0"
+        title="Generar PDF general con el historial de todos los certificados filtrados"
+      >
+        <span *ngIf="!generandoReporte">
+          <i class="bi bi-file-earmark-pdf-fill"></i> Reporte general
+        </span>
+        <span *ngIf="generandoReporte">
+          <span class="spinner-border spinner-border-sm me-2"></span>Generando…
+        </span>
+      </button>
+      <button class="btn btn-secondary shadow-sm" (click)="volver()">
+        <i class="bi bi-arrow-left"></i> Volver a la lista
+      </button>
+    </div>
   </div>
 
   <!-- Panel de búsqueda y filtros -->
@@ -18,17 +35,35 @@
           <input
             type="text"
             class="form-control"
-            placeholder="Buscar por Equipment ID, Folio, Nombre o ID..."
+            placeholder="Buscar por Equipment ID, Folio, Nombre o ID de BD..."
             [(ngModel)]="textoBusqueda"
           />
         </div>
         <div class="col-md-4">
           <label class="form-label fw-bold small text-secondary">Filtrar por Estado</label>
           <select class="form-select" [(ngModel)]="filtroEstado">
-            <option value="todos">Todos</option>
+            <option value="todos">Todos los certificados</option>
             <option value="activos">Solo Activos</option>
             <option value="inactivos">Solo Inactivos</option>
           </select>
+        </div>
+      </div>
+
+      <!-- Resumen rápido -->
+      <div class="row g-2 mt-3 small text-secondary">
+        <div class="col-auto">
+          <span class="badge bg-secondary">Total: {{ certificadosFiltrados.length }}</span>
+        </div>
+        <div class="col-auto">
+          <span class="badge bg-success">Activos: {{ contarActivos() }}</span>
+        </div>
+        <div class="col-auto">
+          <span class="badge bg-danger">Inactivos: {{ contarInactivos() }}</span>
+        </div>
+        <div class="col-auto" *ngIf="contarSinAuditoria() > 0">
+          <span class="badge bg-warning text-dark" title="Certificados creados antes de la migración de auditoría">
+            Sin auditoría: {{ contarSinAuditoria() }}
+          </span>
         </div>
       </div>
     </div>
@@ -51,35 +86,157 @@
             <th>Equipment ID</th>
             <th>Folio / CC</th>
             <th>Nombre del Equipo</th>
-            <th>F. Calibración</th>
-            <th>F. Certificado</th>
-            <th class="text-center">Acción</th>
+            <th class="text-center">Acciones</th>
           </tr>
         </thead>
         <tbody>
-          <tr *ngFor="let cert of certificadosFiltrados">
-            <td>
-              <span class="badge" [ngClass]="cert.active ? 'bg-success' : 'bg-danger'">
-                {{ cert.active ? 'Activo' : 'Inactivo' }}
-              </span>
-            </td>
-            <td class="fw-bold">{{ cert.equipment_id }}</td>
-            <td><span class="badge bg-light text-dark border">{{ cert.cc || 'N/A' }}</span></td>
-            <td>{{ cert.name_equipment }}</td>
-            <td>{{ cert.date_cal | date:'dd/MM/yyyy' }}</td>
-            <td>{{ cert.date_cc | date:'dd/MM/yyyy' }}</td>
-            <td class="text-center">
-              <button
-                class="btn btn-danger btn-sm"
-                (click)="eliminarCertificado(cert.id)"
-                [disabled]="cargando"
-              >
-                Eliminar
-              </button>
-            </td>
-          </tr>
+          <ng-container *ngFor="let cert of certificadosFiltrados; trackBy: trackByCertId">
+
+            <!-- Fila Principal (Solo resumen) -->
+            <tr>
+              <td>
+                <span class="badge" [ngClass]="esActivo(cert) ? 'bg-success' : 'bg-danger'">
+                  {{ esActivo(cert) ? 'Activo' : 'Inactivo' }}
+                </span>
+              </td>
+              <td class="fw-bold">{{ cert.equipment_id }}</td>
+              <td><span class="badge bg-light text-dark border">{{ cert.cc || 'N/A' }}</span></td>
+              <td>{{ cert.name_equipment }}</td>
+              <td class="text-center">
+                <button
+                  class="btn btn-sm"
+                  [ngClass]="idExpandido === cert.id ? 'btn-secondary' : 'btn-outline-primary'"
+                  (click)="toggleDetalle(cert.id)"
+                >
+                  {{ idExpandido === cert.id ? 'Ocultar opciones' : 'Mostrar opciones' }}
+                </button>
+              </td>
+            </tr>
+
+            <!-- Fila Desplegable: Panel de opciones y detalles -->
+            <tr *ngIf="idExpandido === cert.id" class="table-light">
+              <td colspan="5" class="p-4">
+                <div class="card border-secondary shadow-sm">
+                  <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                    <span class="fw-bold">
+                      Panel de Administración del Certificado
+                    </span>
+                    <span class="badge bg-black">ID: {{ cert.id }} | CC: {{ cert.cc }}</span>
+                  </div>
+
+                  <div class="card-body">
+                    <!-- Datos Generales y Técnicos -->
+                    <div class="row g-3 mb-4">
+                      <div class="col-md-6">
+                        <ul class="list-group list-group-flush">
+                          <li class="list-group-item d-flex justify-content-between">
+                            <strong>Folio / CC</strong>
+                            <span>{{ cert.cc || 'N/A' }}</span>
+                          </li>
+                          <li class="list-group-item d-flex justify-content-between">
+                            <strong>Equipment ID</strong>
+                            <span>{{ cert.equipment_id }}</span>
+                          </li>
+                          <li class="list-group-item d-flex justify-content-between">
+                            <strong>Nombre del Equipo</strong>
+                            <span>{{ cert.name_equipment }}</span>
+                          </li>
+                          <li class="list-group-item d-flex justify-content-between">
+                            <strong>Entidad Emisora</strong>
+                            <span>{{ cert.entity || 'N/A' }}</span>
+                          </li>
+                          <li class="list-group-item d-flex justify-content-between">
+                            <strong>Tipo de Certificado</strong>
+                            <span>{{ cert.cert_type || 'N/A' }}</span>
+                          </li>
+                        </ul>
+                      </div>
+
+                      <div class="col-md-6">
+                        <ul class="list-group list-group-flush">
+                          <li class="list-group-item d-flex justify-content-between">
+                            <strong>Fecha de Calibración</strong>
+                            <span>{{ cert.date_cal | date:'dd/MM/yyyy' }}</span>
+                          </li>
+                          <li class="list-group-item d-flex justify-content-between">
+                            <strong>Fecha del Certificado</strong>
+                            <span>{{ cert.date_cc | date:'dd/MM/yyyy' }}</span>
+                          </li>
+                          <li class="list-group-item d-flex justify-content-between">
+                            <strong>Intervalo</strong>
+                            <span>{{ cert.calibration_interval ?? 'N/A' }} meses</span>
+                          </li>
+                          <li class="list-group-item d-flex justify-content-between">
+                            <strong>Resolución</strong>
+                            <span>{{ cert.resolution ?? 'N/A' }}</span>
+                          </li>
+                          <li class="list-group-item d-flex justify-content-between">
+                            <strong>Comentarios</strong>
+                            <span class="text-truncate" style="max-width: 200px;" [title]="cert.comments || ''">
+                              {{ cert.comments || 'N/A' }}
+                            </span>
+                          </li>
+                        </ul>
+                      </div>
+                    </div>
+
+                    <!-- Auditoría Detallada (Texto plano con colores semánticos) -->
+                    <div class="border-top border-bottom py-3 mb-4">
+                      <h6 class="fw-bold mb-3"><i class="bi bi-shield-check"></i> Datos de Auditoría</h6>
+                      <div class="row small">
+                        <div class="col-md-6">
+                          <div class="mb-1 text-secondary">
+                            <strong>Creado el:</strong> {{ formatFechaCompleta(cert.created_at) }}
+                          </div>
+                          <div class="text-secondary">
+                            <strong>Por:</strong> {{ cert.created_by || '—' }}
+                          </div>
+                        </div>
+                        <div class="col-md-6">
+                          <div class="mb-1 text-secondary">
+                            <strong>Última modificación:</strong> {{ formatFechaCompleta(cert.updated_at) }}
+                          </div>
+                          <div>
+                            <strong>Por:</strong> {{ cert.updated_by || '—' }}
+                          </div>
+                          <div class="mt-1" [ngClass]="claseDias(diasDesde(cert.updated_at))">
+                            <i class="bi bi-clock-history"></i>
+                            <strong>Hace {{ diasDesde(cert.updated_at) }} día(s)</strong>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Botones de Acción -->
+                    <div class="d-flex justify-content-end align-items-center gap-2 mt-3">
+                      <button
+                        class="btn btn-primary"
+                        (click)="generarReporteIndividual(cert)"
+                        [disabled]="generandoReporte"
+                        title="Generar PDF con tablas y auditoría de este certificado"
+                      >
+                        <i class="bi bi-file-earmark-pdf"></i> Generar reporte
+                      </button>
+
+                      <button
+                        class="btn btn-danger"
+                        (click)="eliminarCertificado(cert.id)"
+                        [disabled]="cargando"
+                        title="Eliminar permanentemente este certificado"
+                      >
+                        <i class="bi bi-trash"></i> Eliminar certificado
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </td>
+            </tr>
+
+          </ng-container>
+
+          <!-- Sin resultados -->
           <tr *ngIf="certificadosFiltrados.length === 0">
-            <td colspan="7" class="text-center py-4 text-muted">
+            <td colspan="5" class="text-center py-4 text-muted">
               No se encontraron certificados con los criterios seleccionados.
             </td>
           </tr>

@@ -31,7 +31,7 @@
       <div class="card-body">
         <div class="row">
           <div class="col-md-12"><strong>Nombre Equipo:</strong> {{ certificado.name_equipment }}</div>
-          <div class="col-md-6"><strong>Equipment ID:</strong> {{ certificado.equipment_id }}</div>  
+          <div class="col-md-6"><strong>Equipment ID:</strong> {{ certificado.equipment_id }}</div>
           <div class="col-md-6"><strong>Folio/CC:</strong> {{ certificado.cc || 'N/A' }}</div>
           <div class="col-md-3"><strong>Intervalo de Calibración:</strong> {{ certificado.calibration_interval }}</div>
           <div class="col-md-3"><strong>Fecha Calibración:</strong> {{ certificado.date_cal | date:'dd/MM/yyyy' }}</div>
@@ -44,29 +44,97 @@
       </div>
     </div>
 
-    <!-- Tablas de resultados (usando resultTables y propiedades en inglés) -->
+    <!-- Tablas de resultados -->
     <div *ngIf="resultTables.length > 0; else sinTablas">
-      <h4 class="fw-bold mb-3">Tablas de Resultados</h4>
-      <div *ngFor="let table of resultTables; let i = index" class="card mb-4 shadow-sm">
-        <div class="card-header bg-light d-flex justify-content-between align-items-center">
-          <span class="fw-bold">Tabla #{{ i + 1 }}: {{ table.title || 'Sin título' }}</span>
-          <span class="badge bg-light text-dark">Equipment ID: {{ table.equipment_id }}</span>
+
+      <!-- Encabezado con búsqueda y acciones globales -->
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <h4 class="fw-bold mb-0">
+          Tablas de Resultados
+          <span class="badge bg-secondary ms-2">{{ filteredTables.length }} / {{ resultTables.length }}</span>
+        </h4>
+
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+           <!-- Acciones globales -->
+          <button class="btn btn-outline-success btn-sm" (click)="expandAll()" [disabled]="!hasCollapsed">
+            <i class="bi bi-arrows-expand"></i> Expandir todas
+          </button>
+          <button class="btn btn-outline-warning btn-sm" (click)="collapseAll()" [disabled]="!hasExpanded">
+            <i class="bi bi-arrows-collapse"></i> Colapsar todas
+          </button>
+          <!-- Buscador -->
+          <div class="input-group" style="max-width: 360px;">
+            <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+            <input
+              type="text"
+              class="form-control"
+              placeholder="Buscar tabla (título, parámetro, PT, valor...)"
+              [(ngModel)]="searchTerm"
+              (ngModelChange)="applyFilter()"
+            />
+            <button
+              *ngIf="searchTerm"
+              class="btn btn-outline-danger"
+              type="button"
+              (click)="clearSearch()"
+              title="Limpiar búsqueda"
+            >
+              <i class="bi bi-x-lg">x</i>
+            </button>
+          </div>
+          <br>
         </div>
-        <div class="card-body">
+      </div>
+
+      <!-- Sin resultados de búsqueda -->
+      <div *ngIf="filteredTables.length === 0" class="alert alert-info">
+        No se encontraron tablas que coincidan con "<strong>{{ searchTerm }}</strong>".
+      </div>
+
+      <!-- Listado de tablas filtradas -->
+      <div *ngFor="let table of filteredTables; let i = index" class="card mb-4 shadow-sm">
+        <div
+          class="card-header bg-light d-flex justify-content-between align-items-center"
+          role="button"
+          (click)="toggleCollapse(table)"
+          style="cursor: pointer;"
+        >
+          <div class="d-flex align-items-center gap-2 flex-grow-1">
+            <i class="bi" [ngClass]="isCollapsed(table) ? 'bi-caret-right-fill' : 'bi-caret-down-fill'"></i>
+            <span class="fw-bold">Tabla #{{ i + 1 }}: {{ table.title || 'Sin título' }}</span>
+            <span class="badge bg-light text-dark">Equipment ID: {{ table.equipment_id }}</span>
+            <span *ngIf="table.parameter" class="badge bg-black text-white">
+              {{ table.parameter }}<ng-container *ngIf="table.unit"> ({{ table.unit }})</ng-container>
+            </span>
+            <span *ngIf="table.pt" class="badge bg-danger">Procedimiento Tecnico: {{ table.pt }}</span>
+          </div>
+
+          <div class="d-flex gap-2">
+            <button
+              class="btn btn-sm btn-outline-success"
+              (click)="copyTable(table, $event)"
+              title="Copiar tabla para pegar en Excel"
+            >
+              <i class="bi bi-clipboard-check"></i> Copiar tabla
+            </button>
+          </div>
+        </div>
+
+        <div class="card-body" *ngIf="!isCollapsed(table)">
           <!-- Metadatos -->
-          <div class="row g-6 mb-1">
+          <div class="row g-2 mb-3">
             <div class="col-md-4"><strong>Parámetro: </strong> {{ table.parameter || 'N/A' }}</div>
-            <div class="col-md-4"><strong>Procedimiento tecnico: </strong> {{ table.pt || 'N/A' }}</div>
+            <div class="col-md-4"><strong>Procedimiento técnico: </strong> {{ table.pt || 'N/A' }}</div>
             <div class="col-md-4"><strong>Folio del certificado: </strong> {{ table.cc_id || 'N/A' }}</div>
             <div class="col-md-4"><strong>ID de la tabla: </strong> {{ table.table_id || 'N/A' }}</div>
             <div class="col-md-4"><strong>Unidad: </strong> {{ table.unit || 'N/A' }}</div>
             <div class="col-md-4"><strong>Rango: </strong> {{ table.range || 'N/A' }}</div>
-            <div class="col-md-4"><strong>Ecuación: </strong> {{ table.calibration_equation || 'N/A' }}</div>
+            <div class="col-12"><strong>Ecuación: </strong> {{ table.calibration_equation || 'N/A' }}</div>
           </div>
 
           <!-- Tabla de datos -->
           <div class="table-responsive">
-            <table class="table table-bordered table-striped table-hover">
+            <table class="table table-bordered table-striped table-hover align-middle">
               <thead class="table-secondary">
                 <tr>
                   <th *ngFor="let col of table.columns">
@@ -96,6 +164,7 @@
         </div>
       </div>
     </div>
+
     <ng-template #sinTablas>
       <div class="alert alert-info">No hay tablas de resultados asociadas a este certificado.</div>
     </ng-template>

@@ -216,7 +216,7 @@ export class RStatsUtils {
     const ib = RStatsUtils.betai(df / 2, 0.5, x);
     return t > 0 ? 1 - ib / 2 : ib / 2;
   }
-  
+
   //   FUNCIONES BETA INCOMPLETA (base de pt/qt)
   /** Regularized incomplete beta function I_x(a,b). */
   static betai(a: number, b: number, x: number): number {
@@ -292,5 +292,81 @@ export class RStatsUtils {
       ser += cof[j] / ++y;
     }
     return -tmp + Math.log((2.5066282746310005 * ser) / x);
+  }
+  // dentro de la clase RStatsUtils
+  /** Diferencias consecutivas. R: diff(x) */
+  static diff(xs: number[]): number[] {
+    if (!xs || xs.length < 2) return [];
+    const out: number[] = [];
+    for (let i = 1; i < xs.length; i++) out.push(xs[i] - xs[i - 1]);
+    return out;
+  }
+
+  /** Valor absoluto elemento a elemento. R: abs(x) */
+  static abs(xs: number[]): number[] {
+    return xs.map(v => Math.abs(v));
+  }
+
+  /** Raíz cuadrada elemento a elemento. R: sqrt(x) */
+  static sqrt(xs: number[]): number[] {
+    return xs.map(v => Math.sqrt(v));
+  }
+
+  /** Media de una matriz (todos los elementos). R: mean(as.matrix(x)) */
+  static meanMatrix(m: number[][]): number {
+    const flat = m.flat();
+    return RStatsUtils.mean(flat);
+  }
+
+  /**
+   * Desviación estándar por filas (operadores). R: apply(x, 1, sd)
+   * Cada fila es un operador.
+   */
+  static sdByRow(m: number[][]): number[] {
+    return m.map(row => RStatsUtils.sd(row));
+  }
+
+  /**
+   * Grados de libertad por fila: length - 1. R: apply(x, 1, function(x) length(x) - 1)
+   */
+  static dofByRow(m: number[][]): number[] {
+    return m.map(row => row.length - 1);
+  }
+
+  /** Medias por fila. R: apply(x, 1, mean) */
+  static meanByRow(m: number[][]): number[] {
+    return m.map(row => RStatsUtils.mean(row));
+  }
+
+  /** Número de columnas. R: ncol(x) */
+  static ncol(m: number[][]): number {
+    return m.length ? m[0].length : 0;
+  }
+
+  /** Número de filas. R: nrow(x) */
+  static nrow(m: number[][]): number {
+    return m.length;
+  }
+
+  /**
+   * Convierte matriz a % respecto a referencia:
+   *   100 * (x - ref) / ref
+   */
+  static toPercent(m: number[][], referencia: number): number[][] {
+    return m.map(row => row.map(v => (100 * (v - referencia)) / referencia));
+  }
+
+  /**
+   * Suma ponderada por grados de libertad para varianza combinada:
+   *   ss = dof * sd^2 ; repetibilidad = sqrt(sum(ss)/sum(dof))
+   */
+  static pooledSd(sdByRow: number[], dofByRow: number[]): number {
+    let ss = 0;
+    let dofTot = 0;
+    for (let i = 0; i < sdByRow.length; i++) {
+      ss += dofByRow[i] * sdByRow[i] ** 2;
+      dofTot += dofByRow[i];
+    }
+    return dofTot > 0 ? Math.sqrt(ss / dofTot) : 0;
   }
 }
