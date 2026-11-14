@@ -1,20 +1,23 @@
-import { Service, inject } from '@angular/core';
+import { Service } from '@angular/core';
 import { RStatsUtils } from '../../models/r.stats.util';
 import {
-  DerivaInput, DerivaOutput,
-  RepetibilidadInput, RepetibilidadOutput,
-  EstabilidadInput, EstabilidadOutput,
-  ReferenciaInput, ReferenciaOutput,
+  DerivaInput,
+  RepetibilidadInput,
+  ReproducibilidadInput,
+  EstabilidadInput,
+  ReferenciaInput,
+  SesgoInput,
+  UncertaintyOutput,
 } from '../../models/inc.cal.models';
+
+const DOF_INF = 1e100;
 
 @Service()
 export class IncCalService {
   private readonly stats = RStatsUtils;
 
-
-  // 1. DERIVA  (JCGM 100:2008)
-
-  calcularDeriva(input: DerivaInput): DerivaOutput {
+  // 1. DERIVA — JCGM 100:2008
+  calcularDeriva(input: DerivaInput): UncertaintyOutput {
     const { errores, tiempoIntermedio, intervaloCalibracion } = input;
 
     if (errores.length !== tiempoIntermedio.length + 1) {
@@ -29,37 +32,28 @@ export class IncCalService {
       throw new Error('El intervalo de calibración debe ser positivo');
     }
 
-    // deriva.individual[i] = |errores[i+1] - errores[i]| / tiempo.intermedio[i]
     const derivaIndividual = this.stats
       .diff(errores)
       .map((d, i) => Math.abs(d) / tiempoIntermedio[i]);
 
-    // deriva = mean(deriva.individual) * intervalo.calibracion * (365/12) / sqrt(3)
-    const deriva =
+    const uncertainty =
       this.stats.mean(derivaIndividual) *
       intervaloCalibracion *
-      (365 / 12) /
-      Math.sqrt(3);
+      (365 / 12);
 
-    // dof.deriva = 1e100 (efectivamente infinito)
-    const dofDeriva = 1e100;
-
-    return { derivaIndividual, deriva, dofDeriva };
+    return { uncertainty, dof: DOF_INF };
   }
 
-
-  // 2. REPETIBILIDAD Y REPRODUCIBILIDAD
-  //    (ISO 5725-3 & NIST/SEMATECH)
-
-  calcularRepetibilidad(input: RepetibilidadInput): RepetibilidadOutput {
+  // 2. REPETIBILIDAD — ISO 5725-3 & NIST/SEMATECH
+  calcularRepetibilidad(input: RepetibilidadInput): UncertaintyOutput {
     const { datos, porcentaje = true, referencia } = input;
 
-    if (!datos || datos.length < 2) {
-      throw new Error('Se requieren al menos 2 operadores');
+    if (!datos || datos.length < 1) {
+      throw new Error('datos no puede estar vacío');
     }
     const cols = this.stats.ncol(datos);
     if (cols < 2) {
-      throw new Error('Cada operador debe tener al menos 2 medidas');
+      throw new Error('Se requieren al menos 2 operadores (columnas)');
     }
     if (datos.some(r => r.length !== cols)) {
       throw new Error('Todas las filas deben tener la misma longitud');
@@ -77,49 +71,90 @@ export class IncCalService {
       ? this.stats.toPercent(datos, referencia!)
       : datos;
 
-    // Repetibilidad
-    const stdev = this.stats.sdByRow(datosProc);       // sd por operador
-    const dof   = this.stats.dofByRow(datosProc);      // n_i - 1
-    const repetibilidad = this.stats.pooledSd(stdev, dof);
-    const dofRepetibilidad = dof.reduce((a, b) => a + b, 0);
+    const stdev = this.stats.sdByRow(datosProc);
+    const dofArr = this.stats.dofByRow(datosProc);
+    const uncertainty = this.stats.pooledSd(stdev, dofArr);
+    const dof = dofArr.reduce((a, b) => a + b, 0);
 
-    // Reproducibilidad
-    const medias = this.stats.meanByRow(datosProc);
-    const reproducibilidad = Math.sqrt(this.stats.variance(medias));
-    const dofReproducibilidad = this.stats.nrow(datosProc) - 1;
-
-    return {
-      repetibilidad,
-      dofRepetibilidad,
-      reproducibilidad,
-      dofReproducibilidad,
-    };
+    return { uncertainty, dof };
   }
 
+  // 3. REPRODUCIBILIDAD — ISO 5725-3 & NIST/SEMATECH
+  calcularReproducibilidad(input: ReproducibilidadInput): UncertaintyOutput {
+    const { datos, porcentaje = true, referencia } = input;
 
-  // 3. ESTABILIDAD (JCGM 100:2008 §4.3.3, §4.3.4)
+    if (!datos || datos.length < 1) {
+      throw new Error('datos no puede estar vacío');
+    }
+    const cols = this.stats.ncol(datos);
+    if (cols < 2) {
+      throw new Error('Se requieren al menos 2 operadores (columnas)');
+    }
+    if (datos.some(r => r.length !== cols)) {
+      throw new Error('Todas las filas deben tener la misma longitud');
+    }
+    if (porcentaje) {
+      if (referencia == null) {
+        throw new Error('referencia es obligatoria cuando porcentaje=true');
+      }
+      if (referencia === 0) {
+        throw new Error('referencia no puede ser 0');
+      }
+    }
 
-  calcularEstabilidad(input: EstabilidadInput): EstabilidadOutput {
+    const datosProc = porcentaje
+      ? this.stats.toPercent(datos, referencia!)
+      : datos;
+
+    const medias = this.stats.meanByRow(datosProc);
+    const uncertainty = Math.sqrt(this.stats.variance(medias));
+    const dof = this.stats.nrow(datosProc) - 1;
+
+    return { uncertainty, dof };
+  }
+
+  // 4. ESTABILIDAD — JCGM 100:2008 §4.3.3, §4.3.4
+  calcularEstabilidad(input: EstabilidadInput): UncertaintyOutput {
     const { errores } = input;
     if (!errores || errores.length < 2) {
       throw new Error('Se requieren al menos 2 errores para estimar estabilidad');
     }
-    const estabilidad = Math.sqrt(this.stats.variance(errores));
-    const dofEstabilidad = errores.length - 1;
-    return { estabilidad, dofEstabilidad };
+    const uncertainty = Math.sqrt(this.stats.variance(errores));
+    return { uncertainty, dof: DOF_INF };
   }
 
+  // 5. SESGO — JCGM 100:2008
+  calcularSesgo(input: SesgoInput): UncertaintyOutput {
+    const { medidas, referencia, porcentaje = false } = input;
 
-  // 4. INCERTIDUMBRE ESTÁNDAR DE LA REFERENCIA
+    if (!medidas || medidas.length === 0) {
+      throw new Error('medidas no puede estar vacío');
+    }
 
-  calcularReferencia(input: ReferenciaInput): ReferenciaOutput {
+    let uncertainty: number;
+    if (porcentaje) {
+      uncertainty = Math.abs(this.stats.mean(medidas));
+    } else {
+      if (!referencia) {
+        throw new Error('referencia es obligatoria cuando porcentaje=false');
+      }
+      if (referencia.length !== medidas.length) {
+        throw new Error('medidas y referencia deben tener la misma longitud');
+      }
+      const diffs = medidas.map((m, i) => m - referencia[i]);
+      uncertainty = Math.abs(this.stats.mean(diffs));
+    }
+
+    return { uncertainty, dof: DOF_INF };
+  }
+
+  // 6. INCERTIDUMBRE ESTÁNDAR DE LA REFERENCIA
+  calcularReferencia(input: ReferenciaInput): UncertaintyOutput {
     const { incertidumbres } = input;
     if (!incertidumbres || incertidumbres.length === 0) {
       throw new Error('incertidumbres no puede estar vacío');
     }
-    const refIncStd = incertidumbres[incertidumbres.length - 1] / 2;
-    const dofRefIncStd = 1e100;
-    return { refIncStd, dofRefIncStd };
+    const uncertainty = incertidumbres[incertidumbres.length - 1] / 2;
+    return { uncertainty, dof: DOF_INF };
   }
-
 }

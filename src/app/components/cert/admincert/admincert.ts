@@ -95,17 +95,17 @@ export class admincert implements OnInit {
     });
   }
 
-  // ───────────────────────────────────────────────────────────────────────────
+
   // LÓGICA DE UI (Panel de opciones)
-  // ───────────────────────────────────────────────────────────────────────────
+
   toggleDetalle(id: number | string | undefined): void {
     if (!id) return;
     this.idExpandido = this.idExpandido === id ? null : id;
   }
 
-  // ───────────────────────────────────────────────────────────────────────────
+
   // GETTERS Y HELPERS LÓGICOS
-  // ───────────────────────────────────────────────────────────────────────────
+
   esActivo(cert: Certificado): boolean {
     return cert.active === true || Number(cert.active) === 1;
   }
@@ -171,9 +171,9 @@ export class admincert implements OnInit {
     return cert.id ?? index;
   }
 
-  // ───────────────────────────────────────────────────────────────────────────
+
   // ELIMINAR
-  // ───────────────────────────────────────────────────────────────────────────
+
   async eliminarCertificado(id: number | string | undefined): Promise<void> {
     if (!id) return;
     this.idExpandido = null;
@@ -216,12 +216,13 @@ export class admincert implements OnInit {
     this.router.navigate(['/list-cert']);
   }
 
-  // ───────────────────────────────────────────────────────────────────────────
+
   // HELPERS INTERNOS PARA PDF
-  // ───────────────────────────────────────────────────────────────────────────
+
   private async getLogoBase64(): Promise<string | null> {
     try {
-      const response = await fetch('/logo.png');
+      const response = await fetch('/gestion_certificados/logo.png');
+      //Si se esta en la parte de desarrollo, no se mostrara el logo en las creaciones de PDF
       const blob = await response.blob();
       return new Promise((resolve) => {
         const reader = new FileReader();
@@ -249,9 +250,9 @@ export class admincert implements OnInit {
     return [...mapa.entries()].sort((a, b) => b[1] - a[1]).slice(0, n);
   }
 
-  // ───────────────────────────────────────────────────────────────────────────
+
   // REPORTE GENERAL (Todos los certificados)
-  // ───────────────────────────────────────────────────────────────────────────
+
   async generarReporteGeneral(): Promise<void> {
     if (this.generandoReporte) return;
     const datos = this.certificadosFiltrados;
@@ -368,9 +369,9 @@ export class admincert implements OnInit {
     }
   }
 
-  // ───────────────────────────────────────────────────────────────────────────
+
   // REPORTE INDIVIDUAL (Un solo certificado con tablas y modificaciones)
-  // ───────────────────────────────────────────────────────────────────────────
+
   async generarReporteIndividual(cert: Certificado): Promise<void> {
     this.idExpandido = null;
     if (this.generandoReporte || !cert) return;

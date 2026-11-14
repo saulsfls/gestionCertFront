@@ -1,3 +1,10 @@
+/** Salida universal para todos los cálculos de incertidumbre */
+export interface UncertaintyOutput {
+  uncertainty: number;
+  dof: number;
+}
+
+// --- Entradas y Salidas de Deriva ---
 export interface DerivaInput {
   /** Errores relativos de certificados, del más antiguo al más reciente. */
   errores: number[];
@@ -6,52 +13,44 @@ export interface DerivaInput {
   /** Intervalo de calibración en meses. */
   intervaloCalibracion: number;
 }
+export type DerivaOutput = UncertaintyOutput;
 
-export interface DerivaOutput {
-  derivaIndividual: number[];
-  deriva: number;
-  dofDeriva: number;
-}
-
+// --- Entradas y Salidas de Repetibilidad ---
 export interface RepetibilidadInput {
   /** Matriz: filas = operadores, columnas = medidas. */
   datos: number[][];
   /** Si true, convierte a % respecto a `referencia`. */
-  porcentaje?: boolean;
+  porcentaje: boolean;
   /** Valor de referencia para conversión a %. Obligatorio si `porcentaje=true`. */
-  referencia?: number;
+  referencia: number;
 }
+export type RepetibilidadOutput = UncertaintyOutput;
 
-export interface RepetibilidadOutput {
-  repetibilidad: number;
-  dofRepetibilidad: number;
-  reproducibilidad: number;
-  dofReproducibilidad: number;
+// --- Entradas y Salidas de Reproducibilidad ---
+export interface ReproducibilidadInput {
+  datos: number[][];
+  porcentaje: boolean;
+  referencia: number;
 }
+export type ReproducibilidadOutput = UncertaintyOutput;
 
+// --- Entradas y Salidas de Estabilidad ---
 export interface EstabilidadInput {
   errores: number[];
 }
+export type EstabilidadOutput = UncertaintyOutput;
 
-export interface EstabilidadOutput {
-  estabilidad: number;
-  dofEstabilidad: number;
-}
-
+// --- Entradas y Salidas de Referencia / Patrón ---
 export interface ReferenciaInput {
   /** Incertidumbres de certificados, del más antiguo al más reciente. */
   incertidumbres: number[];
 }
+export type ReferenciaOutput = UncertaintyOutput;
 
-export interface ReferenciaOutput {
-  refIncStd: number;
-  dofRefIncStd: number;
+// --- Entradas y Salidas de Sesgo ---
+export interface SesgoInput {
+  medidas: number[];
+  referencia: number[];    // requerido si porcentaje=false
+  porcentaje: boolean;     // default false
 }
-
-/** Resultado consolidado de todos los módulos. */
-export interface IncertidumbreCompleta {
-  deriva: DerivaOutput;
-  repetibilidad: RepetibilidadOutput;
-  estabilidad: EstabilidadOutput;
-  referencia: ReferenciaOutput;
-}
+export type SesgoOutput = UncertaintyOutput;
