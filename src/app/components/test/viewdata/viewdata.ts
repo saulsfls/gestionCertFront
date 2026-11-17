@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { forkJoin } from 'rxjs';
 import { PtService } from '../../../services/database/external/pt.service';
 import { EquipmentService } from '../../../services/database/external/equipment.service';
+import { IncertidumbreService } from '../../../services/database/home/incertidumbre.service';
 
 @Component({
   imports: [CommonModule],
@@ -24,11 +25,22 @@ export class Viewdata implements OnInit {
   constructor(
     private ptService: PtService,
     private equipmentService: EquipmentService,
+    private incService: IncertidumbreService,
     private cdr: ChangeDetectorRef
   ) {}
 
   ngOnInit(): void {
     this.getDatos();
+    this.getincertidumbreData();
+  }
+
+  getincertidumbreData(): void{
+    this.incService.listar().subscribe({
+      next:(res)=>{
+        console.log("Datos de las incertidumbres:");
+        console.log(res);
+      }
+    })
   }
 
   getDatos(): void {

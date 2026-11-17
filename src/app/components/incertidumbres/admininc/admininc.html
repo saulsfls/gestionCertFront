@@ -1,0 +1,222 @@
+<div class="container-fluid py-4">
+
+  <!-- Barra de título y acciones -->
+  <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <h2 class="fw-bold text-primary mb-0">
+      <i class="bi bi-shield-lock-fill"></i> Administración de Incertidumbres
+    </h2>
+    <div class="d-flex gap-2">
+      <button
+        type="button"
+        class="btn btn-success shadow-sm px-3"
+        (click)="crearIncertidumbre()"
+        [disabled]="cargando"
+        title="Registrar una nueva incertidumbre"
+      >
+        <i class="bi bi-plus-circle-fill"></i> Nueva incertidumbre
+      </button>
+      <button class="btn btn-secondary shadow-sm" (click)="volver()">
+        <i class="bi bi-arrow-left"></i> Volver al inicio
+      </button>
+    </div>
+  </div>
+
+  <!-- Panel de búsqueda y filtros -->
+  <div class="card shadow-sm mb-4">
+    <div class="card-body">
+      <div class="row g-3 align-items-center">
+        <div class="col-md-8">
+          <label class="form-label fw-bold small text-secondary">Buscar incertidumbre</label>
+          <input
+            type="text"
+            class="form-control"
+            placeholder="Buscar por clave, nombre, descripción, tipo, distribución o ID..."
+            [(ngModel)]="textoBusqueda"
+          />
+        </div>
+        <div class="col-md-4">
+          <label class="form-label fw-bold small text-secondary">Filtrar por estado</label>
+          <select class="form-select" [(ngModel)]="filtroEstado">
+            <option value="todos">Todas las incertidumbres</option>
+            <option value="activos">Solo activas</option>
+            <option value="obsoletos">Solo obsoletas</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Resumen rápido -->
+      <div class="row g-2 mt-3 small text-secondary">
+        <div class="col-auto">
+          <span class="badge bg-secondary">Total: {{ incFiltradas.length }}</span>
+        </div>
+        <div class="col-auto">
+          <span class="badge bg-success">Activas: {{ contarActivos() }}</span>
+        </div>
+        <div class="col-auto">
+          <span class="badge bg-danger">Obsoletas: {{ contarObsoletos() }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Indicador de carga -->
+  <div *ngIf="cargando" class="text-center py-5">
+    <div class="spinner-border text-danger" role="status">
+      <span class="visually-hidden">Cargando...</span>
+    </div>
+  </div>
+
+  <!-- Tabla de incertidumbres -->
+  <div *ngIf="!cargando" class="card shadow-sm">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-dark">
+          <tr>
+            <th>Estado</th>
+            <th>Clave</th>
+            <th>Nombre</th>
+            <th>Tipo</th>
+            <th>Distribución</th>
+            <th class="text-center">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          <ng-container *ngFor="let inc of incFiltradas; trackBy: trackByIncId">
+
+            <!-- Fila Principal (Solo resumen) -->
+            <tr>
+              <td>
+                <span class="badge" [ngClass]="esObsoleto(inc) ? 'bg-danger' : 'bg-success'">
+                  {{ esObsoleto(inc) ? 'Obsoleta' : 'Activa' }}
+                </span>
+              </td>
+              <td><span class="badge bg-light text-dark border">{{ inc.clave }}</span></td>
+              <td class="fw-bold">{{ inc.name }}</td>
+              <td>{{ inc.type }}</td>
+              <td>{{ inc.distribution }}</td>
+              <td class="text-center">
+                <button
+                  class="btn btn-sm"
+                  [ngClass]="idExpandido === inc.id ? 'btn-secondary' : 'btn-outline-primary'"
+                  (click)="toggleDetalle(inc.id)"
+                >
+                  {{ idExpandido === inc.id ? 'Ocultar opciones' : 'Mostrar opciones' }}
+                </button>
+              </td>
+            </tr>
+
+            <!-- Fila Desplegable: Panel de opciones y detalles -->
+            <tr *ngIf="idExpandido === inc.id" class="table-light">
+              <td colspan="6" class="p-4">
+                <div class="card border-secondary shadow-sm">
+                  <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                    <span class="fw-bold">
+                      Panel de Administración de la Incertidumbre
+                    </span>
+                    <span class="badge bg-black">ID: {{ inc.id }} | Clave: {{ inc.clave }}</span>
+                  </div>
+
+                  <div class="card-body">
+                    <!-- Datos Generales -->
+                    <div class="row g-3 mb-4">
+                      <div class="col-md-6">
+                        <ul class="list-group list-group-flush">
+                          <li class="list-group-item d-flex justify-content-between">
+                            <strong>Clave</strong>
+                            <span>{{ inc.clave }}</span>
+                          </li>
+                          <li class="list-group-item d-flex justify-content-between">
+                            <strong>Nombre</strong>
+                            <span>{{ inc.name }}</span>
+                          </li>
+                          <li class="list-group-item d-flex justify-content-between">
+                            <strong>ID en BD</strong>
+                            <span>{{ inc.id }}</span>
+                          </li>
+                        </ul>
+                      </div>
+
+                      <div class="col-md-6">
+                        <ul class="list-group list-group-flush">
+                          <li class="list-group-item d-flex justify-content-between">
+                            <strong>Tipo</strong>
+                            <span>{{ inc.type }}</span>
+                          </li>
+                          <li class="list-group-item d-flex justify-content-between">
+                            <strong>Distribución</strong>
+                            <span>{{ inc.distribution }}</span>
+                          </li>
+                          <li class="list-group-item d-flex justify-content-between">
+                            <strong>Estado</strong>
+                            <span class="badge" [ngClass]="esObsoleto(inc) ? 'bg-danger' : 'bg-success'">
+                              {{ esObsoleto(inc) ? 'Obsoleta' : 'Activa' }}
+                            </span>
+                          </li>
+                        </ul>
+                      </div>
+                    </div>
+
+                    <!-- Descripción -->
+                    <div class="border-top border-bottom py-3 mb-4">
+                      <h6 class="fw-bold mb-2"><i class="bi bi-card-text"></i> Descripción</h6>
+                      <p class="mb-0 text-secondary small">{{ inc.description || '—' }}</p>
+                    </div>
+
+                    <!-- Botones de Acción -->
+                    <div class="d-flex justify-content-end align-items-center gap-2 mt-3 flex-wrap">
+                      <button
+                        class="btn btn-primary"
+                        (click)="editarIncertidumbre(inc)"
+                        [disabled]="cargando"
+                        title="Editar los datos de esta incertidumbre"
+                      >
+                        <i class="bi bi-pencil-square"></i> Editar
+                      </button>
+
+                      <button
+                        *ngIf="!esObsoleto(inc)"
+                        class="btn btn-warning"
+                        (click)="desactivarIncertidumbre(inc)"
+                        [disabled]="cargando"
+                        title="Marcar como obsoleta (baja lógica)"
+                      >
+                        <i class="bi bi-archive"></i> Marcar como obsoleta
+                      </button>
+
+                      <button
+                        *ngIf="esObsoleto(inc)"
+                        class="btn btn-success"
+                        (click)="reactivarIncertidumbre(inc)"
+                        [disabled]="cargando"
+                        title="Reactivar esta incertidumbre"
+                      >
+                        <i class="bi bi-arrow-counterclockwise"></i> Reactivar
+                      </button>
+
+                      <button
+                        class="btn btn-danger"
+                        (click)="eliminarIncertidumbre(inc)"
+                        [disabled]="cargando"
+                        title="Eliminar permanentemente esta incertidumbre"
+                      >
+                        <i class="bi bi-trash"></i> Eliminar
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </td>
+            </tr>
+
+          </ng-container>
+
+          <!-- Sin resultados -->
+          <tr *ngIf="incFiltradas.length === 0">
+            <td colspan="6" class="text-center py-4 text-muted">
+              No se encontraron incertidumbres con los criterios seleccionados.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
