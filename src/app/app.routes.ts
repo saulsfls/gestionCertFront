@@ -16,6 +16,8 @@ import { Editcmc } from './components/cmc/editcmc/editcmc';
 import { Alertconf } from './components/test/alertconf/alertconf';
 import { Viewdata } from './components/test/viewdata/viewdata';
 import { Cmcsr } from './components/cmc/cmcsr/cmcsr';
+import { Repetibilidad } from './components/incertidumbres/base/repetibilidad/repetibilidad';
+import { Reproducibilidad } from './components/incertidumbres/base/reproducibilidad/reproducibilidad';
 
 export const routes: Routes = [
   //Rutas publicas
@@ -45,10 +47,15 @@ export const routes: Routes = [
       { path: 'cmc-results', component: Cmcsr, title: 'Detalle y guardado del calculo del CMC'},
       { path: 'cmc-list', component: Listcmc, title: 'Lista de CMC'},
       { path: 'cmc-edit', component: Editcmc, title: 'Editar CMC'},
+      //Rutas de los experimientos de repetibilidad y reproducibilidad
+      { path: 'inc-repeatability', component: Repetibilidad, title: 'Experimento de Repetibilidad'},
+      { path: 'inc-reproducybility', component: Reproducibilidad, title: 'Experimento de Reproducibilidad'},
+
     ]
   },
   // Fallback
   { path: '**', redirectTo: 'inicio' }
 ];
+
 
 

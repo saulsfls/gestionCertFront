@@ -3,7 +3,7 @@ import { Component, HostListener, inject } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { AuthService } from '../../../services/auth/auth.service';
 
-type DropdownName = 'herramientas' | 'certificados' | 'cmc';
+type DropdownName = 'herramientas' | 'certificados' | 'cmc' | 'incertidumbres';
 
 @Component({
   selector: 'app-navbar',
@@ -22,19 +22,20 @@ export class Navbar {
     herramientas: false,
     certificados: false,
     cmc: false,
+    incertidumbres: false,
   };
 
   /** Cierra todos los dropdowns al hacer clic fuera */
   @HostListener('document:click')
   closeAllDropdowns(): void {
-    this.dropdowns = { herramientas: false, certificados: false, cmc: false };
+    this.dropdowns = { herramientas: false, certificados: false, cmc: false, incertidumbres: false };
   }
 
   /** Abre/cierra un dropdown (y cierra los demás) */
   toggleDropdown(event: Event, name: DropdownName): void {
     event.stopPropagation(); // evita que el HostListener lo cierre al instante
     const wasOpen = this.dropdowns[name];
-    this.dropdowns = { herramientas: false, certificados: false, cmc: false };
+    this.dropdowns = { herramientas: false, certificados: false, cmc: false, incertidumbres: false };
     this.dropdowns[name] = !wasOpen;
   }
 }

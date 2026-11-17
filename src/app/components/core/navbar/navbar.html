@@ -115,6 +115,29 @@
               </li>
             </ul>
           </li>
+          <!-- Incertidumbres -->
+          <li class="nav-item dropdown" [class.show]="dropdowns.incertidumbres">
+            <a
+              class="nav-link dropdown-toggle"
+              href="javascript:void(0)"
+              role="button"
+              [attr.aria-expanded]="dropdowns.incertidumbres"
+              (click)="toggleDropdown($event, 'incertidumbres')">
+              Incertidumbres
+            </a>
+            <ul class="dropdown-menu" [class.show]="dropdowns.incertidumbres">
+              <li>
+                <a class="dropdown-item" routerLink="/inc-repeatability" routerLinkActive="active" (click)="isCollapsed = true">
+                  Experimento de Repetibilidad
+                </a>
+              </li>
+              <li>
+                <a class="dropdown-item" routerLink="/inc-reproducybility" routerLinkActive="active" (click)="isCollapsed = true">
+                  Experimento de Reproducibilidad
+                </a>
+              </li>
+            </ul>
+          </li>
         }
       </ul>
     </div>
