@@ -1,20 +1,25 @@
-// Representa el modelo principal del Certificado según la tabla de PostgreSQL
-//Se va a modificar la estructura del modelo para agregar campos faltantes
+//Modelo de Certificado, junto con los componentes opcionales de auditoria y la estructura de la tabla de resultados
 export interface Certificado {
   id?: number; // Certificate ID
-  cc?: string; // Certificate folio / number
+  cc: string; // Certificate folio / number
   equipment_id: string; // Equipment ID (Patron)
   name_equipment: string; // Equipment name
   id_user: string; // ID del usuario que creeo o edito
-  date_cal?: string; // Calibration date
-  date_cc?: string; // Issue date
+  date_cal: string; // Calibration date
+  date_cc: string; // Issue date
   calibration_interval?: number; // Intervalo de calibracion en meses
-  resolution?: number; //Resolucion del instrumento
-  entity?: string; // Measured entity / purpose
-  cert_type?: string; // Certificate type
-  comments?: string; // General comments
-  active?: boolean; // Is active
-  data?: CertificadoData | Record<string, any>; // JSON data
+  resolution: number; //Resolucion del instrumento
+  entity: string; // Measured entity / purpose
+  cert_type: string; // Certificate type
+  comments: string; // General comments
+  active: boolean; // Is active
+  data: CertificadoData | Record<string, any>; // JSON data
+
+    // ── Auditoría ──
+  created_at?: string; // ISO string — fecha de creación
+  created_by?: string; // username o id_user que creó
+  updated_at?: string; // ISO string — fecha de última modificación
+  updated_by?: string; // username o id_user que modificó por última vez
 }
 //Estructura de la tabla, Por cada uno de las tablas de resultados se presenta esta estructura
 export interface ResultTable {

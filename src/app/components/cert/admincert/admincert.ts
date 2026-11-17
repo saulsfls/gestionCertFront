@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { CertService } from '../../../services/database/cert.service';
-import { Certificado, ApiResponse, CertificadoData } from '../../../models/cert.auth.models';
+import { Certificado, ApiResponse, CertificadoData } from '../../../models/certificado.models';
 import { AlertService } from '../../../services/core/alert.service';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
