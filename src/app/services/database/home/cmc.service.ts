@@ -1,9 +1,9 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { ApiResponse } from '../../models/certificado.models';
-import { CmcData } from '../../models/cmc.model';
-import { environment } from '../../../environment/environment';
+import { ApiResponse } from '../../../models/certificado.models';
+import { CmcData } from '../../../models/cmc.model';
+import { environment } from '../../../../environment/environment';
 
 @Injectable({
   providedIn: 'root'

@@ -20,7 +20,7 @@ import {
   CmcVistaResultado,
   ResumenTablaCmc
 } from '../../../services/calc/cmc-calculator.service';
-import { CmcService } from '../../../services/database/cmc.service';
+import { CmcService } from '../../../services/database/home/cmc.service';
 import { AlertService } from '../../../services/core/alert.service';
 import { AuthService } from '../../../services/auth/auth.service';
 

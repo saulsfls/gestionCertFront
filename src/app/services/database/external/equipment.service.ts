@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, forkJoin, map, shareReplay } from 'rxjs';
-import { Global } from '../../../environment/environment';
+import { Global } from '../../../../environment/environment';
 
 export interface EquipoMin {
   name: string;

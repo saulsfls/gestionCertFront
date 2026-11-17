@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, shareReplay, map } from 'rxjs';
-import { Global } from '../../../environment/environment';
+import { Global } from '../../../../environment/environment';
 
 @Injectable({ providedIn: 'root' })
 export class PtService {

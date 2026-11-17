@@ -9,11 +9,11 @@ import { isPlatformBrowser, CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { finalize, timeout } from 'rxjs/operators';
 import { Certificado, ResultTable, Column } from '../../../models/certificado.models';
-import { CertService } from '../../../services/database/cert.service';
-import { ImageService } from '../../../services/database/image.service';
+import { CertService } from '../../../services/database/home/cert.service';
+import { ImageService } from '../../../services/database/external/image.service';
 import { AlertService } from '../../../services/core/alert.service';
-import { PtService } from '../../../services/database/pt.service';
-import { EquipmentService, PatronCruzado } from '../../../services/database/equipment.service';
+import { PtService } from '../../../services/database/external/pt.service';
+import { EquipmentService, PatronCruzado } from '../../../services/database/external/equipment.service';
 import {
   ImageCropperComponent,
   ImageCroppedEvent,

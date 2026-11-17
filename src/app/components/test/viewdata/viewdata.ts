@@ -1,8 +1,8 @@
 import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { forkJoin } from 'rxjs';
-import { PtService } from '../../../services/database/pt.service';
-import { EquipmentService } from '../../../services/database/equipment.service';
+import { PtService } from '../../../services/database/external/pt.service';
+import { EquipmentService } from '../../../services/database/external/equipment.service';
 
 @Component({
   imports: [CommonModule],

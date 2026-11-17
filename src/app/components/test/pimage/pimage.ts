@@ -15,8 +15,8 @@ import {
 import { Subscription } from 'rxjs';
 import * as XLSX from 'xlsx';
 
-import { ImageService } from '../../../services/database/image.service';
-import { EquipmentService } from '../../../services/database/equipment.service';
+import { ImageService } from '../../../services/database/external/image.service';
+import { EquipmentService } from '../../../services/database/external/equipment.service';
 import { AlertService } from '../../../services/core/alert.service';
 
 @Component({
