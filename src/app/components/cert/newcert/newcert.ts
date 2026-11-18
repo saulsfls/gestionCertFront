@@ -93,7 +93,7 @@ export class Newcert implements OnInit {
   };
 
   certificado: Certificado = {
-    equipment_id: '', name_equipment: '', cc: '', id_user: '',
+    equipment_id: '', name_equipment: '', cc: '',
     date_cal: '', date_cc: '', calibration_interval: 0, resolution: 0,
     entity: '', cert_type: '', comments: '', active: true, data: {}
   };
@@ -1073,7 +1073,6 @@ export class Newcert implements OnInit {
       equipment_id: (this.certificado.equipment_id ?? '').trim(),
       name_equipment: (this.certificado.name_equipment ?? '').trim(),
       cc: (this.certificado.cc ?? '').trim(),
-      id_user: String(user.id_user),
       entity: (this.certificado.entity ?? '').trim(),
       cert_type: (this.certificado.cert_type ?? '').trim(),
       data: this.obtenerJsonEstructurado()
@@ -1108,7 +1107,7 @@ export class Newcert implements OnInit {
   // ========== LIMPIAR ==========
   limpiarFormulario(): void {
     this.certificado = {
-      equipment_id: '', name_equipment: '', cc: '', id_user: '',
+      equipment_id: '', name_equipment: '', cc: '',
       date_cal: '', date_cc: '', calibration_interval: 0, resolution: 0,
       entity: '', cert_type: '', comments: '', active: true, data: {}
     };
@@ -1211,18 +1210,30 @@ export class Newcert implements OnInit {
       detalle = `
         <h3 style="margin-top:0; color:#6f42c1;">4. Extracción de tablas desde imagen (OCR)</h3>
         <p>Convierte una captura de la tabla en <b>columnas y filas editables</b>.</p>
+
         <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Paso 1 — Cargar la imagen</h4>
         <ul>
           <li><b>Pegar:</b> clic en la zona punteada y <kbd>Ctrl</kbd> + <kbd>V</kbd>.</li>
           <li><b>Subir archivo:</b> selector de imágenes JPG, PNG, etc.</li>
         </ul>
+
         <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Paso 2 — Recortar</h4>
         <p>Recorta solo la tabla, incluyendo encabezados si existen, excluyendo logos y texto externo.</p>
+
         <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Paso 3 — Encabezado sí / no</h4>
         <ul>
           <li><b>Sí:</b> la primera fila es el encabezado.</li>
           <li><b>No:</b> la imagen solo contiene datos; se generan columnas <code>col_1</code>, <code>col_2</code>, …</li>
         </ul>
+
+        <div style="background:#e7f5ff; border-left:4px solid #0d6efd; padding:.6rem .8rem; border-radius:.35rem; margin:.9rem 0;">
+          <b>📋 Resultado de la extracción</b>
+          <p style="margin:.35rem 0 0;">
+            La tabla extraída se coloca <b>automáticamente</b> en la tabla editable, conservando el <b>mismo formato</b> que se lleva en el HTML
+            (encabezados, columnas, filas y estilos). No es necesario copiar ni pegar manualmente: revisa y corrige los valores directamente sobre la tabla generada.
+          </p>
+        </div>
+
         <div style="background:#fff3cd; border-left:4px solid #ffc107; padding:.6rem .8rem; border-radius:.35rem; margin:.9rem 0;">
           <b>⚠ Advertencia</b>
           <ul style="margin:.35rem 0 0; padding-left:1.2rem;">

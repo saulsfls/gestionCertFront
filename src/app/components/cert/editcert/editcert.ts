@@ -86,7 +86,6 @@ export class Editcert implements OnInit {
     equipment_id: '',
     name_equipment: '',
     cc: '',
-    id_user: '',
     date_cal: '',
     date_cc: '',
     calibration_interval: 0,
@@ -453,64 +452,49 @@ export class Editcert implements OnInit {
     this.sincronizarJsonTexto();
   }
 
-  // ============================================================
-  // 🆕 MODO: CARGAR DATOS DESDE EXCEL (columna completa)
-  // ============================================================
-  /**
-   * Abre un diálogo con un textarea para pegar los datos copiados
-   * de Excel. El usuario debe incluir el encabezado en la primera línea.
-   * La cantidad de datos (sin contar el encabezado) debe ser igual o
-   * menor a la cantidad de filas actuales de la columna.
-   */
-    // ============================================================
-  // 🆕 MODO: CARGAR DATOS DESDE EXCEL (columna completa)
-  // ============================================================
- abrirCargaExcel(tableIndex: number, columnIndex: number): void {
+  //
+
+  async abrirCargaExcel(tableIndex: number, columnIndex: number): Promise<void> {
     const table = this.resultTables[tableIndex];
     if (!table) return;
     const col = table.columns[columnIndex];
     if (!col) return;
 
-    this.excelTarget = {
-      tableIndex,
-      columnIndex,
-      label: col.label,
-      key: col.key,
-      filasActuales: table.rows.length
-    };
-    this.textoExcel = '';
-    this.cdr.detectChanges();
+    const filasActuales = table.rows.length;
 
-    // Abrir el modal nativo de Bootstrap
-    const modalElement = document.getElementById('modalCargaExcel');
-    if (modalElement) {
-      // @ts-ignore
-      const modal = new bootstrap.Modal(modalElement);
-      modal.show();
-    }
-  }
+    // Llamamos a nuestro nuevo formulario modal
+    const values = await this.alert.form({
+      title: 'Carga desde Excel',
+      message: `Pega los datos para la columna <b>"${col.label}"</b>.<br><small class="text-muted">La columna tiene ${filasActuales} fila(s). La primera línea debe ser el encabezado.</small>`,
+      type: 'info',
+      confirmText: 'Procesar datos',
+      cancelText: 'Cancelar',
+      dismissible: true,
+      size: 'md', // 'md' o 'lg' dependiendo de cuánto espacio necesites
+      form: {
+        columns: 1,
+        submitText: 'Procesar',
+        validateOnSubmit: true,
+        fields: [
+          {
+            name: 'textoExcel',
+            label: 'Datos de Excel',
+            type: 'textarea',
+            rows: 10,
+            required: true,
+            placeholder: 'Encabezado\nDato 1\nDato 2\nDato 3...',
+            // No ponemos 'fullWidth' porque al ser 1 columna ya ocupa todo
+          }
+        ]
+      }
+    });
 
-  confirmarCargaExcel(): void {
-    if (!this.excelTarget) return;
-    const { tableIndex, columnIndex } = this.excelTarget;
-    const table = this.resultTables[tableIndex];
-    const col = table?.columns[columnIndex];
+    // Si el usuario cancela, `values` será null
+    if (values === null) return;
 
-    if (!table || !col) return;
+    const texto = String(values['textoExcel'] ?? '').trim();
 
-    const texto = this.textoExcel;
-
-    // Cerrar el modal
-    const modalElement = document.getElementById('modalCargaExcel');
-    if (modalElement) {
-      // @ts-ignore
-      const modal = bootstrap.Modal.getInstance(modalElement);
-      modal?.hide();
-    }
-
-    this.excelTarget = null;
-
-    if (!texto || texto.trim() === '') {
+    if (!texto) {
       this.alert.warning('No se recibió ningún texto para procesar.', 'Sin datos');
       return;
     }
@@ -519,12 +503,6 @@ export class Editcert implements OnInit {
     this.aplicarDatosExcel(table, col, texto);
   }
 
-  /**
-   * Procesa el texto pegado y lo aplica a la columna.
-   * Formato esperado:
-   *   Línea 1: encabezado (label de la columna)
-   *   Líneas 2..N: datos
-   */
   private aplicarDatosExcel(
     table: ResultTable,
     col: Column,
@@ -1009,7 +987,6 @@ export class Editcert implements OnInit {
       ...this.certificado,
       equipment_id: this.certificado.equipment_id.trim(),
       name_equipment: this.certificado.name_equipment.trim(),
-      id_user: String(user.id_user),
       data: this.obtenerJsonEstructurado()
     };
 

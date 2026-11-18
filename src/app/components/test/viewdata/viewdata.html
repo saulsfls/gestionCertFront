@@ -1,0 +1,28 @@
+<div class="toolbar">
+  <button class="btn btn-primary" (click)="nuevoRegistro()">
+    + Nuevo registro
+  </button>
+</div>
+
+@if (cargando) {
+  <p>Cargando…</p>
+} @else {
+  <table>
+    <thead>
+      <tr>
+        @for (key of getKeys(); track key) {
+          <th>{{ key }}</th>
+        }
+      </tr>
+    </thead>
+    <tbody>
+      @for (row of datosActuales; track $index) {
+        <tr>
+          @for (key of getKeys(); track key) {
+            <td>{{ formatValue(row[key]) }}</td>
+          }
+        </tr>
+      }
+    </tbody>
+  </table>
+}

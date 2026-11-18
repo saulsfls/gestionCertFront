@@ -139,22 +139,116 @@
                   [(ngModel)]="promptValue"
                   (keydown.enter)="confirm()">
           }
+
+          @if (isForm()) {
+            <form class="nga-form"
+                  [class.nga-form-2col]="formColumns() === 2"
+                  (ngSubmit)="confirm()"
+                  (submit)="$event.preventDefault()"
+                  novalidate>
+
+              @for (field of formFields(); track field.name) {
+                <div class="nga-form-field"
+                     [class.nga-full-width]="field.fullWidth !== false && (field.type === 'textarea' || formColumns() === 1)"
+                     [class.nga-invalid]="formErrors()[field.name]">
+
+                  @if (field.type !== 'checkbox') {
+                    <label [for]="'nga-field-' + field.name">
+                      {{ field.label }}
+                      @if (field.required) {
+                        <span class="nga-required" aria-hidden="true">*</span>
+                      }
+                    </label>
+                  }
+
+                  @switch (field.type) {
+                    @case ('textarea') {
+                      <textarea [id]="'nga-field-' + field.name"
+                                [rows]="field.rows ?? 3"
+                                [placeholder]="field.placeholder ?? ''"
+                                [disabled]="field.disabled === true"
+                                [value]="formValues()[field.name] ?? ''"
+                                (input)="onFieldChange(field.name, $any($event.target).value)"></textarea>
+                    }
+
+                    @case ('select') {
+                      <select [id]="'nga-field-' + field.name"
+                              [disabled]="field.disabled === true"
+                              [value]="formValues()[field.name] ?? ''"
+                              (change)="onFieldChange(field.name, $any($event.target).value)">
+                        <option value="" disabled>{{ field.placeholder ?? 'Selecciona…' }}</option>
+                        @for (opt of field.options ?? []; track opt.value) {
+                          <option [value]="opt.value" [disabled]="opt.disabled === true">
+                            {{ opt.label }}
+                          </option>
+                        }
+                      </select>
+                    }
+
+                    @case ('checkbox') {
+                      <label class="nga-checkbox" [for]="'nga-field-' + field.name">
+                        <input type="checkbox"
+                               [id]="'nga-field-' + field.name"
+                               [checked]="formValues()[field.name] === true"
+                               [disabled]="field.disabled === true"
+                               (change)="onFieldChange(field.name, $any($event.target).checked)">
+                        <span>
+                          {{ field.label }}
+                          @if (field.required) {
+                            <span class="nga-required" aria-hidden="true">*</span>
+                          }
+                        </span>
+                      </label>
+                    }
+
+                    @default {
+                      <input [id]="'nga-field-' + field.name"
+                             [type]="field.type ?? 'text'"
+                             [placeholder]="field.placeholder ?? ''"
+                             [disabled]="field.disabled === true"
+                             [value]="formValues()[field.name] ?? ''"
+                             (input)="onFieldChange(field.name, $any($event.target).value)">
+                    }
+                  }
+
+                  @if (formErrors()[field.name]) {
+                    <small class="nga-error-text">{{ formErrors()[field.name] }}</small>
+                  }
+                </div>
+              }
+            </form>
+          }
         </div>
       </div>
 
       <div class="nga-modal-footer">
-        @if (!isAlertDialog()) {
+        @if (isForm()) {
+          @if (showCancelInForm()) {
+            <button type="button"
+                    class="btn btn-outline-danger nga-btn-cancel"
+                    (click)="cancel()">
+              {{ data().cancelText || 'Cancelar' }}
+            </button>
+          }
           <button type="button"
-                  class="btn btn-light nga-btn-cancel"
-                  (click)="cancel()">
-            {{ data().cancelText || 'Cancelar' }}
+                  [class]="'btn ' + confirmBtnClass()"
+                  (click)="confirm()">
+            {{ submitText() }}
+          </button>
+        } @else {
+          @if (!isAlertDialog()) {
+            <button type="button"
+                    class="btn btn-light nga-btn-cancel"
+                    (click)="cancel()">
+              {{ data().cancelText || 'Cancelar' }}
+            </button>
+          }
+          <button type="button"
+                  [class]="'btn ' + confirmBtnClass()"
+                  (click)="confirm()">
+            {{ data().confirmText || (isAlertDialog() ? 'Aceptar' : 'Confirmar') }}
           </button>
         }
-        <button type="button"
-                [class]="'btn ' + confirmBtnClass()"
-                (click)="confirm()">
-          {{ data().confirmText || (isAlertDialog() ? 'Aceptar' : 'Confirmar') }}
-        </button>
       </div>
     </div>
   </div>

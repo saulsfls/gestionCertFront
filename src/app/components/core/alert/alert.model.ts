@@ -1,11 +1,11 @@
 export type AlertType = 'success' | 'error' | 'warning' | 'info' | 'question';
 
 export type AlertPosition =
-  | 'top-right'   | 'top-left'   | 'top-center'
-  | 'bottom-right'| 'bottom-left'| 'bottom-center';
+  | 'top-right'    | 'top-left'    | 'top-center'
+  | 'bottom-right' | 'bottom-left' | 'bottom-center';
 
-export type AlertKind   = 'toast' | 'dialog';
-export type DialogMode  = 'alert' | 'confirm' | 'prompt';
+export type AlertKind  = 'toast' | 'dialog';
+export type DialogMode = 'alert' | 'confirm' | 'prompt' | 'form';
 
 export type AlertSize = 'sm' | 'md' | 'lg' | 'xl' | 'full';
 
@@ -21,6 +21,49 @@ export interface AlertSizeOptions {
   fontSize?: string;
   titleFontSize?: string;
   lineHeight?: string | number;
+}
+
+export type AlertFormFieldType =
+  | 'text'
+  | 'email'
+  | 'password'
+  | 'number'
+  | 'tel'
+  | 'url'
+  | 'textarea'
+  | 'select'
+  | 'checkbox';
+
+export interface AlertFormFieldOption {
+  label: string;
+  value: string | number;
+  disabled?: boolean;
+}
+
+export interface AlertFormField {
+  name: string;
+  label: string;
+  type?: AlertFormFieldType;
+
+  placeholder?: string;
+  value?: string | number | boolean;
+  required?: boolean;
+  disabled?: boolean;
+
+  rows?: number;
+
+  options?: AlertFormFieldOption[];
+
+  minLength?: number;
+  maxLength?: number;
+
+  min?: number;
+  max?: number;
+
+  pattern?: string;
+  errorMessage?: string;
+
+  fullWidth?: boolean;
 }
 
 export interface AlertData {
@@ -43,14 +86,29 @@ export interface AlertData {
   dismissible?: boolean;
   confirmText?: string;
   cancelText?: string;
+
   prompt?: {
     defaultValue?: string;
     placeholder?: string;
     inputType?: 'text' | 'password' | 'email' | 'number' | 'tel' | 'url';
   };
+
+  form?: {
+    fields: AlertFormField[];
+    columns?: 1 | 2;
+    submitText?: string;
+    validateOnSubmit?: boolean;
+  };
 }
 
-export type AlertResult = boolean | string | null | void;
+export type AlertFormValues = Record<string, string | number | boolean>;
+
+export type AlertResult =
+  | boolean
+  | string
+  | null
+  | void
+  | AlertFormValues;
 
 export interface AlertServiceConfig {
   position: AlertPosition;

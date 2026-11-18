@@ -6,12 +6,13 @@ import { AlertService } from '../../../services/core/alert.service';
 import {
   Uncertainty,
   CreateUncertaintyDto,
-  UpdateUncertaintyDto,
   UncertaintyType,
   UncertaintyDistribution,
   ApiErrorResponse
 } from '../../../models/incertidumbre.model';
 import { IncertidumbreService } from '../../../services/database/home/incertidumbre.service';
+// Importamos los tipos para el formulario
+import { AlertFormValues, AlertFormField } from '../../../components/core/alert/alert.model';
 
 @Component({
   selector: 'app-admininc',
@@ -30,13 +31,9 @@ export class admininc implements OnInit {
   textoBusqueda = '';
   filtroEstado: 'todos' | 'activos' | 'obsoletos' = 'todos';
 
-  // Set de IDs en proceso de eliminación (evita doble click)
   private eliminando: Set<number> = new Set();
-
-  // Fila expandida para mostrar panel de opciones
   idExpandido: number | null = null;
 
-  // Catálogos para selects del formulario
   readonly TIPOS: UncertaintyType[] = ['TIPO A', 'TIPO B'];
   readonly DISTRIBUCIONES: UncertaintyDistribution[] = [
     'NORMAL', 'RECTANGULAR', 'TRIANGULAR', 'U', 'OTRA'
@@ -52,9 +49,7 @@ export class admininc implements OnInit {
     this.verificarPassword();
   }
 
-
   // Seguridad: contraseña de acceso
-
   async verificarPassword(): Promise<void> {
     const pass = await this.alert.prompt(
       'Ingrese la contraseña para acceder a la administración de incertidumbres.',
@@ -87,14 +82,11 @@ export class admininc implements OnInit {
     }
   }
 
-
   // Carga de datos
-
   obtenerInc(): void {
     this.cargando = true;
     this.cdr.detectChanges();
 
-    // Traemos también obsoletos para poder verlos y reactivarlos
     this.incService.listar(true).subscribe({
       next: (res) => {
         this.listaInc = Array.isArray(res?.data) ? res.data : [];
@@ -122,17 +114,13 @@ export class admininc implements OnInit {
     });
   }
 
-
   // Panel de opciones (toggle)
-
   toggleDetalle(id: number | undefined): void {
     if (id === undefined) return;
     this.idExpandido = this.idExpandido === id ? null : id;
   }
 
-
   // Helpers de estado
-
   esObsoleto(u: Uncertainty): boolean {
     return Number(u.obsolete) === 1;
   }
@@ -169,9 +157,7 @@ export class admininc implements OnInit {
     return u.id ?? index;
   }
 
-
   // CREAR (formulario vía AlertService)
-
   async crearIncertidumbre(): Promise<void> {
     const dto = await this.formularioIncertidumbre();
     if (!dto) return;
@@ -203,9 +189,7 @@ export class admininc implements OnInit {
     });
   }
 
-
   // EDITAR (formulario vía AlertService, precargado)
-
   async editarIncertidumbre(u: Uncertainty): Promise<void> {
     this.idExpandido = null;
     if (!u) return;
@@ -240,137 +224,87 @@ export class admininc implements OnInit {
     });
   }
 
-
-  // Formulario reutilizable (crear / editar)
-  // Retorna null si el usuario cancela
-
+  // ─────────────────────────────────────────────────────────────
+  // NUEVO FORMULARIO INTEGRADO (Reemplaza la secuencia de prompts)
+  // ─────────────────────────────────────────────────────────────
   private async formularioIncertidumbre(base?: Uncertainty): Promise<CreateUncertaintyDto | null> {
-    // Si tu AlertService tiene un método form() con múltiples campos,
-    // reemplaza este bloque por esa llamada. Aquí se usa prompt secuencial
-    // como fallback genérico.
-    const clave = await this.alert.prompt(
-      'Clave única (ej. U1, U2, U7):',
-      base ? 'Editar clave' : 'Nueva incertidumbre',
+    // Definimos los campos del formulario de forma declarativa
+    const fields: AlertFormField[] = [
       {
-        type: 'question',
-        confirmText: 'Siguiente',
-        cancelText: 'Cancelar',
-        dismissible: false,
-        prompt: { placeholder: 'U1', defaultValue: base?.clave ?? '' }
-      }
-    );
-    if (clave === null) return null;
-
-    const name = await this.alert.prompt(
-      'Nombre de la incertidumbre:',
-      'Nombre',
+        name: 'clave',
+        label: 'Clave única',
+        type: 'text',
+        required: true,
+        placeholder: 'Ej. U1, U2, U7',
+        value: base?.clave ?? '',
+      },
       {
-        type: 'question',
-        confirmText: 'Siguiente',
-        cancelText: 'Cancelar',
-        dismissible: false,
-        prompt: {
-          placeholder: 'Incertidumbre por…',
-          defaultValue: base?.name ?? ''
-        }
-      }
-    );
-    if (name === null) return null;
-
-    const description = await this.alert.prompt(
-      'Descripción:',
-      'Descripción',
+        name: 'name',
+        label: 'Nombre de la incertidumbre',
+        type: 'text',
+        required: true,
+        placeholder: 'Incertidumbre por…',
+        value: base?.name ?? '',
+      },
       {
-        type: 'question',
-        confirmText: 'Siguiente',
-        cancelText: 'Cancelar',
-        dismissible: false,
-        prompt: {
-          placeholder: 'Asociada a…',
-          defaultValue: base?.description ?? ''
-        }
-      }
-    );
-    if (description === null) return null;
-
-    const typeStr = await this.alert.prompt(
-      `Tipo (${this.TIPOS.join(' / ')}):`,
-      'Tipo',
+        name: 'description',
+        label: 'Descripción',
+        type: 'textarea',
+        required: true,
+        rows: 3,
+        placeholder: 'Asociada a…',
+        value: base?.description ?? '',
+      },
       {
-        type: 'question',
-        confirmText: 'Siguiente',
-        cancelText: 'Cancelar',
-        dismissible: false,
-        prompt: {
-          placeholder: 'TIPO A',
-          defaultValue: base?.type ?? 'TIPO A'
-        }
-      }
-    );
-    if (typeStr === null) return null;
-    const type = this.normalizarTipo(typeStr);
-    if (!type) {
-      this.alert.error(
-        `Tipo inválido. Debe ser: ${this.TIPOS.join(' / ')}`,
-        'Validación'
-      );
-      return null;
-    }
-
-    const distStr = await this.alert.prompt(
-      `Distribución (${this.DISTRIBUCIONES.join(' / ')}):`,
-      'Distribución',
+        name: 'type',
+        label: 'Tipo',
+        type: 'select',
+        required: true,
+        value: base?.type ?? 'TIPO A',
+        options: this.TIPOS.map(t => ({ label: t, value: t }))
+      },
       {
-        type: 'question',
-        confirmText: 'Guardar',
-        cancelText: 'Cancelar',
-        dismissible: false,
-        prompt: {
-          placeholder: 'NORMAL',
-          defaultValue: base?.distribution ?? 'NORMAL'
-        }
+        name: 'distribution',
+        label: 'Distribución',
+        type: 'select',
+        required: true,
+        value: base?.distribution ?? 'NORMAL',
+        options: this.DISTRIBUCIONES.map(d => ({ label: d, value: d }))
       }
-    );
-    if (distStr === null) return null;
-    const distribution = this.normalizarDistribucion(distStr);
-    if (!distribution) {
-      this.alert.error(
-        `Distribución inválida. Debe ser: ${this.DISTRIBUCIONES.join(' / ')}`,
-        'Validación'
-      );
-      return null;
-    }
+    ];
 
-    // Validación mínima
-    if (!clave.trim() || !name.trim() || !description.trim()) {
-      this.alert.error('Clave, nombre y descripción son obligatorios.', 'Validación');
-      return null;
-    }
+    // Llamamos al AlertService.form() (método público que agregamos)
+    const values = await this.alert.form({
+      title: base ? 'Editar Incertidumbre' : 'Nueva Incertidumbre',
+      message: base
+        ? `Modifica los datos de la incertidumbre "${base.clave}".`
+        : 'Ingresa los datos de la nueva incertidumbre.',
+      type: 'question',
+      confirmText: base ? 'Actualizar' : 'Guardar',
+      cancelText: 'Cancelar',
+      dismissible: false,
+      size: 'md',
+      form: {
+        columns: 1,
+        submitText: base ? 'Actualizar' : 'Guardar',
+        validateOnSubmit: true,
+        fields
+      }
+    });
 
+    if (values === null) return null;
+
+    // Extraemos y casteamos los valores (ya validados por el modal)
     return {
-      clave: clave.trim(),
-      name: name.trim(),
-      description: description.trim(),
-      type,
-      distribution
+      clave: String(values['clave']).trim(),
+      name: String(values['name']).trim(),
+      description: String(values['description']).trim(),
+      type: values['type'] as UncertaintyType,
+      distribution: values['distribution'] as UncertaintyDistribution,
     };
   }
 
-  private normalizarTipo(valor: string): UncertaintyType | null {
-    const v = valor.trim().toUpperCase();
-    return (this.TIPOS as string[]).includes(v) ? (v as UncertaintyType) : null;
-  }
-
-  private normalizarDistribucion(valor: string): UncertaintyDistribution | null {
-    const v = valor.trim().toUpperCase();
-    return (this.DISTRIBUCIONES as string[]).includes(v)
-      ? (v as UncertaintyDistribution)
-      : null;
-  }
-
-
   // DESACTIVAR (baja lógica → obsolete = 1)
-
   async desactivarIncertidumbre(u: Uncertainty): Promise<void> {
     this.idExpandido = null;
     if (!u || this.eliminando.has(u.id)) return;
@@ -417,9 +351,7 @@ export class admininc implements OnInit {
     });
   }
 
-
   // REACTIVAR (obsolete = 0)
-
   async reactivarIncertidumbre(u: Uncertainty): Promise<void> {
     this.idExpandido = null;
     if (!u || this.eliminando.has(u.id)) return;
@@ -466,9 +398,7 @@ export class admininc implements OnInit {
     });
   }
 
-
   // ELIMINAR (físico)
-
   async eliminarIncertidumbre(u: Uncertainty): Promise<void> {
     this.idExpandido = null;
     if (!u || this.eliminando.has(u.id)) return;
@@ -513,10 +443,8 @@ export class admininc implements OnInit {
     });
   }
 
-
   // Navegación
-
   volver(): void {
-    this.router.navigate(['/list-cert']);
+    this.router.navigate(['/inicio']);
   }
 }

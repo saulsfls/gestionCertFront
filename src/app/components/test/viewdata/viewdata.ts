@@ -4,6 +4,8 @@ import { forkJoin } from 'rxjs';
 import { PtService } from '../../../services/database/external/pt.service';
 import { EquipmentService } from '../../../services/database/external/equipment.service';
 import { IncertidumbreService } from '../../../services/database/home/incertidumbre.service';
+import { AlertService } from '../../../services/core/alert.service';
+import { AlertFormField, AlertFormValues } from '../../core/alert/alert.model';
 
 @Component({
   imports: [CommonModule],
@@ -12,21 +14,20 @@ import { IncertidumbreService } from '../../../services/database/home/incertidum
   templateUrl: './viewdata.html',
 })
 export class Viewdata implements OnInit {
-  // Variables para cada fuente de datos
   ptData: any[] = [];
   equipmentData: any[] = [];
   patronData: any[] = [];
 
   cargando = false;
 
-  // Para alternar qué tabla estamos viendo
   activeTab: 'pt' | 'equipment' | 'patron' = 'pt';
 
   constructor(
     private ptService: PtService,
     private equipmentService: EquipmentService,
     private incService: IncertidumbreService,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    private alert: AlertService
   ) {}
 
   ngOnInit(): void {
@@ -34,24 +35,22 @@ export class Viewdata implements OnInit {
     this.getincertidumbreData();
   }
 
-  getincertidumbreData(): void{
+  getincertidumbreData(): void {
     this.incService.listar().subscribe({
-      next:(res)=>{
-        console.log("Datos de las incertidumbres:");
+      next: (res) => {
+        console.log('Datos de las incertidumbres:');
         console.log(res);
-      }
-    })
+      },
+    });
   }
 
   getDatos(): void {
     this.cargando = true;
 
-    // Ejecutamos las 3 consultas al mismo tiempo
     forkJoin({
       pt: this.ptService.obtenerPt(),
       equipment: this.equipmentService.getEquipmentCatalogRaw(),
-      // Nota: getPatronesRaw() está en EquipmentService (según el primer código que compartiste)
-      patrones: this.equipmentService.getPatronesRaw()
+      patrones: this.equipmentService.getPatronesRaw(),
     }).subscribe({
       next: (res) => {
         this.ptData = res.pt ?? [];
@@ -69,13 +68,10 @@ export class Viewdata implements OnInit {
         console.error('Error obteniendo datos:', err);
         this.cargando = false;
         this.cdr.detectChanges();
-      }
+      },
     });
   }
 
-  // ========== HELPERS PARA LAS TABLAS ==========
-
-  /** Devuelve el array de datos según la pestaña activa */
   get datosActuales(): any[] {
     switch (this.activeTab) {
       case 'pt': return this.ptData;
@@ -85,7 +81,6 @@ export class Viewdata implements OnInit {
     }
   }
 
-  /** Devuelve todas las claves presentes en los registros actuales */
   getKeys(): string[] {
     const keys = new Set<string>();
     for (const row of this.datosActuales) {
@@ -94,10 +89,124 @@ export class Viewdata implements OnInit {
     return Array.from(keys);
   }
 
-  /** Formatea valores para mostrarlos en la tabla */
   formatValue(value: any): string {
     if (value === null || value === undefined) return '';
     if (typeof value === 'object') return JSON.stringify(value);
     return String(value);
+  }
+
+  async nuevoRegistro(): Promise<void> {
+    const config = this.getFormConfigForTab();
+    if (!config) {
+      this.alert.warning('No hay formulario configurado para esta pestaña.');
+      return;
+    }
+
+    const values = await this.alert.form({
+      type: 'question',
+      title: config.title,
+      message: config.message,
+      confirmText: 'Guardar',
+      cancelText: 'Cancelar',
+      dismissible: true,
+      size: 'lg',
+      form: {
+        columns: 1,
+        submitText: 'Guardar',
+        validateOnSubmit: true,
+        fields: config.fields,
+      },
+    });
+
+    if (values === null) return;
+
+    try {
+      await this.guardarRegistro(this.activeTab, values);
+      this.alert.success('Registro creado correctamente.', 'Éxito');
+      this.getDatos();
+    } catch (err) {
+      console.error('Error al guardar:', err);
+      this.alert.error('No se pudo guardar el registro.', 'Error');
+    }
+  }
+
+  private getFormConfigForTab(): { title: string; message: string; fields: AlertFormField[] } | null {
+    switch (this.activeTab) {
+      case 'pt':
+        return {
+          title: 'Nuevo PT',
+          message: 'Ingresa los datos del nuevo PT:',
+          fields: [
+            { name: 'nombre',  label: 'Nombre',          type: 'text',   required: true, minLength: 2 },
+            { name: 'codigo',  label: 'Código',          type: 'text',   required: true },
+            { name: 'fecha',   label: 'Fecha',           type: 'text',   placeholder: 'YYYY-MM-DD' },
+            { name: 'detalle', label: 'Detalle',         type: 'textarea', rows: 3, maxLength: 300 },
+            { name: 'activo',  label: 'Activo',          type: 'checkbox', value: true },
+          ],
+        };
+
+      case 'equipment':
+        return {
+          title: 'Nuevo Equipo',
+          message: 'Ingresa los datos del nuevo equipo:',
+          fields: [
+            { name: 'nombre',     label: 'Nombre',        type: 'text', required: true },
+            { name: 'marca',      label: 'Marca',         type: 'text' },
+            { name: 'modelo',     label: 'Modelo',        type: 'text' },
+            { name: 'serie',      label: 'Número de serie', type: 'text' },
+            { name: 'ubicacion',  label: 'Ubicación',     type: 'text' },
+            {
+              name: 'estado',
+              label: 'Estado',
+              type: 'select',
+              required: true,
+              options: [
+                { label: 'Operativo',   value: 'operativo' },
+                { label: 'Mantenimiento', value: 'mantenimiento' },
+                { label: 'Fuera de servicio', value: 'baja' },
+              ],
+            },
+          ],
+        };
+
+      case 'patron':
+        return {
+          title: 'Nuevo Patrón',
+          message: 'Ingresa los datos del nuevo patrón:',
+          fields: [
+            { name: 'nombre',    label: 'Nombre',         type: 'text', required: true },
+            { name: 'codigo',    label: 'Código',         type: 'text', required: true },
+            { name: 'valor',     label: 'Valor nominal',  type: 'number' },
+            { name: 'unidad',    label: 'Unidad',         type: 'text', placeholder: 'mm, kg, °C…' },
+            { name: 'tolerancia',label: 'Tolerancia',     type: 'number' },
+            { name: 'notas',     label: 'Notas',          type: 'textarea', rows: 2 },
+          ],
+        };
+
+      default:
+        return null;
+    }
+  }
+
+  private async guardarRegistro(
+    tab: 'pt' | 'equipment' | 'patron',
+    values: AlertFormValues
+  ): Promise<void> {
+    switch (tab) {
+      case 'pt':
+        // TODO: await this.ptService.crearPt(values);
+        console.log('Crear PT con:', values);
+        return;
+
+      case 'equipment':
+        // TODO: await this.equipmentService.crearEquipo(values);
+        console.log('Crear Equipo con:', values);
+        return;
+
+      case 'patron':
+        // TODO: await this.equipmentService.crearPatron(values);
+        console.log('Crear Patrón con:', values);
+        return;
+    }
   }
 }

@@ -1,3 +1,4 @@
+
 import {
   ApplicationRef,
   ComponentRef,
@@ -9,10 +10,10 @@ import {
   inject,
 } from '@angular/core';
 import { DOCUMENT, isPlatformBrowser } from '@angular/common';
-//El servicio se encarga unicamente de mostrar las alertas y notificaciones en otros componentes
 import { Alert } from '../../components/core/alert/alert';
 import {
   AlertData,
+  AlertFormValues,
   AlertPosition,
   AlertResult,
   AlertServiceConfig,
@@ -53,39 +54,32 @@ export class AlertService implements OnDestroy {
     this.roots.clear();
   }
 
-  /* ══════════════════════════════════════════════════════════════
-   *  CONFIGURACIÓN GLOBAL
-   * ══════════════════════════════════════════════════════════════ */
   configure(patch: Partial<AlertServiceConfig>): void {
     this.config = { ...this.config, ...patch };
   }
 
-  /* ══════════════════════════════════════════════════════════════
-   *  SHORTHANDS DE TOAST
-   * ══════════════════════════════════════════════════════════════ */
   success(message: string, title?: string, options: Partial<AlertData> = {}): void {
     this.toast({ ...options, type: 'success', message, title });
   }
+
   error(message: string, title?: string, options: Partial<AlertData> = {}): void {
     this.toast({ ...options, type: 'error', message, title });
   }
+
   warning(message: string, title?: string, options: Partial<AlertData> = {}): void {
     this.toast({ ...options, type: 'warning', message, title });
   }
+
   info(message: string, title?: string, options: Partial<AlertData> = {}): void {
     this.toast({ ...options, type: 'info', message, title });
   }
 
-  /* ══════════════════════════════════════════════════════════════
-   *  TOAST
-   * ══════════════════════════════════════════════════════════════ */
   toast(options: Partial<AlertData> & { message: string }): void {
     if (!this.isBrowser) return;
 
     const position = options.position ?? this.config.position;
     const root     = this.getRoot(position);
 
-    /* respetar límite de visibles */
     const live = Array.from(root.children).filter(
       (el): el is HTMLElement =>
         el instanceof HTMLElement && !el.classList.contains('nga-hide')
@@ -98,7 +92,7 @@ export class AlertService implements OnDestroy {
     const id   = `nga-${++this.sequence}`;
     const host = this.doc.createElement('div');
     host.dataset['alertId'] = id;
-    host.style.display = 'contents'; // el toast queda como hijo directo del root
+    host.style.display = 'contents';
     root.appendChild(host);
 
     const ref = createComponent(Alert, {
@@ -132,9 +126,6 @@ export class AlertService implements OnDestroy {
     this.toasts.set(id, { ref, host });
   }
 
-  /* ══════════════════════════════════════════════════════════════
-   *  DIALOG API
-   * ══════════════════════════════════════════════════════════════ */
   alert(message: string, title?: string, options: Partial<AlertData> = {}): Promise<void> {
     return this.dialog({
       ...options,
@@ -165,9 +156,20 @@ export class AlertService implements OnDestroy {
     }).then(r => (r == null ? null : String(r)));
   }
 
-  /* ══════════════════════════════════════════════════════════════
-   *  UTILIDADES
-   * ══════════════════════════════════════════════════════════════ */
+  form(
+    data: Omit<Partial<AlertData>, 'kind' | 'dialogMode' | 'form'> & {
+      message: string;
+      form: NonNullable<AlertData['form']>;
+    }
+  ): Promise<AlertFormValues | null> {
+    return this.dialog({
+      ...data,
+      dialogMode: 'form',
+    }).then(r =>
+      r != null && typeof r === 'object' ? (r as AlertFormValues) : null
+    );
+  }
+
   clear(): void {
     Array.from(this.toasts.keys()).forEach(id =>
       this.toasts.get(id)?.ref.instance.close()
@@ -175,9 +177,6 @@ export class AlertService implements OnDestroy {
     Array.from(this.dialogs).forEach(ref => ref.instance.close());
   }
 
-  /* ══════════════════════════════════════════════════════════════
-   *  INTERNOS
-   * ══════════════════════════════════════════════════════════════ */
   private dialog(
     data: Partial<AlertData> & { message: string; dialogMode: DialogMode }
   ): Promise<AlertResult> {
@@ -200,7 +199,7 @@ export class AlertService implements OnDestroy {
       ref.setInput('data', {
         id,
         kind:        'dialog',
-        type:        data.type ?? 'info',
+        type:        data.type        ?? 'info',
         message:     data.message,
         title:       data.title,
         dialogMode:  data.dialogMode,
@@ -208,6 +207,9 @@ export class AlertService implements OnDestroy {
         confirmText: data.confirmText,
         cancelText:  data.cancelText,
         prompt:      data.prompt,
+        form:        data.form,
+        size:        data.size        ?? this.config.size,
+        sizeOptions: data.sizeOptions ?? this.config.sizeOptions,
       } satisfies AlertData);
 
       ref.changeDetectorRef.detectChanges();

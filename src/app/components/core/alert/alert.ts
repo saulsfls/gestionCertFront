@@ -16,6 +16,8 @@ import { FormsModule } from '@angular/forms';
 import {
   ALERT_SIZE_PRESETS,
   AlertData,
+  AlertFormField,
+  AlertFormValues,
   AlertResult,
   AlertSize,
   AlertSizeOptions,
@@ -40,13 +42,17 @@ const CLOSE_ICON =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>';
 
 const CONFIRM_BTN_MAP: Record<AlertType, string> = {
-  success: 'btn-success',
-  error: 'btn-danger',
-  warning: 'btn-warning',
-  info: 'btn-primary',
-  question: 'btn-primary',
+  success: 'btn-outline-success',
+  error: 'btn-outline-danger',
+  warning: 'btn-outline-warning',
+  info: 'btn-outline-primary',
+  question: 'btn-outline-primary',
 };
 
+interface FormFieldError {
+  field: string;
+  message: string;
+}
 
 @Component({
   selector: 'app-alert',
@@ -95,6 +101,10 @@ export class Alert implements AfterViewInit, OnDestroy {
     () => this.data().dialogMode === 'alert'
   );
 
+  protected readonly isForm = computed<boolean>(
+    () => this.data().dialogMode === 'form'
+  );
+
   protected readonly size = computed<AlertSize>(
     () => this.data().size ?? 'md'
   );
@@ -137,7 +147,7 @@ export class Alert implements AfterViewInit, OnDestroy {
   );
 
   protected readonly confirmBtnClass = computed<string>(
-    () => CONFIRM_BTN_MAP[this.data().type] ?? 'btn-primary'
+    () => CONFIRM_BTN_MAP[this.data().type] ?? 'btn-outline-primary'
   );
 
   protected readonly showProgress = computed<boolean>(
@@ -146,6 +156,28 @@ export class Alert implements AfterViewInit, OnDestroy {
       this.data().showProgress !== false &&
       (this.data().duration ?? 0) > 0
   );
+
+  protected readonly formFields = computed<AlertFormField[]>(
+    () => this.data().form?.fields ?? []
+  );
+
+  protected readonly formColumns = computed<1 | 2>(
+    () => this.data().form?.columns ?? 1
+  );
+
+  protected readonly submitText = computed<string>(
+    () =>
+      this.data().form?.submitText ??
+      this.data().confirmText ??
+      'Aceptar'
+  );
+
+  protected readonly showCancelInForm = computed<boolean>(
+    () => this.data().cancelText !== undefined || !this.isAlertDialog()
+  );
+
+  protected readonly formValues = signal<AlertFormValues>({});
+  protected readonly formErrors = signal<Record<string, string>>({});
 
   private readonly elRef = inject<ElementRef<HTMLElement>>(ElementRef);
 
@@ -162,6 +194,10 @@ export class Alert implements AfterViewInit, OnDestroy {
       this.remaining = d.duration ?? 0;
       if (this.remaining > 0) this.startTimer();
       return;
+    }
+
+    if (this.isForm()) {
+      this.initFormValues();
     }
 
     requestAnimationFrame(() => this.visible.set(true));
@@ -197,6 +233,13 @@ export class Alert implements AfterViewInit, OnDestroy {
   }
 
   protected confirm(): void {
+    if (this.isForm()) {
+      const validate = this.data().form?.validateOnSubmit !== false;
+      if (validate && !this.validateForm()) return;
+      this.close({ ...this.formValues() });
+      return;
+    }
+
     if (this.isPrompt()) {
       this.close(this.promptValue ?? '');
     } else {
@@ -205,7 +248,9 @@ export class Alert implements AfterViewInit, OnDestroy {
   }
 
   protected cancel(): void {
-    if (this.isPrompt()) {
+    if (this.isForm()) {
+      this.close(null);
+    } else if (this.isPrompt()) {
       this.close(null);
     } else if (this.isAlertDialog()) {
       this.close(undefined);
@@ -227,6 +272,94 @@ export class Alert implements AfterViewInit, OnDestroy {
     entering ? this.pauseTimer() : this.startTimer();
   }
 
+  protected onFieldChange(name: string, value: string | number | boolean): void {
+    this.formValues.update((v) => ({ ...v, [name]: value }));
+    if (this.formErrors()[name]) {
+      this.formErrors.update((errs) => {
+        const copy = { ...errs };
+        delete copy[name];
+        return copy;
+      });
+    }
+  }
+
+  protected trackField = (_: number, field: AlertFormField): string => field.name;
+
+  private initFormValues(): void {
+    const initial: AlertFormValues = {};
+    for (const f of this.formFields()) {
+      if (f.value !== undefined) {
+        initial[f.name] = f.value;
+      } else {
+        initial[f.name] = f.type === 'checkbox' ? false : '';
+      }
+    }
+    this.formValues.set(initial);
+    this.formErrors.set({});
+  }
+
+  private validateForm(): boolean {
+    const values = this.formValues();
+    const errors: Record<string, string> = {};
+
+    for (const field of this.formFields()) {
+      const error = this.validateField(field, values[field.name]);
+      if (error) errors[field.name] = error;
+    }
+
+    this.formErrors.set(errors);
+    return Object.keys(errors).length === 0;
+  }
+
+  private validateField(
+    field: AlertFormField,
+    value: string | number | boolean | undefined
+  ): string | null {
+    const requiredMsg =
+      field.errorMessage ?? `${field.label} es obligatorio`;
+    const invalidMsg =
+      field.errorMessage ?? `${field.label} no es válido`;
+
+    if (field.required) {
+      if (field.type === 'checkbox') {
+        if (value !== true) return requiredMsg;
+      } else if (value === '' || value === null || value === undefined) {
+        return requiredMsg;
+      }
+    }
+
+    if (field.type === 'checkbox') return null;
+
+    if (value === '' || value === null || value === undefined) return null;
+
+    const str = String(value);
+
+    if (field.minLength != null && str.length < field.minLength) {
+      return invalidMsg;
+    }
+    if (field.maxLength != null && str.length > field.maxLength) {
+      return invalidMsg;
+    }
+
+    if (field.type === 'number' || typeof value === 'number') {
+      const num = Number(value);
+      if (Number.isNaN(num)) return invalidMsg;
+      if (field.min != null && num < field.min) return invalidMsg;
+      if (field.max != null && num > field.max) return invalidMsg;
+    }
+
+    if (field.pattern) {
+      try {
+        const re = new RegExp(field.pattern);
+        if (!re.test(str)) return invalidMsg;
+      } catch {
+        // patrón inválido en definición: se ignora
+      }
+    }
+
+    return null;
+  }
+
   private startTimer(): void {
     if (this.remaining <= 0) return;
     this.startedAt = Date.now();
@@ -242,10 +375,14 @@ export class Alert implements AfterViewInit, OnDestroy {
 
   private focusFirst(): void {
     const el = this.elRef.nativeElement;
-    const input = el.querySelector<HTMLInputElement>('.nga-modal-input');
+    const input = el.querySelector<HTMLInputElement>(
+      '.nga-modal-input, .nga-form-field input:not([type="checkbox"]), .nga-form-field textarea, .nga-form-field select'
+    );
     if (input) {
       input.focus();
-      input.select();
+      if (input instanceof HTMLInputElement && input.type !== 'checkbox') {
+        input.select();
+      }
       return;
     }
     el.querySelector<HTMLButtonElement>('.nga-btn-confirm')?.focus();
