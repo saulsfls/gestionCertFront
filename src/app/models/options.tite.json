@@ -1,0 +1,73 @@
+{
+  "parametros": {
+    "DC Voltage": {
+      "unidades": ["kV", "V", "mV", "µV"],
+      "subparametros": ["Voltage"]
+    },
+    "AC Voltage": {
+      "unidades": ["kV", "V", "mV", "µV"],
+      "subparametros": ["RMS Voltage", "Peak-to-Peak Voltage (PP)"]
+    },
+    "DC Current": {
+      "unidades": ["kA", "A", "mA", "µA", "nA", "pA"],
+      "subparametros": ["Current"]
+    },
+    "AC Current": {
+      "unidades": ["kA", "A", "mA", "µA", "nA", "pA"],
+      "subparametros": ["RMS Current", "Peak-to-Peak Current (PP)"]
+    },
+    "Resistance": {
+      "unidades": ["MΩ", "kΩ", "Ω", "mΩ"],
+      "subparametros": ["Resistance"]
+    },
+    "4-Wire Resistance": {
+      "unidades": ["MΩ", "kΩ", "Ω", "mΩ"],
+      "subparametros": ["4-Wire Resistance"]
+    },
+    "Lightning Impulse Voltage (LI)": {
+      "unidades": ["kV", "V", "mV"],
+      "subparametros": [
+        "LI Impulse Voltage",
+        "Determination of scale factor and measurement of Ut",
+        "Measurement of front time T1",
+        "Measurement of time to half value T2",
+        "Polarity Linearity Test"
+      ]
+    },
+    "Switching Impulse Voltage (SI)": {
+      "unidades": ["kV", "V", "mV"],
+      "subparametros": [
+        "LI Impulse Voltage",
+        "Determination of scale factor and measurement of Ut",
+        "Measurement of front time T1",
+        "Measurement of time to half value T2",
+        "Polarity Linearity Test"
+      ]
+    },
+    "Frequency": {
+      "unidades": ["GHz", "MHz", "kHz", "Hz"],
+      "subparametros": ["Frequency"]
+    },
+    "Capacitance": {
+      "unidades": ["F", "mF", "µF", "nF", "pF"],
+      "subparametros": ["Capacitance"]
+    },
+    "Other": {
+      "unidades": [
+        "GW", "MW", "kW", "W", "mW",
+        "kVA", "VA", "kVAR", "VAR",
+        "kC", "C", "mC", "µC", "nC", "pC",
+        "H", "mH", "µH",
+        "S", "mS", "µS",
+        "GWh", "kWh", "J",
+        "Wb", "T", "G",
+        "A/m", "Ω·m", "S/m", "F/m", "H/m",
+        "dB", "dBm",
+        "lm", "lx",
+        "min", "s", "ms", "µs", "ns", "ps",
+        "°", "rad"
+      ],
+      "subparametros": []
+    }
+  }
+}

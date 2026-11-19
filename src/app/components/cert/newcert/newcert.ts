@@ -288,7 +288,7 @@ export class Newcert implements OnInit {
       cc_id: this.certificado.cc || '', pt: '', table_id: '',
       parameter: this.obtenerOpcionesParametro('DC Voltage')[0] || 'Voltage',
       unit: '', calibration_equation: '', range: '', comments: '',
-      columns: [{ key: 'key', label: 'Label', unit: 'Units', type: 'number' }],
+      columns: [{ key: 'llave_unica', label: 'etiqueta', unit: 'unidad', type: 'number' }],
       rows: [{}]
     };
   }

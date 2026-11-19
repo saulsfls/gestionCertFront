@@ -157,6 +157,30 @@ export class admininc implements OnInit {
     return u.id ?? index;
   }
 
+  // ─────────────────────────────────────────────────────────────
+  // GENERACIÓN AUTOMÁTICA DE CLAVE (U1, U2, …)
+  // ─────────────────────────────────────────────────────────────
+  /**
+   * Calcula la siguiente clave disponible con formato "U#" tomando
+   * el mayor número existente en la lista y sumando 1.
+   * Si no hay ninguna, retorna "U1".
+   * Ignora claves que no cumplan el patrón U<num>.
+   */
+  private generarSiguienteClave(): string {
+    let max = 0;
+
+    for (const u of this.listaInc) {
+      const clave = (u.clave ?? '').trim().toUpperCase();
+      const match = clave.match(/^U(\d+)$/);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        if (!isNaN(num) && num > max) max = num;
+      }
+    }
+
+    return `U${max + 1}`;
+  }
+
   // CREAR (formulario vía AlertService)
   async crearIncertidumbre(): Promise<void> {
     const dto = await this.formularioIncertidumbre();
@@ -225,18 +249,27 @@ export class admininc implements OnInit {
   }
 
   // ─────────────────────────────────────────────────────────────
-  // NUEVO FORMULARIO INTEGRADO (Reemplaza la secuencia de prompts)
+  // FORMULARIO INTEGRADO (la clave se autogenera y va deshabilitada)
   // ─────────────────────────────────────────────────────────────
   private async formularioIncertidumbre(base?: Uncertainty): Promise<CreateUncertaintyDto | null> {
+    const esEdicion = !!base;
+
+    // En creación, autogeneramos la clave; en edición, conservamos la existente.
+    const claveAutogenerada = esEdicion
+      ? (base?.clave ?? '')
+      : this.generarSiguienteClave();
+
     // Definimos los campos del formulario de forma declarativa
     const fields: AlertFormField[] = [
       {
         name: 'clave',
-        label: 'Clave única',
+        label: 'Clave única (autogenerada)',
         type: 'text',
         required: true,
-        placeholder: 'Ej. U1, U2, U7',
-        value: base?.clave ?? '',
+        placeholder: 'Se genera automáticamente',
+        value: claveAutogenerada,
+        // 👇 Deshabilitado para el usuario: solo lectura
+        disabled: true,
       },
       {
         name: 'name',
@@ -278,7 +311,7 @@ export class admininc implements OnInit {
       title: base ? 'Editar Incertidumbre' : 'Nueva Incertidumbre',
       message: base
         ? `Modifica los datos de la incertidumbre "${base.clave}".`
-        : 'Ingresa los datos de la nueva incertidumbre.',
+        : 'Ingresa los datos de la nueva incertidumbre. La clave se asigna automáticamente.',
       type: 'question',
       confirmText: base ? 'Actualizar' : 'Guardar',
       cancelText: 'Cancelar',
@@ -294,9 +327,11 @@ export class admininc implements OnInit {
 
     if (values === null) return null;
 
-    // Extraemos y casteamos los valores (ya validados por el modal)
+    // Extraemos y casteamos los valores (ya validados por el modal).
+    // La clave usamos la autogenerada para no depender de si el campo
+    // deshabilitado se incluye o no en `values` al enviar el formulario.
     return {
-      clave: String(values['clave']).trim(),
+      clave: String(claveAutogenerada).trim(),
       name: String(values['name']).trim(),
       description: String(values['description']).trim(),
       type: values['type'] as UncertaintyType,

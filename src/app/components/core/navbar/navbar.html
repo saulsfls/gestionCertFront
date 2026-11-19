@@ -73,11 +73,6 @@
               CMC
             </a>
             <ul class="dropdown-menu" [class.show]="dropdowns.cmc">
-              <!--<li>
-                <a class="dropdown-item" routerLink="/cmc-params" routerLinkActive="active" (click)="isCollapsed = true">
-                  Parámetros de CMC
-                </a>
-              </li>-->
               <li>
                 <a class="dropdown-item" routerLink="/cmc-create" routerLinkActive="active" (click)="isCollapsed = true">
                   Calcular un nuevo CMC
@@ -126,6 +121,12 @@
               Incertidumbres
             </a>
             <ul class="dropdown-menu" [class.show]="dropdowns.incertidumbres">
+              <li>
+                <a class="dropdown-item" routerLink="/inc-admin" routerLinkActive="active" (click)="isCollapsed = true">
+                  Administracion de Incertidumbres
+                </a>
+              </li>
+              <li><hr class="dropdown-divider"></li>
               <li>
                 <a class="dropdown-item" routerLink="/inc-repeatability" routerLinkActive="active" (click)="isCollapsed = true">
                   Experimento de Repetibilidad

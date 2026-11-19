@@ -396,10 +396,12 @@
                         [(ngModel)]="col.unit" (ngModelChange)="onTableChange()"
                         placeholder="unit">
 
-                      <select class="form-select form-select-sm fw-bold text-primary"
-                        [(ngModel)]="col.type" (change)="cambiarTipoDato(col, tabla)">
-                        <option value="number">Number</option>
-                        <option value="string">String</option>
+                      <select
+                        class="form-select form-select-sm fw-bold text-primary"
+                        [(ngModel)]="col.type"
+                        (change)="cambiarTipoDato(col, tabla)">
+                        <option value="number" selected="true">Numero</option>
+                        <option value="string">Cadena de Texto</option>
                       </select>
 
                       <!-- 🆕 Botón: Cargar datos desde Excel -->
@@ -459,7 +461,7 @@
                   <td *ngFor="let col of tabla.columns; let colIndex = index">
                     <input
                       [id]="'input-' + i + '-' + filaIndex + '-' + colIndex"
-                      [type]="col.type === 'number' ? 'number' : 'text'"
+                      [type]="col.type === 'number' ? 'number' : 'string'"
                       class="form-control form-control-sm"
                       [(ngModel)]="fila[col.key]"
                       (ngModelChange)="onTableChange()"
@@ -563,7 +565,12 @@
   </div>-->
 
   <!-- Botones de Acción -->
-  <div class="d-flex justify-content-end gap-2 my-4">
+  <div class="d-flex justify-content-between align-items-center">
+  <button class="btn btn-outline-secondary btn-lg" type="button" (click)="copiarJson()">
+    {{ copiadoExitoso ? 'Copiado' : 'Copiar JSON' }}
+  </button>
+
+  <div class="d-flex gap-2">
     <button type="button" class="btn btn-outline-danger btn-lg shadow-sm"
       [disabled]="cargando" (click)="cancelar()">
       Cancelar
@@ -574,5 +581,5 @@
       {{ cargando ? 'Guardando...' : 'Guardar Cambios' }}
     </button>
   </div>
-
+</div>
 </div>

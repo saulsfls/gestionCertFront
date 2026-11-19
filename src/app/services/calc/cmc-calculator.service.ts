@@ -51,7 +51,7 @@ export class CmcCalculatorService {
   private readonly DOF_REPRODUCIBILIDAD = 2;    // 3 - 1
 
   /** Nivel de confianza para la t de Student (95%, una cola) — solo referencia */
-  private readonly CONFIANZA_UNA_COLA = 0.95;
+  private readonly CONFIANZA_UNA_COLA = 1-0.025;
 
   /** Factor de cobertura k para la incertidumbre expandida */
   private readonly FACTOR_COBERTURA_K = 2;
@@ -62,7 +62,7 @@ export class CmcCalculatorService {
    */
   private readonly FUENTES_DEF: FuenteDefinicion[] = [
     { clave: 'estabilidad',            nombre: 'Estabilidad',                    dof: 2 },
-    { clave: 'sesgo',                  nombre: 'Sesgo (BIAS)',                   dof: 1 },
+    { clave: 'sesgo',                  nombre: 'Sesgo (BIAS)',                   dof: 99 },
     { clave: 'deriva',                 nombre: 'Deriva (Drift)',                 dof: 2 },
     { clave: 'incertRefEstandar',      nombre: 'Incertidumbre de la referencia', dof: 99 },
     { clave: 'estabilidadRefEstandar', nombre: 'Estabilidad de la referencia',   dof: 2 },

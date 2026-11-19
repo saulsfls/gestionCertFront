@@ -594,8 +594,8 @@
                         class="form-select form-select-sm fw-bold text-primary"
                         [(ngModel)]="col.type"
                         (change)="cambiarTipoDato(col, tabla)">
-                        <option value="number">Number</option>
-                        <option value="string">String</option>
+                        <option value="number" selected="true">Numero</option>
+                        <option value="string">Cadena de Texto</option>
                       </select>
                     </div>
                   </th>
@@ -608,7 +608,7 @@
                   <td *ngFor="let col of tabla.columns; let colIndex = index">
                     <input
                       [id]="'input-' + i + '-' + filaIndex + '-' + colIndex"
-                      [type]="col.type === 'number' ? 'number' : 'text'"
+                      [type]="col.type === 'number' ? 'number' : 'string'"
                       class="form-control form-control-sm"
                       [class.is-invalid]="esValorInvalido(fila[col.key], col)"
                       [(ngModel)]="fila[col.key]"
@@ -703,7 +703,10 @@
   </div>-->
 
   <!-- Botón de Guardado -->
-  <div class="d-flex justify-content-end my-4">
+  <div class="d-flex justify-content-between my-4">
+    <button class="btn btn-outline-secondary btn-sm" type="button" (click)="copiarJson()">
+          {{ copiadoExitoso ? 'Copiado' : 'Copiar JSON' }}
+    </button>
     <button
       type="button"
       class="btn btn-success btn-lg shadow-sm"

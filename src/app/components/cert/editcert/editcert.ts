@@ -14,7 +14,7 @@ import { AlertService } from '../../../services/core/alert.service';
 import { AuthService } from '../../../services/auth/auth.service';
 
 export type DireccionTab = 'horizontal' | 'vertical';
-export type JsonPrimitiveType = 'string' | 'number' | 'boolean';
+export type JsonPrimitiveType = 'cadena de texto' | 'numero' | 'boolean';
 export type TipoDato = 'number' | 'string';
 
 @Component({
