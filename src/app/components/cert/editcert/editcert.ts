@@ -3,24 +3,40 @@ import {
   OnInit,
   Input,
   ChangeDetectorRef,
-  inject
+  inject,
+  PLATFORM_ID
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Certificado, ResultTable, Column } from '../../../models/certificado.models';
 import { CertService } from '../../../services/database/home/cert.service';
 import { AlertService } from '../../../services/core/alert.service';
 import { AuthService } from '../../../services/auth/auth.service';
+import { CatalogoService } from '../../../services/database/home/catalogo.service';
+import { ImageService } from '../../../services/database/external/image.service';
+import {
+  ImageCropperComponent,
+  ImageCroppedEvent,
+  LoadedImage
+} from 'ngx-image-cropper';
 
 export type DireccionTab = 'horizontal' | 'vertical';
 export type JsonPrimitiveType = 'cadena de texto' | 'numero' | 'boolean';
 export type TipoDato = 'number' | 'string';
 
+interface TableImageState {
+  imageChangedEvent: Event | null;
+  pasteImageFile: File | undefined;
+  croppedImageBase64: string;
+  cargando: boolean;
+  tieneEncabezado: boolean;
+}
+
 @Component({
   selector: 'app-editcert',
   standalone: true,
-  imports: [FormsModule, CommonModule],
+  imports: [FormsModule, CommonModule, ImageCropperComponent],
   templateUrl: './editcert.html',
   styleUrl: './editcert.css',
 })
@@ -28,6 +44,10 @@ export class Editcert implements OnInit {
 
   private readonly alert = inject(AlertService);
   private auth = inject(AuthService);
+  public catalogo = inject(CatalogoService);
+  private imageService = inject(ImageService);
+  private platformId = inject(PLATFORM_ID);
+  isBrowser: boolean = isPlatformBrowser(this.platformId);
 
   @Input() id!: string | number;
 
@@ -42,45 +62,6 @@ export class Editcert implements OnInit {
     'cert_type',
     'active',
   ];
-
-  opcionesTitulo: string[] = [
-    'DC Voltage',
-    'AC Voltage',
-    'DC Current',
-    'AC Current',
-    'Resistance',
-    '4-Wire Resistance',
-    'Lightning Impulse Voltage (LI)',
-    'Switching Impulse Voltage (SI)',
-    'Frequency',
-    'Other'
-  ];
-
-  private opcionesParametroPorTitulo: Record<string, string[]> = {
-    'DC Voltage': ['Voltage'],
-    'AC Voltage': ['RMS Voltage', 'Peak-to-Peak Voltage (PP)'],
-    'DC Current': ['Current'],
-    'AC Current': ['RMS Current', 'Peak-to-Peak Current (PP)'],
-    'Resistance': ['Resistance'],
-    '4-Wire Resistance': ['4-Wire Resistance'],
-    'Lightning Impulse Voltage (LI)': [
-      'LI Impulse Voltage',
-      'Determination of scale factor and measurement of Ut',
-      'Measurement of front time T1',
-      'Measurement of time to half value T2',
-      'Polarity Linearity Test'
-    ],
-    'Switching Impulse Voltage (SI)': [
-      'LI Impulse Voltage',
-      'Determination of scale factor and measurement of Ut',
-      'Measurement of front time T1',
-      'Measurement of time to half value T2',
-      'Polarity Linearity Test'
-    ],
-    'Frequency': ['Frequency'],
-    'Capacitance': ['Capacitance'],
-    'Other': []
-  };
 
   certificado: Certificado = {
     equipment_id: '',
@@ -112,10 +93,15 @@ export class Editcert implements OnInit {
   modoSepararSimbolo = false;
   columnasParaSeparar: Set<string> = new Set();
 
+  // Unidades múltiples por tabla (indexado por table_id)
+  unidadesPorTabla: Map<string, Set<string>> = new Map();
+
+  // Estado de imagen por tabla (para OCR)
+  imageStates: TableImageState[] = [];
+  ocrEnProceso = false;
+
   private lastTableSeq = 0;
-
   private guardMostrando = false;
-
   private salirSinConfirmar = false;
 
   textoExcel = '';
@@ -129,20 +115,119 @@ export class Editcert implements OnInit {
   ) {}
 
   ngOnInit(): void {
-    const certId = this.id || this.route.snapshot.paramMap.get('id');
-    if (certId) {
-      this.cargarCertificadoPorId(certId);
-    } else {
-      this.alert.error('No se proporcionó un ID de certificado válido.', 'Error de navegación');
-    }
+    // Cargar catálogo primero para que títulos/parámetros/unidades estén disponibles
+    this.cargarCatalogo().then(() => {
+      const certId = this.id || this.route.snapshot.paramMap.get('id');
+      if (certId) {
+        this.cargarCertificadoPorId(certId);
+      } else {
+        this.alert.error('No se proporcionó un ID de certificado válido.', 'Error de navegación');
+      }
+    });
+  }
+
+  private cargarCatalogo(): Promise<void> {
+    return new Promise((resolve) => {
+      this.catalogo.cargarCatalogo().subscribe({
+        next: () => resolve(),
+        error: (err) => {
+          console.error('Error cargando catálogo:', err);
+          this.alert.error('No se pudo cargar el catálogo de títulos/unidades.', 'Catálogo');
+          resolve();
+        }
+      });
+    });
   }
 
   estaBloqueado(campo: keyof Certificado): boolean {
     return this.camposBloqueados.includes(campo);
   }
 
-  // ========== 🔑 GENERACIÓN / PRESERVACIÓN DE table_id ==========
+  // ========== CATÁLOGO: getters ==========
+  get opcionesTitulo(): string[] {
+    return this.catalogo.listaTitulos().map(t => t.displayName);
+  }
 
+  obtenerOpcionesParametro(title: string): string[] {
+    return this.catalogo.subparametrosDe(title).map(s => s.displayName);
+  }
+
+  unidadesDeTabla(table: ResultTable): string[] {
+    return this.catalogo.unidadesPara(table.title, table.parameter);
+  }
+
+  labelTitulo(table: ResultTable): string {
+    if (!table.title) return '';
+    const label = this.catalogo.labelDeTitulo(table.title);
+    return label && label !== table.title ? label : '';
+  }
+
+  labelParametro(table: ResultTable): string {
+    if (!table.title || !table.parameter) return '';
+    const label = this.catalogo.labelDeSubparametro(table.title, table.parameter);
+    return label && label !== table.parameter ? label : '';
+  }
+
+  esTituloPredefinido(title: string): boolean {
+    return this.catalogo.listaTitulos().some(t => t.displayName === title);
+  }
+
+  // ========== SELECCIÓN MÚLTIPLE DE UNIDADES ==========
+  unidadesSeleccionadasDe(table: ResultTable): Set<string> {
+    const key = table.table_id || '';
+    if (!this.unidadesPorTabla.has(key)) {
+      // Inicializar desde `table.unit` si ya tenía algo (ej. al cargar el certificado)
+      const set = new Set<string>();
+      if (table.unit) {
+        String(table.unit).split(',').map(s => s.trim()).filter(Boolean).forEach(u => set.add(u));
+      }
+      this.unidadesPorTabla.set(key, set);
+    }
+    return this.unidadesPorTabla.get(key)!;
+  }
+
+  toggleUnidad(table: ResultTable, unidad: string): void {
+    const set = this.unidadesSeleccionadasDe(table);
+    if (set.has(unidad)) set.delete(unidad);
+    else set.add(unidad);
+    this.sincronizarUnitDesdeSeleccion(table);
+  }
+
+  unidadesPersonalizadasDe(table: ResultTable): string[] {
+    const catalogo = this.unidadesDeTabla(table);
+    const set = this.unidadesSeleccionadasDe(table);
+    return Array.from(set).filter(u => !catalogo.includes(u));
+  }
+
+  agregarUnidadPersonalizada(table: ResultTable, valor: string): void {
+    const limpio = (valor || '').trim();
+    if (!limpio) return;
+    const set = this.unidadesSeleccionadasDe(table);
+    set.add(limpio);
+    this.sincronizarUnitDesdeSeleccion(table);
+  }
+
+  quitarUnidadPersonalizada(table: ResultTable, valor: string): void {
+    const set = this.unidadesSeleccionadasDe(table);
+    set.delete(valor);
+    this.sincronizarUnitDesdeSeleccion(table);
+  }
+
+  private sincronizarUnitDesdeSeleccion(table: ResultTable): void {
+    const set = this.unidadesSeleccionadasDe(table);
+    table.unit = Array.from(set).join(', ');
+    this.sincronizarJsonTexto();
+    this.cdr.detectChanges();
+  }
+
+  private reconstruirUnitsDesdeSets(): void {
+    for (const table of this.resultTables) {
+      const set = this.unidadesSeleccionadasDe(table);
+      table.unit = Array.from(set).join(', ');
+    }
+  }
+
+  // ========== 🔑 GENERACIÓN / PRESERVACIÓN DE table_id ==========
   private extraerSecuenciaDeId(tableId: string | null | undefined): number | null {
     if (!tableId) return null;
     const m = String(tableId).match(/T(\d+)\s*$/i);
@@ -152,6 +237,8 @@ export class Editcert implements OnInit {
   private regenerarTableIds(): void {
     const folio = (this.certificado.cc || '').trim();
     const equipo = this.certificado.equipment_id || '';
+
+    const mapViejo: Array<{ oldId: string; nuevoId: string }> = [];
 
     this.resultTables.forEach(t => {
       const n = this.extraerSecuenciaDeId(t.table_id);
@@ -164,10 +251,24 @@ export class Editcert implements OnInit {
         this.lastTableSeq++;
         seq = this.lastTableSeq;
       }
-      t.table_id = folio ? `${folio}-T${seq}` : `T${seq}`;
+      const oldId = t.table_id;
+      const nuevoId = folio ? `${folio}-T${seq}` : `T${seq}`;
+      if (oldId && oldId !== nuevoId) {
+        mapViejo.push({ oldId, nuevoId });
+      }
+      t.table_id = nuevoId;
       t.cc_id = folio;
       t.equipment_id = equipo;
     });
+
+    // Remapear el Map de unidades
+    for (const { oldId, nuevoId } of mapViejo) {
+      const set = this.unidadesPorTabla.get(oldId);
+      if (set) {
+        this.unidadesPorTabla.delete(oldId);
+        this.unidadesPorTabla.set(nuevoId, set);
+      }
+    }
   }
 
   private nuevoTableIdParaAgregar(): string {
@@ -194,25 +295,50 @@ export class Editcert implements OnInit {
         this.lastTableSeq = 0;
 
         if (Array.isArray(rawTables) && rawTables.length > 0) {
-          this.resultTables = rawTables.map((table: any) => ({
-            title: table.title || '',
-            equipment_id: table.equipment_id || this.certificado.equipment_id || '',
-            cc_id: table.cc_id || this.certificado.cc || '',
-            pt: table.pt || '',
-            table_id: table.table_id || '',
-            parameter: table.parameter || '',
-            unit: table.unit || '',
-            calibration_equation: table.calibration_equation || '',
-            range: table.range || '',
-            comments: table.comments || '',
-            columns: table.columns || [],
-            rows: table.rows || []
-          }));
+          this.resultTables = rawTables.map((table: any) => {
+            let min_value = table.min_value ?? null;
+            let max_value = table.max_value ?? null;
+            const rangeRaw = typeof table.range === 'string' ? table.range.trim() : '';
+            if ((min_value === null || max_value === null) && rangeRaw) {
+              const parsed = this.parseRangeString(rangeRaw);
+              if (min_value === null) min_value = parsed.min;
+              if (max_value === null) max_value = parsed.max;
+            }
+
+            return {
+              title: table.title || '',
+              equipment_id: table.equipment_id || this.certificado.equipment_id || '',
+              cc_id: table.cc_id || this.certificado.cc || '',
+              pt: table.pt || '',
+              table_id: table.table_id || '',
+              parameter: table.parameter || '',
+              unit: table.unit || '',
+              min_value,
+              max_value,
+              range: rangeRaw,
+              comments: table.comments || '',
+              columns: table.columns || [],
+              rows: table.rows || []
+            } as ResultTable;
+          });
 
           this.regenerarTableIds();
         } else {
           this.resultTables = [this.crearEstructuraTablaInicial()];
         }
+
+        // Inicializar imageStates y units map
+        this.imageStates = this.resultTables.map(() => this.crearEstadoImagenVacio());
+        this.unidadesPorTabla.clear();
+        for (const table of this.resultTables) {
+          if (table.unit) {
+            const set = new Set(
+              String(table.unit).split(',').map(s => s.trim()).filter(Boolean)
+            );
+            if (set.size > 0) this.unidadesPorTabla.set(table.table_id, set);
+          }
+        }
+        this.reconstruirUnitsDesdeSets();
 
         this.sincronizarJsonTexto();
         this.cargando = false;
@@ -241,22 +367,51 @@ export class Editcert implements OnInit {
 
   private crearEstructuraTablaInicial(): ResultTable {
     const tableId = this.nuevoTableIdParaAgregar();
+    const titulos = this.catalogo.listaTitulos();
+    const tituloInicial = titulos.length > 0 ? titulos[0].displayName : 'DC Voltage';
+    const subs = this.catalogo.subparametrosDe(tituloInicial);
+    const paramInicial = subs.length > 0 ? subs[0].displayName : '';
+    const unidades = this.catalogo.unidadesPara(tituloInicial, paramInicial);
+    const unidadInicial = unidades.length > 0 ? unidades[0] : '';
+
     return {
-      title: 'DC Voltage',
+      title: tituloInicial,
       equipment_id: this.certificado.equipment_id || '',
       cc_id: this.certificado.cc || '',
       pt: this.certificado.data?.['Result Tables']?.[0]?.pt || '',
       table_id: tableId,
-      parameter: this.obtenerOpcionesParametro('DC Voltage')[0] || 'Voltage',
-      unit: '',
-      calibration_equation: '',
-      range: '',
+      parameter: paramInicial,
+      unit: unidadInicial,
+      min_value: null,
+      max_value: null,
+      range: unidadInicial,
       comments: '',
       columns: [
-        { key: 'reading', label: 'Reading', unit: 'V', type: 'number' },
+        { key: 'reading', label: 'Reading', unit: unidadInicial, type: 'number' },
       ],
       rows: [{}]
     };
+  }
+
+  private parseRangeString(range: string): { min: number | null; max: number | null } {
+    const s = String(range || '').trim();
+    if (!s) return { min: null, max: null };
+
+    let m = s.match(/^≥\s*(-?\d+(?:[.,]\d+)?)/);
+    if (m) return { min: Number(m[1].replace(',', '.')), max: null };
+
+    m = s.match(/^≤\s*(-?\d+(?:[.,]\d+)?)/);
+    if (m) return { min: null, max: Number(m[1].replace(',', '.')) };
+
+    m = s.match(/^(-?\d+(?:[.,]\d+)?)\s*-\s*(-?\d+(?:[.,]\d+)?)/);
+    if (m) {
+      return {
+        min: Number(m[1].replace(',', '.')),
+        max: Number(m[2].replace(',', '.')),
+      };
+    }
+
+    return { min: null, max: null };
   }
 
   // ========== JSON ==========
@@ -269,20 +424,51 @@ export class Editcert implements OnInit {
     this.sincronizarJsonTexto();
   }
 
-  esTituloPredefinido(title: string): boolean {
-    const predefinidos = this.opcionesTitulo.slice(0, -1);
-    return predefinidos.includes(title);
-  }
-
-  obtenerOpcionesParametro(title: string): string[] {
-    return this.opcionesParametroPorTitulo[title] || [];
-  }
-
   actualizarParametroSegunTitulo(table: ResultTable): void {
     const opciones = this.obtenerOpcionesParametro(table.title);
     if (opciones.length > 0 && !opciones.includes(table.parameter)) {
       table.parameter = opciones[0];
     }
+
+    const set = this.unidadesSeleccionadasDe(table);
+    if (set.size === 0) {
+      const unidades = this.catalogo.unidadesPara(table.title, table.parameter);
+      if (unidades.length > 0) set.add(unidades[0]);
+    } else {
+      const unidadesValidas = new Set(this.catalogo.unidadesPara(table.title, table.parameter));
+      const nuevas = new Set<string>();
+      for (const u of set) {
+        if (unidadesValidas.has(u)) nuevas.add(u);
+      }
+      if (nuevas.size === 0 && unidadesValidas.size > 0) {
+        nuevas.add(Array.from(unidadesValidas)[0]);
+      }
+      this.unidadesPorTabla.set(table.table_id, nuevas);
+    }
+    this.sincronizarUnitDesdeSeleccion(table);
+
+    this.regenerarTableIds();
+    this.sincronizarJsonTexto();
+  }
+
+  onParameterChange(table: ResultTable): void {
+    const set = this.unidadesSeleccionadasDe(table);
+    if (set.size === 0) {
+      const unidades = this.catalogo.unidadesPara(table.title, table.parameter);
+      if (unidades.length > 0) set.add(unidades[0]);
+    } else {
+      const unidadesValidas = new Set(this.catalogo.unidadesPara(table.title, table.parameter));
+      const nuevas = new Set<string>();
+      for (const u of set) {
+        if (unidadesValidas.has(u)) nuevas.add(u);
+      }
+      if (nuevas.size === 0 && unidadesValidas.size > 0) {
+        nuevas.add(Array.from(unidadesValidas)[0]);
+      }
+      this.unidadesPorTabla.set(table.table_id, nuevas);
+    }
+    this.sincronizarUnitDesdeSeleccion(table);
+    this.sincronizarJsonTexto();
   }
 
   private validarKey(
@@ -319,6 +505,16 @@ export class Editcert implements OnInit {
         if (!Array.isArray(t.columns) || !Array.isArray(t.rows)) {
           throw new Error(`Estructura inválida en la Tabla #${index + 1}. Debe incluir "columns" y "rows".`);
         }
+
+        let min_value = t.min_value ?? null;
+        let max_value = t.max_value ?? null;
+        const rangeRaw = typeof t.range === 'string' ? t.range.trim() : '';
+        if ((min_value === null || max_value === null) && rangeRaw) {
+          const parsed = this.parseRangeString(rangeRaw);
+          if (min_value === null) min_value = parsed.min;
+          if (max_value === null) max_value = parsed.max;
+        }
+
         return {
           title: t.title || '',
           equipment_id: t.equipment_id || this.certificado.equipment_id || '',
@@ -327,12 +523,13 @@ export class Editcert implements OnInit {
           table_id: t.table_id || '',
           parameter: t.parameter || '',
           unit: t.unit || '',
-          calibration_equation: t.calibration_equation || '',
-          range: t.range || '',
+          min_value,
+          max_value,
+          range: rangeRaw,
           comments: t.comments || '',
           columns: t.columns,
           rows: t.rows,
-        };
+        } as ResultTable;
       });
 
       if (tablasNuevas.length === 0) {
@@ -340,7 +537,20 @@ export class Editcert implements OnInit {
       }
 
       this.resultTables = tablasNuevas;
+      this.imageStates = tablasNuevas.map(() => this.crearEstadoImagenVacio());
       this.regenerarTableIds();
+
+      this.unidadesPorTabla.clear();
+      for (const table of this.resultTables) {
+        if (table.unit) {
+          const set = new Set(
+            String(table.unit).split(',').map(s => s.trim()).filter(Boolean)
+          );
+          if (set.size > 0) this.unidadesPorTabla.set(table.table_id, set);
+        }
+      }
+      this.reconstruirUnitsDesdeSets();
+
       this.sincronizarJsonTexto();
       this.cdr.detectChanges();
 
@@ -369,14 +579,23 @@ export class Editcert implements OnInit {
   agregarTabla(): void {
     const nueva = this.crearEstructuraTablaInicial();
     this.resultTables.push(nueva);
+    this.imageStates.push(this.crearEstadoImagenVacio());
+    if (nueva.unit) {
+      this.unidadesPorTabla.set(nueva.table_id, new Set([nueva.unit]));
+    }
     this.sincronizarJsonTexto();
     this.alert.info(`Tabla #${this.resultTables.length} agregada.`, 'Nueva tabla');
   }
 
   eliminarTabla(indexTable: number): void {
     if (this.resultTables.length > 1) {
-      this.resultTables.splice(indexTable, 1);
+      const eliminada = this.resultTables[indexTable];
+      this.unidadesPorTabla.delete(eliminada.table_id);
 
+      this.resultTables.splice(indexTable, 1);
+      this.imageStates.splice(indexTable, 1);
+
+      // Reindexar selecciones de columnas
       const nuevasSelecciones = new Set<string>();
       this.columnasParaLimpiar.forEach(id => {
         const [tIdx, cIdx] = id.split('-').map(Number);
@@ -393,6 +612,7 @@ export class Editcert implements OnInit {
       });
       this.columnasParaSeparar = nuevasSeparaciones;
 
+      this.regenerarTableIds();
       this.sincronizarJsonTexto();
       this.alert.warning(`Tabla #${indexTable + 1} eliminada.`, 'Tabla eliminada');
     }
@@ -452,8 +672,7 @@ export class Editcert implements OnInit {
     this.sincronizarJsonTexto();
   }
 
-  //
-
+  // ========== CARGA DESDE EXCEL ==========
   async abrirCargaExcel(tableIndex: number, columnIndex: number): Promise<void> {
     const table = this.resultTables[tableIndex];
     if (!table) return;
@@ -462,7 +681,6 @@ export class Editcert implements OnInit {
 
     const filasActuales = table.rows.length;
 
-    // Llamamos a nuestro nuevo formulario modal
     const values = await this.alert.form({
       title: 'Carga desde Excel',
       message: `Pega los datos para la columna <b>"${col.label}"</b>.<br><small class="text-muted">La columna tiene ${filasActuales} fila(s). La primera línea debe ser el encabezado.</small>`,
@@ -470,7 +688,7 @@ export class Editcert implements OnInit {
       confirmText: 'Procesar datos',
       cancelText: 'Cancelar',
       dismissible: true,
-      size: 'md', // 'md' o 'lg' dependiendo de cuánto espacio necesites
+      size: 'md',
       form: {
         columns: 1,
         submitText: 'Procesar',
@@ -483,13 +701,11 @@ export class Editcert implements OnInit {
             rows: 10,
             required: true,
             placeholder: 'Encabezado\nDato 1\nDato 2\nDato 3...',
-            // No ponemos 'fullWidth' porque al ser 1 columna ya ocupa todo
           }
         ]
       }
     });
 
-    // Si el usuario cancela, `values` será null
     if (values === null) return;
 
     const texto = String(values['textoExcel'] ?? '').trim();
@@ -499,7 +715,6 @@ export class Editcert implements OnInit {
       return;
     }
 
-    // Reutilizamos el método que ya teníamos
     this.aplicarDatosExcel(table, col, texto);
   }
 
@@ -520,7 +735,6 @@ export class Editcert implements OnInit {
       return;
     }
 
-    // Primera línea = encabezado
     const encabezado = lineas[0];
     const datos = lineas.slice(1);
 
@@ -544,24 +758,19 @@ export class Editcert implements OnInit {
       return;
     }
 
-    // Convertir cada valor según el tipo de la columna
     const convertir = (v: string): any => {
       if (col.type === 'number') {
-        const num = this.extraerNumeroDeTexto(v);
-        return num;
+        return this.extraerNumeroDeTexto(v);
       }
       return v;
     };
 
-    // Aplicar los datos a las filas existentes
     table.rows.forEach((row, idx) => {
       if (idx < datos.length) {
         row[col.key] = convertir(datos[idx]);
       }
-      // Si hay más filas que datos, las restantes se dejan intactas
     });
 
-    // Actualizar el label si el encabezado es distinto
     if (encabezado && encabezado !== col.label) {
       col.label = encabezado;
     }
@@ -577,7 +786,7 @@ export class Editcert implements OnInit {
   }
 
   // ============================================================
-  // MODO 1: ELIMINAR TEXTO (soporta múltiples tablas/columnas)
+  // MODO 1: ELIMINAR TEXTO
   // ============================================================
   toggleModoEliminarTexto(): void {
     this.modoEliminarTexto = !this.modoEliminarTexto;
@@ -666,7 +875,7 @@ export class Editcert implements OnInit {
   }
 
   // ============================================================
-  // MODO 2: SEPARAR SÍMBOLO "±" (soporta múltiples tablas/columnas)
+  // MODO 2: SEPARAR SÍMBOLO "±"
   // ============================================================
   toggleModoSepararSimbolo(): void {
     this.modoSepararSimbolo = !this.modoSepararSimbolo;
@@ -836,6 +1045,404 @@ export class Editcert implements OnInit {
     }
   }
 
+  // ========== ESTADO DE IMAGEN ==========
+  private crearEstadoImagenVacio(): TableImageState {
+    return {
+      imageChangedEvent: null, pasteImageFile: undefined, croppedImageBase64: '',
+      cargando: false, tieneEncabezado: true
+    };
+  }
+
+  // ========== MÉTODOS DE IMAGEN / OCR ==========
+  onPaste(event: ClipboardEvent, tableIndex: number): void {
+    if (!this.isBrowser) return;
+    const state = this.imageStates[tableIndex];
+    if (!state) return;
+    const items = event.clipboardData?.items;
+    if (!items) return;
+
+    let imagenEncontrada = false;
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.startsWith('image/')) {
+        const file = items[i].getAsFile();
+        if (file) {
+          state.imageChangedEvent = null;
+          state.croppedImageBase64 = '';
+          state.pasteImageFile = new File([file], `pasted_image_${Date.now()}.png`, { type: file.type });
+          this.cdr.detectChanges();
+          imagenEncontrada = true;
+        }
+        break;
+      }
+    }
+    if (!imagenEncontrada) this.alert.warning('El contenido pegado no es una imagen válida.');
+  }
+
+  fileChangeEvent(event: Event, tableIndex: number): void {
+    const state = this.imageStates[tableIndex];
+    if (!state) return;
+    state.pasteImageFile = undefined;
+    state.croppedImageBase64 = '';
+    state.imageChangedEvent = event;
+  }
+
+  imageCropped(event: ImageCroppedEvent, tableIndex: number): void {
+    const state = this.imageStates[tableIndex];
+    if (!state) return;
+    if (event.base64) {
+      state.croppedImageBase64 = event.base64;
+    } else if (event.objectUrl && this.isBrowser) {
+      this.blobToBase64(event.objectUrl).then(base64 => {
+        state.croppedImageBase64 = base64;
+        this.cdr.detectChanges();
+      });
+    }
+  }
+
+  imageLoaded(_image?: LoadedImage): void { this.cdr.detectChanges(); }
+  cropperReady(): void { /* listo */ }
+  loadImageFailed(_tableIndex?: number): void { this.alert.error('Error al cargar la imagen. Intenta con otra captura o archivo.'); }
+
+  cancelarImagen(tableIndex: number): void {
+    const state = this.imageStates[tableIndex];
+    if (!state) return;
+    state.imageChangedEvent = null;
+    state.pasteImageFile = undefined;
+    state.croppedImageBase64 = '';
+    state.cargando = false;
+    this.cdr.detectChanges();
+  }
+
+  private blobToBase64(blobUrl: string): Promise<string> {
+    if (!this.isBrowser) return Promise.resolve('');
+    return fetch(blobUrl).then(r => r.blob()).then(
+      blob => new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      })
+    );
+  }
+
+  enviarANode(tableIndex: number): void {
+    const state = this.imageStates[tableIndex];
+    const table = this.resultTables[tableIndex];
+    if (!state || !table) return;
+
+    if (this.ocrEnProceso || state.cargando) {
+      this.alert.info('Ya hay un proceso de extracción en curso.');
+      return;
+    }
+    if (!state.pasteImageFile && !state.imageChangedEvent) {
+      this.alert.warning('Por favor selecciona o pega una imagen primero.');
+      return;
+    }
+    if (!state.croppedImageBase64) {
+      this.alert.warning('Ajusta el área de selección sobre la tabla antes de extraer.');
+      return;
+    }
+
+    this.ocrEnProceso = true;
+    state.cargando = true;
+    this.cdr.detectChanges();
+
+    const terminar = () => {
+      this.ocrEnProceso = false;
+      state.cargando = false;
+      try { this.cdr.detectChanges(); } catch { /* noop */ }
+    };
+
+    this.imageService.procesarTabla(state.croppedImageBase64).subscribe({
+      next: (res: any) => {
+        try {
+          if (res?.success && res?.table) {
+            const tableText = String(res.table).trim();
+            let headers: string[] = [];
+            let rows: string[][] = [];
+
+            if (tableText.startsWith('<table')) {
+              const parsed = this.parseTableHtml(tableText);
+              headers = parsed.headers;
+              rows = parsed.rows;
+            } else {
+              const parsed = this.parseTableText(tableText);
+              headers = parsed.headers;
+              rows = parsed.rows;
+            }
+
+            if (headers.length > 0 && rows.length > 0) {
+              this.aplicarDatosExtraidos(tableIndex, headers, rows, state.tieneEncabezado);
+              this.alert.confirm(
+                'La AI puede cometer errores. Verifica los valores extraídos antes de continuar.',
+                '⚠ Revisa los datos',
+                { type: 'warning', confirmText: 'Entendido, los reviso', cancelText: 'Cerrar', dismissible: false }
+              ).then(revisar => {
+                if (revisar) this.alert.success('Los datos se vaciaron correctamente.', 'OCR completado');
+                else this.alert.info('Puedes revisar los datos antes de guardar.');
+              });
+            } else {
+              this.alert.error('No se pudo extraer una tabla válida de la imagen.', 'OCR');
+            }
+          } else {
+            this.alert.error('No se pudo extraer la tabla.', 'OCR');
+          }
+        } catch (e) {
+          console.error('Error procesando la respuesta:', e);
+          this.alert.error('Error al procesar la respuesta del servidor.', 'Error OCR');
+        } finally {
+          terminar();
+        }
+      },
+      error: (err: any) => {
+        console.error('Error en servidor:', err);
+        this.alert.error('Ocurrió un error al procesar la tabla en el servidor.', 'Error OCR');
+        terminar();
+      },
+      complete: () => terminar()
+    });
+  }
+
+  // ========== NOTACIÓN CIENTÍFICA ==========
+  private expandirNotacionCientifica(raw: string): string {
+    let s = String(raw ?? '').trim();
+    if (!s) return '';
+
+    if (/^-?\d+,\d+(?:[eE][+-]?\d+)?$/.test(s)) s = s.replace(',', '.');
+    if (!/[eE]/.test(s)) return s;
+
+    const num = Number(s);
+    if (isNaN(num) || !isFinite(num)) return s;
+
+    let resultado = num.toLocaleString('en-US', {
+      useGrouping: false,
+      maximumSignificantDigits: 21
+    });
+
+    if (/[eE]/.test(resultado)) {
+      const str = num.toString();
+      const m = str.match(/^(-?)(\d+)(?:\.(\d+))?[eE]([+-]?\d+)$/);
+      if (m) {
+        const signo = m[1];
+        const entero = m[2];
+        const decimales = m[3] || '';
+        const exp = parseInt(m[4], 10);
+        const digitos = entero + decimales;
+        const puntoPos = entero.length + exp;
+        if (puntoPos <= 0) resultado = signo + '0.' + '0'.repeat(-puntoPos) + digitos;
+        else if (puntoPos >= digitos.length) resultado = signo + digitos + '0'.repeat(puntoPos - digitos.length);
+        else resultado = signo + digitos.slice(0, puntoPos) + '.' + digitos.slice(puntoPos);
+      }
+    }
+    return resultado;
+  }
+
+  // ========== PARSEADOR DE TEXTO ==========
+  private parseTableText(text: string): { headers: string[]; rows: string[][] } {
+    const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    if (lines.length < 1) return { headers: [], rows: [] };
+
+    const normalizedLines = lines.map(line => {
+      if (line.includes('\t')) return line.replace(/\t/g, ' | ');
+      if (line.includes(';')) return line.replace(/;/g, ' | ');
+      if (line.includes('|') && !line.includes(' | ')) return line.replace(/\|/g, ' | ');
+      if (line.match(/\s{2,}/)) return line.replace(/\s{2,}/g, ' | ');
+      return line;
+    });
+
+    const separator = ' | ';
+    const headers = normalizedLines[0].split(separator).map(h => h.trim()).filter(h => h.length > 0);
+    if (headers.length === 0) return { headers: [], rows: [] };
+
+    const rows: string[][] = [];
+    for (let i = 1; i < normalizedLines.length; i++) {
+      let cells = normalizedLines[i].split(separator).map(c => c.trim());
+      while (cells.length < headers.length) cells.push('');
+      if (cells.length > headers.length) cells = cells.slice(0, headers.length);
+      rows.push(cells);
+    }
+    return { headers, rows };
+  }
+
+  // ========== PARSEADOR DE HTML ==========
+  private parseTableHtml(html: string): { headers: string[]; rows: string[][] } {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+    const tables = doc.querySelectorAll('table');
+    if (tables.length === 0) return { headers: [], rows: [] };
+
+    const table = tables[0];
+    const allRows = table.querySelectorAll('tr');
+    if (allRows.length === 0) return { headers: [], rows: [] };
+
+    const isHeaderRow = (row: Element): boolean => {
+      const cells = row.querySelectorAll('th, td');
+      let textCells = 0;
+      cells.forEach(cell => {
+        const text = cell.textContent?.trim() || '';
+        if (text === '') return;
+        if (/[a-zA-ZáéíóúÁÉÍÓÚñÑ]/.test(text)) textCells++;
+      });
+      return cells.length > 0 && (textCells / cells.length) > 0.5;
+    };
+
+    let headerRowIndex = 0;
+    let dataStartIndex = 1;
+    let foundHeader = false;
+
+    for (let i = 0; i < allRows.length; i++) {
+      const row = allRows[i];
+      if (row.querySelector('th') !== null) { headerRowIndex = i; dataStartIndex = i + 1; foundHeader = true; break; }
+      if (isHeaderRow(row)) { headerRowIndex = i; dataStartIndex = i + 1; foundHeader = true; break; }
+    }
+
+    if (!foundHeader) { headerRowIndex = 0; dataStartIndex = 1; }
+
+    const headerRow = allRows[headerRowIndex];
+    const headerCells = headerRow.querySelectorAll('th, td');
+
+    const headers: string[] = [];
+    headerCells.forEach(cell => {
+      const text = cell.textContent?.trim() || '';
+      const colspan = parseInt(cell.getAttribute('colspan') || '1', 10);
+      if (text === '') { for (let c = 1; c < colspan; c++) headers.push(''); return; }
+      headers.push(text);
+      for (let c = 1; c < colspan; c++) headers.push(text);
+    });
+
+    if (headers.length === 0) return { headers: [], rows: [] };
+
+    const dataRows = Array.from(allRows).slice(dataStartIndex);
+    const rows: string[][] = [];
+    const activeRowspan: { [col: number]: { value: string; remaining: number } } = {};
+
+    dataRows.forEach(row => {
+      const cells = Array.from(row.querySelectorAll('td, th'));
+      const rowData: string[] = new Array(headers.length).fill('');
+
+      for (let col = 0; col < headers.length; col++) {
+        if (activeRowspan[col] && activeRowspan[col].remaining > 0) {
+          rowData[col] = activeRowspan[col].value;
+          activeRowspan[col].remaining--;
+          if (activeRowspan[col].remaining === 0) delete activeRowspan[col];
+        }
+      }
+
+      let cellIndex = 0;
+      for (let col = 0; col < headers.length; col++) {
+        if (rowData[col] !== '') continue;
+        while (cellIndex < cells.length) {
+          const cell = cells[cellIndex];
+          const value = cell.textContent?.trim() || '';
+          const rowspan = parseInt(cell.getAttribute('rowspan') || '1', 10);
+          const colspan = parseInt(cell.getAttribute('colspan') || '1', 10);
+          if (value === '' && rowspan <= 1 && colspan <= 1) { cellIndex++; continue; }
+          rowData[col] = value;
+          if (rowspan > 1) activeRowspan[col] = { value, remaining: rowspan - 1 };
+          for (let c = 1; c < colspan; c++) { if (col + c < headers.length) rowData[col + c] = value; }
+          cellIndex++;
+          break;
+        }
+      }
+
+      const tieneAlgunValor = rowData.some(v => v !== '');
+      if (!tieneAlgunValor) return;
+      rows.push(rowData);
+    });
+
+    const lastValues: string[] = new Array(headers.length).fill('');
+    const finalRows: string[][] = rows.map(row => {
+      const newRow: string[] = [];
+      for (let col = 0; col < headers.length; col++) {
+        let val = row[col];
+        if (val === '' && lastValues[col] !== '') val = lastValues[col];
+        newRow.push(val);
+        if (val !== '') lastValues[col] = val;
+      }
+      return newRow;
+    });
+
+    return { headers, rows: finalRows };
+  }
+
+  private aplicarDatosExtraidos(indexTable: number, headers: string[], rows: string[][], tieneEncabezado: boolean): void {
+    const table = this.resultTables[indexTable];
+    if (!table) return;
+
+    let headersEfectivos: string[];
+    let filasEfectivas: string[][];
+
+    if (tieneEncabezado) {
+      headersEfectivos = headers;
+      filasEfectivas = rows;
+    } else {
+      headersEfectivos = headers.map((_, idx) => `col_${idx + 1}`);
+      filasEfectivas = [headers.slice(), ...rows];
+    }
+
+    const rowsProcesadas: string[][] = filasEfectivas.map(row =>
+      row.map(celda => this.expandirNotacionCientifica(celda))
+    );
+
+    const usedKeys = new Set<string>();
+    const newColumns: Column[] = headersEfectivos.map((header, idx) => {
+      const baseKey = (header || '').trim().toLowerCase().normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || `column_${idx + 1}`;
+
+      let key = baseKey;
+      let counter = 1;
+      while (usedKeys.has(key)) key = `${baseKey}_${counter++}`;
+      usedKeys.add(key);
+
+      let type: TipoDato = 'string';
+      for (const row of rowsProcesadas) {
+        const raw = row[idx];
+        if (raw === undefined || raw === null || String(raw).trim() === '') continue;
+        if (this.esNumeroValido(String(raw))) type = 'number';
+        break;
+      }
+      return { key, label: header || `Col ${idx + 1}`, unit: '', type };
+    });
+
+    const newRows = rowsProcesadas.map(row => {
+      const obj: Record<string, any> = {};
+      newColumns.forEach((col, idx) => {
+        const raw = row[idx];
+        if (col.type === 'number') {
+          if (raw === undefined || raw === null || String(raw).trim() === '') obj[col.key] = null;
+          else {
+            const s = String(raw).trim().replace(',', '.');
+            const num = Number(s);
+            obj[col.key] = isNaN(num) || !isFinite(num) ? null : num;
+          }
+        } else {
+          obj[col.key] = raw !== undefined && raw !== null && String(raw) !== '' ? String(raw) : null;
+        }
+      });
+      return obj;
+    });
+
+    table.columns = newColumns;
+    table.rows = newRows.length > 0 ? newRows : [{}];
+    this.sincronizarJsonTexto();
+    this.cdr.detectChanges();
+  }
+
+  // ========== VALIDADORES NUMÉRICOS ==========
+  esNumeroValido(s: string): boolean {
+    const t = (s ?? '').trim();
+    if (!t) return false;
+    return /^-?(?:\d+[.,]?\d*|[.,]\d+)(?:[eE][+-]?\d+)?$/.test(t);
+  }
+
+  esValorInvalido(valor: any, col: Column): boolean {
+    if (col.type !== 'number') return false;
+    if (valor === null || valor === undefined) return false;
+    if (typeof valor === 'number') return !isFinite(valor);
+    if (String(valor).trim() === '') return false;
+    return !this.esNumeroValido(String(valor));
+  }
+
   // ========== CONSTRUCCIÓN DEL JSON ==========
   obtenerJsonEstructurado(): object {
     this.regenerarTableIds();
@@ -865,6 +1472,9 @@ export class Editcert implements OnInit {
         return nuevaFila;
       });
 
+      const set = this.unidadesPorTabla.get(table.table_id);
+      const unitFinal = set ? Array.from(set).join(', ') : (table.unit || '');
+
       return {
         table_id: table.table_id,
         cc_id: this.certificado.cc || '',
@@ -872,9 +1482,10 @@ export class Editcert implements OnInit {
         title: table.title || '',
         equipment_id: this.certificado.equipment_id,
         parameter: table.parameter || '',
-        unit: table.unit || '',
-        calibration_equation: table.calibration_equation || '',
-        range: table.range || '',
+        unit: unitFinal,
+        range: unitFinal,
+        min_value: table.min_value ?? null,
+        max_value: table.max_value ?? null,
         comments: table.comments || '',
         columns: table.columns,
         rows: filasProcesadas
@@ -1050,9 +1661,7 @@ export class Editcert implements OnInit {
     }, 1200);
   }
 
-  // ================================================================
-  //  🚪 GUARD · Confirmación antes de cambiar de página
-  // ================================================================
+  // ========== GUARD ==========
   private tieneCambios(): boolean {
     if (!this.certificado) return false;
 
@@ -1062,7 +1671,9 @@ export class Editcert implements OnInit {
     }
 
     for (const t of this.resultTables) {
-      if (t.calibration_equation || t.range || t.comments) return true;
+      if (t.range || t.comments) return true;
+      if (t.min_value !== null && t.min_value !== undefined) return true;
+      if (t.max_value !== null && t.max_value !== undefined) return true;
       const tieneFilas = t.rows.some(row =>
         Object.values(row).some(v => v !== null && v !== '' && v !== undefined)
       );
@@ -1096,281 +1707,39 @@ export class Editcert implements OnInit {
     }
   }
 
+  // ========== AYUDA ==========
   ayuda(modal: string): void {
     const clave = String(modal ?? '').trim().toLowerCase();
-
     let detalle = '';
 
     if (clave === 'general') {
       detalle = `
         <h3 style="margin-top:0; color:#0d6efd;">1. Datos generales del certificado (edición)</h3>
-        <p>Esta vista permite <b>corregir</b> un certificado ya existente. Por seguridad, algunos campos están <b>bloqueados</b> y solo se pueden cambiar desde el flujo de creación. Los campos editables son:</p>
-
-        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Campos editables</h4>
-        <ul>
-          <li><b>Fecha de calibración:</b> editable. Debe ser <b>igual o anterior</b> a la fecha del certificado y <b>no puede ser futura</b>.</li>
-          <li><b>Fecha del certificado:</b> editable. No puede ser anterior a la de calibración ni futura.</li>
-          <li><b>Entidad emisora:</b> organismo que emite el certificado (p. ej. <code>LECOE</code>).</li>
-          <li><b>Resolución:</b> resolución del instrumento calibrado.</li>
-          <li><b>Comentarios:</b> notas generales del certificado.</li>
-        </ul>
-
-        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Campos bloqueados</h4>
-        <ul>
-          <li><b>ID del equipo, Nombre del equipo, Folio / CC, PT, Intervalo, Tipo, Activo.</b></li>
-          <li>Se bloquean porque afectan la relación con el patrón, los <code>table_id</code> y la CMC del instrumento. Si necesitas cambiarlos, crea un nuevo certificado o usa el flujo de alta.</li>
-        </ul>
-
-        <p style="color:#6c757d; font-size:0.9em;"><i>Al intentar salir sin guardar, el sistema te preguntará si quieres descartar los cambios. Al guardar se te redirige al listado de certificados.</i></p>
+        <p>Esta vista permite <b>corregir</b> un certificado ya existente. Por seguridad, algunos campos están <b>bloqueados</b>.</p>
       `;
     } else if (clave === 'tablas') {
       detalle = `
         <h3 style="margin-top:0; color:#fd7e14;">2. Estructura de las tablas</h3>
-        <p>Cada certificado contiene una o más tablas. En modo edición puedes <b>agregar</b>, <b>eliminar</b> y <b>reordenar</b> columnas y filas sin restricción.</p>
-
-        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Encabezado de la tabla</h4>
-        <ul>
-          <li><b>Título:</b> magnitud general (<code>DC Voltage</code>, <code>AC Voltage</code>, <code>Resistance</code>, …).</li>
-          <li><b>Mesurando:</b> variante específica dentro del título (<code>Voltage</code>, <code>RMS Voltage</code>, <code>PP</code>, …).</li>
-          <li><b>Unidad:</b> unidad de los valores de la tabla.</li>
-          <li><b>Rango:</b> descripción del rango medido (<code>0 V – 100 V</code>).</li>
-          <li><b>Ecuación de calibración:</b> si el certificado la reporta.</li>
-          <li><b>CC ID / Table ID:</b> generados automáticamente. El <code>Table ID</code> conserva la secuencia original del certificado (<code>-T1</code>, <code>-T2</code>, …).</li>
-        </ul>
-
-        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Columnas</h4>
-        <ul>
-          <li>Cada columna tiene cuatro atributos editables:
-            <ul>
-              <li><b>key:</b> identificador técnico (minúsculas, números y guiones bajos). Debe ser único en la tabla.</li>
-              <li><b>label:</b> nombre visible.</li>
-              <li><b>unit:</b> unidad específica de la columna (opcional).</li>
-              <li><b>type:</b> <code>number</code> o <code>string</code>. Al cambiarlo, <b>los valores de la columna se vacían</b> para evitar inconsistencias.</li>
-            </ul>
-          </li>
-          <li>Usa el botón <b>×</b> del encabezado para eliminar una columna (solo si hay más de una).</li>
-        </ul>
-
-        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Filas</h4>
-        <ul>
-          <li>Cada fila es un punto de medición. Las celdas vacías se muestran con el placeholder <code>null</code>.</li>
-          <li>El botón <b>×</b> al final de la fila la elimina (solo si hay más de una).</li>
-        </ul>
-
-        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Navegación con Tab</h4>
-        <ul>
-          <li>Elige entre navegación <b>vertical</b> (↓) u <b>horizontal</b> (→) al moverte con <kbd>Tab</kbd>.</li>
-        </ul>
-
-        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Comentarios de tabla</h4>
-        <p>Notas específicas de esa tabla (condiciones, observaciones). Se guardan dentro de la tabla.</p>
+        <p>Cada certificado contiene una o más tablas. En modo edición puedes <b>agregar</b>, <b>eliminar</b> y <b>reordenar</b> columnas y filas.</p>
+        <h4>Unidades múltiples</h4>
+        <p>Puedes seleccionar <b>varias unidades</b> por tabla. Se guardan separadas por coma en <code>unit</code>: <code>"mV, V, kV"</code>.</p>
       `;
-    } else if (clave === 'eliminar-texto') {
+    } else if (clave === 'ocr') {
       detalle = `
-        <h3 style="margin-top:0; color:#ffc107;">3. Modo "Eliminar Texto"</h3>
-        <p>Convierte columnas con valores <b>mezclados de texto y números</b> (por ejemplo <code>1.1A</code>, <code>0.5 V</code>, <code>10 mV</code>) en <b>valores numéricos limpios</b> (<code>1.1</code>, <code>0.5</code>, <code>10</code>).</p>
-
-        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">¿Para qué sirve?</h4>
-        <p>Muchos certificados reportan los valores con la unidad incluida. La app de CMC necesita solo el <b>número</b> para calcular promedios, incertidumbres y errores. Este modo evita que tengas que corregir celda por celda.</p>
-
-        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Cómo usarlo (paso a paso)</h4>
-        <ol>
-          <li>Activa el botón <b>Eliminar Texto</b> en la barra superior. Aparecerá el banner amarillo.</li>
-          <li>En cada encabezado de columna verás un pill <b>🎯 Limpiar texto</b>. Haz clic en los que quieras procesar (puedes elegir varios, incluso de <b>tablas diferentes</b>).</li>
-          <li>Cuando estén seleccionados (aparecerán con ✅ y borde amarillo), presiona el botón <b>🧹 Formatear Texto</b> al final de la lista de tablas.</li>
-          <li>Al terminar, cada columna seleccionada:
-            <ul>
-              <li>Queda forzada a <code>type = number</code>.</li>
-              <li>Sus celdas se convierten al número extraído del texto.</li>
-            </ul>
-          </li>
-        </ol>
-
-        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Cómo interpreta los valores</h4>
-        <ul>
-          <li><b>Coma decimal europea</b> se normaliza a punto: <code>1,5</code> → <code>1.5</code>.</li>
-          <li>Se toma el <b>primer número</b> que aparezca en el texto: <code>±0.21 V</code> → <code>0.21</code>.</li>
-          <li>Se respeta el signo negativo: <code>-1.2A</code> → <code>-1.2</code>.</li>
-          <li>Se soporta notación científica: <code>1.2e-3 V</code> → <code>0.0012</code> (aplicado en la conversión).</li>
-        </ul>
-
-        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Casos en los que NO se aplica</h4>
-        <ul>
-          <li>Celdas vacías o con <code>null</code>: se dejan como están.</li>
-          <li>Textos que no contienen ningún número (<code>N/A</code>, <code>--</code>): se dejan tal cual y se cuentan como "no convertidos".</li>
-          <li>Si no se convierte ningún valor, verás un aviso de <em>Sin cambios</em>.</li>
-        </ul>
-
+        <h3 style="margin-top:0; color:#6f42c1;">3. Extracción desde imagen (OCR)</h3>
+        <p>Pega una imagen, recorta la tabla y presiona "Extraer Tabla".</p>
         <div style="background:#fff3cd; border-left:4px solid #ffc107; padding:.6rem .8rem; border-radius:.35rem; margin:.9rem 0;">
-          <b>⚠ Advertencia</b>
-          <ul style="margin:.35rem 0 0; padding-left:1.2rem;">
-            <li>Este modo <b>sobrescribe los valores originales</b> de la columna. Si querías conservarlos, haz una copia antes (agrega una columna nueva y cópialos).</li>
-            <li>El cambio <b>no se puede deshacer</b> desde la interfaz: si algo sale mal, tendrás que corregir celda por celda o recargar sin guardar.</li>
-          </ul>
-        </div>
-
-        <p style="color:#6c757d; font-size:0.9em;"><i>Ideal para columnas tipo <code>Lectura</code>, <code>Error</code>, <code>Incertidumbre</code> que vienen con unidades embebidas.</i></p>
-      `;
-    } else if (clave === 'separar-simbolo') {
-      detalle = `
-        <h3 style="margin-top:0; color:#0dcaf0;">4. Modo "Separar ±"</h3>
-        <p>Divide una columna que contiene pares del tipo <code>0.226 ± 0.21</code> en <b>dos columnas</b>: <code>Error Relativo</code> e <code>Incertidumbre</code>. Muy útil cuando el certificado reporta ambos valores juntos en una sola celda.</p>
-
-        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">¿Para qué sirve?</h4>
-        <p>La app de CMC necesita los valores de <b>error</b> e <b>incertidumbre</b> por separado. Este modo evita partirlos manualmente fila por fila.</p>
-
-        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Cómo usarlo (paso a paso)</h4>
-        <ol>
-          <li>Activa el botón <b>Separar ±</b> en la barra superior. Aparecerá el banner celeste.</li>
-          <li>En cada encabezado de columna verás un pill <b>✂️ Separar ±</b>. Haz clic en los que quieras procesar (puedes elegir varios, incluso de <b>tablas diferentes</b>).</li>
-          <li>Cuando estén seleccionados (aparecerán con ✅ y borde celeste), presiona el botón <b>✂️ Separar Columnas</b> al final de la lista de tablas.</li>
-          <li>Por cada columna seleccionada:
-            <ul>
-              <li>La columna original se <b>elimina</b>.</li>
-              <li>Se crean dos columnas nuevas en su lugar (con la misma unidad):
-                <ul>
-                  <li><b>Error Relativo</b> — valor antes del <code>±</code>.</li>
-                  <li><b>Incertidumbre</b> — valor después del <code>±</code>.</li>
-                </ul>
-              </li>
-              <li>Ambas quedan forzadas a <code>type = number</code>.</li>
-            </ul>
-          </li>
-        </ol>
-
-        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Ejemplo</h4>
-        <p>Si la columna <code>resultado</code> tiene:</p>
-        <pre style="background:#f8f9fa; padding:.6rem; border-radius:.35rem; font-size:.85em;">0.226 ± 0.21
-  -0.05 ± 0.03
-  1.20 V ± 0.05 V</pre>
-        <p>Al separar quedará:</p>
-        <pre style="background:#f8f9fa; padding:.6rem; border-radius:.35rem; font-size:.85em;">Error Relativo | Incertidumbre
-  0.226          | 0.21
-  -0.05          | 0.03
-  1.20           | 0.05</pre>
-
-        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Cómo interpreta los valores</h4>
-        <ul>
-          <li><b>Se extrae el primer número</b> de cada lado del <code>±</code>. Ignora unidades, símbolos y espacios.</li>
-          <li>Coma decimal → punto: <code>0,226</code> → <code>0.226</code>.</li>
-          <li>Si una fila <b>no tiene</b> <code>±</code>: se usa el valor completo como <code>Error Relativo</code> y <code>Incertidumbre</code> queda en <code>null</code>.</li>
-          <li>Si una fila está vacía: ambas columnas quedan en <code>null</code>.</li>
-        </ul>
-
-        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Comportamiento especial</h4>
-        <ul>
-          <li>Si <b>ninguna</b> columna seleccionada contiene al menos un <code>±</code>, no se hace ningún cambio y se muestra un error.</li>
-          <li>Si <b>algunas</b> columnas no contienen <code>±</code>, esas se omiten y se informa cuántas fueron descartadas.</li>
-          <li>Si ya existían columnas con key <code>error_relativo</code> o <code>incertidumbre</code>, se les añade un sufijo numérico (<code>_1</code>, <code>_2</code>) para evitar colisiones.</li>
-        </ul>
-
-        <div style="background:#fff3cd; border-left:4px solid #ffc107; padding:.6rem .8rem; border-radius:.35rem; margin:.9rem 0;">
-          <b>⚠ Advertencia</b>
-          <ul style="margin:.35rem 0 0; padding-left:1.2rem;">
-            <li>La columna original <b>se elimina</b>. Si querías conservar los datos tal cual venían, agrega una columna de respaldo antes de separar.</li>
-            <li>La operación <b>no se puede deshacer</b> desde la interfaz.</li>
-            <li>Revisa los resultados columna por columna: si el certificado usa otro separador (por ejemplo <code>+/-</code> o <code>+−</code>), este modo <b>no lo detectará</b>.</li>
-          </ul>
-        </div>
-      `;
-    // 🆕 NUEVO APARTADO DE AYUDA: CARGAR DATOS DESDE EXCEL
-    } else if (clave === 'cargar-excel') {
-      detalle = `
-        <h3 style="margin-top:0; color:#198754;">5. Modo "Cargar datos desde Excel"</h3>
-        <p>Permite <b>pegar una columna completa</b> copiada desde Excel (o cualquier hoja de cálculo) directamente en una columna de la tabla, evitando capturar celda por celda.</p>
-
-        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">¿Para qué sirve?</h4>
-        <p>Cuando el certificado original ya viene en Excel, basta con copiar la columna y pegarla aquí. El sistema respeta el encabezado y asigna cada valor a su fila correspondiente.</p>
-
-        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Cómo usarlo (paso a paso)</h4>
-        <ol>
-          <li>En el encabezado de la columna destino, presiona el botón <b>📋 Cargar datos de Excel</b>.</li>
-          <li>Se abrirá un cuadro de diálogo titulado <b>"Pegar columna"</b> con un área de texto.</li>
-          <li>En Excel, selecciona la columna incluyendo el <b>encabezado</b> y cópiala (<kbd>Ctrl</kbd>+<kbd>C</kbd>).</li>
-          <li>Pega el contenido en el área de texto (<kbd>Ctrl</kbd>+<kbd>V</kbd>).</li>
-          <li>Presiona <b>Cargar datos</b>.</li>
-        </ol>
-
-        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Formato esperado</h4>
-        <pre style="background:#f8f9fa; padding:.6rem; border-radius:.35rem; font-size:.85em;">Lectura
-1.234
-1.235
-1.236</pre>
-        <ul>
-          <li><b>Primera línea:</b> encabezado. Si es distinto al <code>label</code> actual de la columna, se <b>actualiza automáticamente</b>.</li>
-          <li><b>Líneas siguientes:</b> un dato por línea, en el mismo orden en que aparecerán en las filas.</li>
-          <li>Las líneas vacías se ignoran.</li>
-        </ul>
-
-        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Reglas y validaciones</h4>
-        <ul>
-          <li>La cantidad de <b>datos</b> (sin contar el encabezado) debe ser <b>igual o menor</b> a la cantidad de filas actuales de la tabla.</li>
-          <li>Si llegan <b>más datos que filas</b>, se muestra un error indicando cuántos datos llegaron y cuántas filas hay disponibles. <b>No se aplica ningún cambio.</b></li>
-          <li>Si llegan <b>menos datos que filas</b>, solo se llenan las primeras filas; las restantes quedan intactas.</li>
-          <li>Si el encabezado viene vacío (por ejemplo, solo se pegaron números), se trata la primera línea como dato y no se modifica el label. <em>Recomendación: incluye siempre el encabezado.</em></li>
-        </ul>
-
-        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Conversión según el tipo de columna</h4>
-        <ul>
-          <li>Si la columna es <code>type = number</code>: cada dato se convierte con la misma lógica de "Eliminar Texto" (extrae el primer número, normaliza coma decimal, respeta signo y notación científica). Si un valor no contiene número, se guarda como <code>null</code>.</li>
-          <li>Si la columna es <code>type = string</code>: cada dato se guarda tal cual, como texto.</li>
-        </ul>
-
-        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Ejemplo</h4>
-        <p>Supongamos que la tabla tiene 3 filas y pegas:</p>
-        <pre style="background:#f8f9fa; padding:.6rem; border-radius:.35rem; font-size:.85em;">Voltaje
-10,5 V
-11.2 V
-12 V</pre>
-        <p>Resultado en la columna (tipo <code>number</code>):</p>
-        <pre style="background:#f8f9fa; padding:.6rem; border-radius:.35rem; font-size:.85em;">label = "Voltaje"
-Fila 1: 10.5
-Fila 2: 11.2
-Fila 3: 12</pre>
-
-        <div style="background:#cfe2ff; border-left:4px solid #0d6efd; padding:.6rem .8rem; border-radius:.35rem; margin:.9rem 0;">
-          <b>💡 Consejo</b>
-          <ul style="margin:.35rem 0 0; padding-left:1.2rem;">
-            <li>Antes de cargar, verifica que la tabla tenga suficientes filas. Puedes agregarlas con el botón <b>+ Fila</b>.</li>
-            <li>El cambio <b>sobrescribe los valores</b> de las celdas que cubran los datos pegados. Si quieres conservarlos, guarda una copia del JSON primero.</li>
-            <li>Si el diálogo se cierra sin confirmar, <b>no se modifica nada</b>.</li>
-          </ul>
+          <b>⚠ Advertencia</b> La IA puede cometer errores. Verifica siempre los valores contra el certificado original.
         </div>
       `;
     } else if (clave === 'json') {
       detalle = `
-        <h3 style="margin-top:0; color:#212529;">6. JSON y guardado de cambios</h3>
-        <p>El JSON es la representación estructurada de todas las tablas. Se <b>actualiza automáticamente</b> cada vez que modificas una tabla, una columna o una fila.</p>
-
-        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Acciones</h4>
-        <ul>
-          <li><b>Copiar JSON:</b> copia el contenido al portapapeles.</li>
-          <li><b>Actualizar desde JSON:</b> valida el JSON y reemplaza las tablas del formulario. Útil para cargar datos procesados externamente.</li>
-          <li><b>Guardar Cambios:</b> valida y envía el payload al backend para actualizar el certificado.</li>
-          <li><b>Cancelar:</b> descarta los cambios y vuelve al listado (con confirmación si hay cambios sin guardar).</li>
-        </ul>
-
-        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Validaciones al guardar</h4>
-        <ul>
-          <li>ID y nombre del equipo, folio/CC.</li>
-          <li>Fechas coherentes (<code>calibración ≤ certificado</code>).</li>
-          <li>Cada tabla con título, parámetro y <code>key</code> únicos y válidos.</li>
-          <li>Los <code>table_id</code> conservan la secuencia original del certificado.</li>
-        </ul>
-
-        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Protección contra pérdida de datos</h4>
-        <ul>
-          <li>Si intentas salir sin guardar, el sistema te pedirá confirmación.</li>
-          <li>Tras guardar exitosamente, se te redirige automáticamente al listado de certificados.</li>
-        </ul>
-
-        <p style="color:#6c757d; font-size:0.9em;"><i>Consejo: si vas a hacer cambios masivos (limpiar texto o separar ±), haz una copia del JSON primero con "Copiar JSON" para tener un respaldo.</i></p>
+        <h3 style="margin-top:0; color:#212529;">4. JSON y guardado de cambios</h3>
+        <p>El JSON se actualiza automáticamente al modificar las tablas.</p>
+        <p><code>range</code> ahora se guarda como la unidad (o lista de unidades), y el rango numérico vive en <code>min_value</code> / <code>max_value</code>.</p>
       `;
     } else {
-      detalle = `
-        <p>No hay ayuda disponible para <code>${this.escapeHtml(clave)}</code>.</p>
-        <p>Bloques disponibles: <code>general</code>, <code>tablas</code>, <code>eliminar-texto</code>, <code>separar-simbolo</code>, <code>cargar-excel</code>, <code>json</code>.</p>
-      `;
+      detalle = `<p>No hay ayuda disponible para <code>${this.escapeHtml(clave)}</code>.</p>`;
     }
 
     this.alert.alert(detalle, 'Información', {

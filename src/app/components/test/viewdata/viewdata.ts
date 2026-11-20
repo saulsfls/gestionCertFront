@@ -6,6 +6,17 @@ import { EquipmentService } from '../../../services/database/external/equipment.
 import { IncertidumbreService } from '../../../services/database/home/incertidumbre.service';
 import { AlertService } from '../../../services/core/alert.service';
 import { AlertFormField, AlertFormValues } from '../../core/alert/alert.model';
+import { CatalogoService } from '../../../services/database/home/catalogo.service';
+import {
+  TituloCatalogo,
+  SubparametroCatalogo,
+  MagnitudCatalogo,
+  CrearTituloDto,
+  CrearSubparametroDto,
+  CrearUnidadDto,
+} from '../../../models/catalogo.models';
+
+type Tab = 'pt' | 'equipment' | 'patron' | 'titulos' | 'unidades';
 
 @Component({
   imports: [CommonModule],
@@ -18,28 +29,37 @@ export class Viewdata implements OnInit {
   equipmentData: any[] = [];
   patronData: any[] = [];
 
+  // Catálogo
+  titulosData: Array<{ id: string } & TituloCatalogo> = [];
+  magnitudesData: Array<{ id: string } & MagnitudCatalogo> = [];
+
   cargando = false;
 
-  activeTab: 'pt' | 'equipment' | 'patron' = 'pt';
+  activeTab: Tab = 'pt';
 
   constructor(
     private ptService: PtService,
     private equipmentService: EquipmentService,
     private incService: IncertidumbreService,
     private cdr: ChangeDetectorRef,
-    private alert: AlertService
+    private alert: AlertService,
+    public catalogo: CatalogoService   // público para usar en template
   ) {}
 
   ngOnInit(): void {
     this.getDatos();
     this.getincertidumbreData();
+    this.cargarCatalogo();
   }
+
+
+  // CARGA
+
 
   getincertidumbreData(): void {
     this.incService.listar().subscribe({
       next: (res) => {
-        console.log('Datos de las incertidumbres:');
-        console.log(res);
+        console.log('Datos de las incertidumbres:', res);
       },
     });
   }
@@ -72,12 +92,44 @@ export class Viewdata implements OnInit {
     });
   }
 
+  cargarCatalogo(force = false): void {
+    this.cargando = true;
+    this.catalogo.cargarCatalogo(force).subscribe({
+      next: () => {
+        this.refrescarVistasCatalogo();
+        this.cargando = false;
+        this.cdr.detectChanges();
+        console.log(this.catalogo.listaMagnitudes);
+      },
+      error: (err) => {
+        console.error('Error cargando catálogo:', err);
+        this.alert.error(
+          err?.message ?? 'No se pudo cargar el catálogo.',
+          'Error de catálogo'
+        );
+        this.cargando = false;
+        this.cdr.detectChanges();
+      },
+    });
+  }
+
+  private refrescarVistasCatalogo(): void {
+    this.titulosData = this.catalogo.listaTitulos();
+    this.magnitudesData = this.catalogo.listaMagnitudes();
+  }
+
+
+  // TABLA GENÉRICA (se mantiene igual)
+
+
   get datosActuales(): any[] {
     switch (this.activeTab) {
-      case 'pt': return this.ptData;
+      case 'pt':        return this.ptData;
       case 'equipment': return this.equipmentData;
-      case 'patron': return this.patronData;
-      default: return [];
+      case 'patron':    return this.patronData;
+      case 'titulos':   return this.titulosData;
+      case 'unidades':  return this.magnitudesData;
+      default:          return [];
     }
   }
 
@@ -95,7 +147,20 @@ export class Viewdata implements OnInit {
     return String(value);
   }
 
+
+  // NUEVO REGISTRO — despacha según tab
+
+
   async nuevoRegistro(): Promise<void> {
+    switch (this.activeTab) {
+      case 'titulos':   return this.crearTituloFlow();
+      case 'unidades':  return this.crearUnidadFlow();
+      default:          return this.nuevoRegistroGenerico();
+    }
+  }
+
+  // ── Flujo genérico para pt / equipment / patron (sin cambios) ──
+  private async nuevoRegistroGenerico(): Promise<void> {
     const config = this.getFormConfigForTab();
     if (!config) {
       this.alert.warning('No hay formulario configurado para esta pestaña.');
@@ -121,7 +186,7 @@ export class Viewdata implements OnInit {
     if (values === null) return;
 
     try {
-      await this.guardarRegistro(this.activeTab, values);
+      await this.guardarRegistro(this.activeTab as 'pt' | 'equipment' | 'patron', values);
       this.alert.success('Registro creado correctamente.', 'Éxito');
       this.getDatos();
     } catch (err) {
@@ -129,6 +194,218 @@ export class Viewdata implements OnInit {
       this.alert.error('No se pudo guardar el registro.', 'Error');
     }
   }
+
+  // ── Flujo: crear título ──
+  private async crearTituloFlow(): Promise<void> {
+    const magnitudes = this.catalogo.listaMagnitudes().map((m) => ({
+      label: m.nombre,
+      value: m.id,
+    }));
+
+    // Añadimos opción "crear nueva magnitud" al select
+    magnitudes.push({ label: '＋ Crear nueva magnitud…', value: '__nueva__' });
+    // Añadimos el comodín "Other"
+    magnitudes.push({ label: 'Comodín (acepta cualquier unidad)', value: '*' });
+
+    const values = await this.alert.form({
+      type: 'question',
+      title: 'Nuevo título',
+      message:
+        'El "Nombre visible" es inmutable una vez creado (se guarda en los certificados). ' +
+        'El identificador se autogenera desde el nombre.',
+      confirmText: 'Crear título',
+      cancelText: 'Cancelar',
+      dismissible: true,
+      size: 'lg',
+      form: {
+        columns: 1,
+        submitText: 'Crear título',
+        validateOnSubmit: true,
+        fields: [
+          {
+            name: 'displayName',
+            label: 'Nombre visible (se guarda en el certificado)',
+            type: 'text',
+            required: true,
+            minLength: 3,
+            maxLength: 150,
+            placeholder: 'ej. Temperature',
+          },
+          {
+            name: 'label',
+            label: 'Nombre largo (opcional, solo visual)',
+            type: 'text',
+            placeholder: 'ej. Temperatura',
+          },
+          {
+            name: 'magnitud',
+            label: 'Magnitud física',
+            type: 'select',
+            required: true,
+            options: magnitudes,
+          },
+          {
+            name: 'subparametrosIniciales',
+            label: 'Subparámetros iniciales (uno por línea, opcional)',
+            type: 'textarea',
+            rows: 3,
+            placeholder: 'ej.\nTemperature\nTrue Temperature',
+          },
+        ],
+      },
+    });
+
+    if (values === null) return;
+
+    // Si el usuario eligió "crear nueva magnitud", pedimos sus datos primero
+    let magnitudId = String(values['magnitud'] ?? '').trim();
+    if (magnitudId === '__nueva__') {
+      const nueva = await this.crearMagnitudFlow();
+      if (!nueva) return; // canceló
+      magnitudId = nueva;
+    }
+
+    const subparametrosIniciales = String(values['subparametrosIniciales'] ?? '')
+      .split('\n')
+      .map((l) => l.trim())
+      .filter(Boolean)
+      .map((displayName) => ({ displayName }));
+
+    const dto: CrearTituloDto = {
+      displayName: String(values['displayName']).trim(),
+      label: String(values['label'] ?? '').trim() || undefined,
+      magnitud: magnitudId,
+      subparametrosIniciales: subparametrosIniciales.length ? subparametrosIniciales : undefined,
+    };
+
+    this.catalogo.crearTitulo(dto).subscribe({
+      next: () => {
+        this.refrescarVistasCatalogo();
+        this.alert.success(`Título "${dto.displayName}" creado.`, 'Éxito');
+        this.cdr.detectChanges();
+      },
+      error: (err) => this.alert.error(err.message, 'Error al crear título'),
+    });
+  }
+
+  // ── Flujo: crear magnitud nueva (usado desde crearTituloFlow) ──
+  private async crearMagnitudFlow(): Promise<string | null> {
+    const values = await this.alert.form({
+      type: 'question',
+      title: 'Nueva magnitud',
+      message: 'Crea una magnitud física nueva (ej. temperature, pressure).',
+      confirmText: 'Crear magnitud',
+      cancelText: 'Cancelar',
+      dismissible: true,
+      size: 'lg',
+      form: {
+        columns: 1,
+        submitText: 'Crear magnitud',
+        validateOnSubmit: true,
+        fields: [
+          { name: 'id',     label: 'Identificador (slug)', type: 'text', required: true, placeholder: 'ej. temperature' },
+          { name: 'nombre', label: 'Nombre',               type: 'text', required: true, placeholder: 'ej. Temperatura' },
+          {
+            name: 'unidadesIniciales',
+            label: 'Unidades iniciales (una por línea: simbolo|nombre)',
+            type: 'textarea',
+            rows: 3,
+            placeholder: 'ej.\n°C|Celsius\n°F|Fahrenheit\nK|Kelvin',
+          },
+        ],
+      },
+    });
+
+    if (values === null) return null;
+
+    const unidadesIniciales = String(values['unidadesIniciales'] ?? '')
+      .split('\n')
+      .map((l) => l.trim())
+      .filter(Boolean)
+      .map((linea) => {
+        const [simbolo, nombre] = linea.split('|').map((s) => s.trim());
+        return { simbolo: simbolo ?? '', nombre: nombre ?? simbolo ?? '' };
+      })
+      .filter((u) => u.simbolo && u.nombre);
+
+    const id = String(values['id']).trim();
+
+    return new Promise<string | null>((resolve) => {
+      this.catalogo.crearMagnitud({
+        id,
+        nombre: String(values['nombre']).trim(),
+        unidadesIniciales: unidadesIniciales.length ? unidadesIniciales : undefined,
+      }).subscribe({
+        next: () => {
+          this.refrescarVistasCatalogo();
+          this.alert.success(`Magnitud "${id}" creada.`, 'Éxito');
+          resolve(id);
+        },
+        error: (err) => {
+          this.alert.error(err.message, 'Error al crear magnitud');
+          resolve(null);
+        },
+      });
+    });
+  }
+
+  // ── Flujo: crear unidad (dentro de una magnitud) ──
+  private async crearUnidadFlow(): Promise<void> {
+    const magnitudes = this.catalogo.listaMagnitudes().map((m) => ({
+      label: m.nombre,
+      value: m.id,
+    }));
+
+    if (magnitudes.length === 0) {
+      this.alert.warning('No hay magnitudes en el catálogo. Crea una magnitud primero.');
+      return;
+    }
+
+    const values = await this.alert.form({
+      type: 'question',
+      title: 'Nueva unidad',
+      message: 'Agrega una unidad nueva a una magnitud existente.',
+      confirmText: 'Crear unidad',
+      cancelText: 'Cancelar',
+      dismissible: true,
+      size: 'lg',
+      form: {
+        columns: 1,
+        submitText: 'Crear unidad',
+        validateOnSubmit: true,
+        fields: [
+          { name: 'magnitud', label: 'Magnitud', type: 'select', required: true, options: magnitudes },
+          { name: 'simbolo',  label: 'Símbolo',  type: 'text', required: true, maxLength: 20, placeholder: 'ej. °C' },
+          { name: 'nombre',   label: 'Nombre',   type: 'text', required: true, placeholder: 'ej. Celsius' },
+          { name: 'factor',   label: 'Factor (opcional)',  type: 'text', placeholder: '10^0 (Base)' },
+          { name: 'prefijo',  label: 'Prefijo (opcional)', type: 'text', placeholder: 'Base' },
+        ],
+      },
+    });
+
+    if (values === null) return;
+
+    const dto: CrearUnidadDto = {
+      magnitud: String(values['magnitud']).trim(),
+      simbolo:  String(values['simbolo']).trim(),
+      nombre:   String(values['nombre']).trim(),
+      factor:   String(values['factor'] ?? '').trim() || undefined,
+      prefijo:  String(values['prefijo'] ?? '').trim() || undefined,
+    };
+
+    this.catalogo.crearUnidad(dto).subscribe({
+      next: () => {
+        this.refrescarVistasCatalogo();
+        this.alert.success(`Unidad "${dto.simbolo}" creada en "${dto.magnitud}".`, 'Éxito');
+        this.cdr.detectChanges();
+      },
+      error: (err) => this.alert.error(err.message, 'Error al crear unidad'),
+    });
+  }
+
+
+  // FORM CONFIG (solo para pt / equipment / patron)
+
 
   private getFormConfigForTab(): { title: string; message: string; fields: AlertFormField[] } | null {
     switch (this.activeTab) {
@@ -194,17 +471,14 @@ export class Viewdata implements OnInit {
   ): Promise<void> {
     switch (tab) {
       case 'pt':
-        // TODO: await this.ptService.crearPt(values);
         console.log('Crear PT con:', values);
         return;
 
       case 'equipment':
-        // TODO: await this.equipmentService.crearEquipo(values);
         console.log('Crear Equipo con:', values);
         return;
 
       case 'patron':
-        // TODO: await this.equipmentService.crearPatron(values);
         console.log('Crear Patrón con:', values);
         return;
     }

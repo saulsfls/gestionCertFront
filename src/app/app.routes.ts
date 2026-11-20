@@ -19,6 +19,7 @@ import { Cmcsr } from './components/cmc/cmcsr/cmcsr';
 import { Repetibilidad } from './components/incertidumbres/base/repetibilidad/repetibilidad';
 import { Reproducibilidad } from './components/incertidumbres/base/reproducibilidad/reproducibilidad';
 import { admininc } from './components/incertidumbres/admininc/admininc';
+import { Admincatalogo } from './components/cert/admincatalogo/admincatalogo';
 
 export const routes: Routes = [
   //Rutas publicas
@@ -40,6 +41,7 @@ export const routes: Routes = [
       { path: 'admin-cert', component: admincert, title: 'Administrar Certificados'},
       { path: 'list-cert', component: Listcert,  title: 'Lista de Certificados'},
       { path: 'view-cert/:id', component: Viewcert, title: 'Detalle del Certificado'},
+      { path: 'admin-titles-units', component: Admincatalogo, title: 'Adiministracionde titulos y unidades'},
       //Rutas del CMC
       { path: 'calcmc', component: Calcmc, title: 'Modulo de calculo del CMC'},
       { path: 'cmc-create', component: Cmcparamsvf,  title: 'Parametros del CMC'},

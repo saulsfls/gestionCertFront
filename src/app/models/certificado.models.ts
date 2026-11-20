@@ -28,8 +28,10 @@ export interface ResultTable {
   pt: string; //Id del procedimiento tecnico asociado a la tabla
   table_id: string; //Id de la tabla
   parameter: string; //Mesureament de la tabla
-  calibration_equation: string; //Ecuacion de calibracion
+  calibration_equation?: string; //Ecuacion de calibracion
   unit: string; //Unidad en la que se esta midiendo la tabla
+  min_value?: number | null;
+  max_value?: number | null;
   range: string; //Rango de la medicion
   comments: string; //Comentarios de la tabla
   columns: Column[]; //Columnas

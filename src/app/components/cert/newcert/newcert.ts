@@ -20,10 +20,13 @@ import {
   LoadedImage
 } from 'ngx-image-cropper';
 import { AuthService } from '../../../services/auth/auth.service';
+import { CatalogoService } from '../../../services/database/home/catalogo.service';
 
 export type DireccionTab = 'horizontal' | 'vertical';
 export type JsonPrimitiveType = 'string' | 'number' | 'boolean';
 export type TipoDato = 'number' | 'string';
+
+const DRAFT_KEY = 'newcert_draft_v1';
 
 interface TableImageState {
   imageChangedEvent: Event | null;
@@ -33,13 +36,21 @@ interface TableImageState {
   tieneEncabezado: boolean;
 }
 
-/** Interfaz para el selector del componente */
 interface PatronOption {
-  id: string;              // ID compuesto (ej. "849-0000")
-  name: string;            // Nombre real cruzado (ej. "Multímetro Digital")
-  pts: string[];           // Lista de PTs asociados
-  calibration_date?: string;   // <-- Añadir
+  id: string;
+  name: string;
+  pts: string[];
+  calibration_date?: string;
   months_calibration?: number;
+}
+
+interface DraftPayload {
+  certificado: Certificado;
+  resultTables: ResultTable[];
+  direccionTab: DireccionTab;
+  /** Unidades seleccionadas por tabla, serializadas como Record<index, string[]> */
+  unidadesPorTabla?: Record<number, string[]>;
+  savedAt: string;
 }
 
 @Component({
@@ -56,9 +67,10 @@ export class Newcert implements OnInit {
   private auth = inject(AuthService);
   private ptService = inject(PtService);
   private equipmentService = inject(EquipmentService);
+  public catalogo = inject(CatalogoService);
   isBrowser: boolean = isPlatformBrowser(this.platformId);
 
-  // ========== PATRONES (selector) ==========
+  // ========== PATRONES ==========
   patrones: PatronOption[] = [];
   cargandoPatrones: boolean = false;
   patronSeleccionado: PatronOption | null = null;
@@ -66,32 +78,7 @@ export class Newcert implements OnInit {
   // ========== CATÁLOGO DE PT ==========
   private ptDescripcionPorId = new Map<string, string>();
 
-  opcionesTitulo: string[] = [
-    'DC Voltage', 'AC Voltage', 'DC Current', 'AC Current', 'Resistance',
-    '4-Wire Resistance', 'Lightning Impulse Voltage (LI)', 'Switching Impulse Voltage (SI)',
-    'Frequency', 'Capacitance', 'Other'
-  ];
-
-  private opcionesParametroPorTitulo: Record<string, string[]> = {
-    'DC Voltage': ['Voltage'],
-    'AC Voltage': ['RMS Voltage', 'Peak-to-Peak Voltage (PP)'],
-    'DC Current': ['Current'],
-    'AC Current': ['RMS Current', 'Peak-to-Peak Current (PP)'],
-    'Resistance': ['Resistance'],
-    '4-Wire Resistance': ['4-Wire Resistance'],
-    'Lightning Impulse Voltage (LI)': [
-      'LI Impulse Voltage', 'Determination of scale factor and measurement of Ut',
-      'Measurement of front time T1', 'Measurement of time to half value T2', 'Polarity Linearity Test'
-    ],
-    'Switching Impulse Voltage (SI)': [
-      'LI Impulse Voltage', 'Determination of scale factor and measurement of Ut',
-      'Measurement of front time T1', 'Measurement of time to half value T2', 'Polarity Linearity Test'
-    ],
-    'Frequency': ['Frequency'],
-    'Capacitance': ['Capacitance'],
-    'Other': []
-  };
-
+  // ========== CERTIFICADO ==========
   certificado: Certificado = {
     equipment_id: '', name_equipment: '', cc: '',
     date_cal: '', date_cc: '', calibration_interval: 0, resolution: 0,
@@ -106,24 +93,172 @@ export class Newcert implements OnInit {
   imageStates: TableImageState[] = [];
   ocrEnProceso: boolean = false;
 
+  /**
+   * Unidades seleccionadas por tabla (checkboxes).
+   * Se indexa por el `table_id` de la tabla para sobrevivir a reordenamientos.
+   */
+  unidadesPorTabla: Map<string, Set<string>> = new Map();
+
+  // Draft
+  private draftGuardadoTimer: any = null;
+
   constructor(
     private certificadoService: CertService,
     private cdr: ChangeDetectorRef
   ) {}
 
   ngOnInit(): void {
+    this.imageStates = [this.crearEstadoImagenVacio()];
+
+    const draft = this.leerDraftLocalStorage();
+    if (draft) {
+      this.alert.confirm(
+        `Tienes un borrador guardado del ${new Date(draft.savedAt).toLocaleString('es-MX')}. ¿Quieres recuperarlo?`,
+        'Borrador encontrado',
+        {
+          type: 'question',
+          confirmText: 'Cargar borrador',
+          cancelText: 'Descartar',
+          dismissible: false,
+        }
+      ).then(cargar => {
+        if (cargar) {
+          this.restaurarDraft(draft);
+        } else {
+          this.descartarDraft();
+          this.inicializarFormularioVacio();
+        }
+      });
+    } else {
+      this.inicializarFormularioVacio();
+    }
+
+    this.cargarCatalogo();
+    this.cargarPatrones();
+  }
+
+  private inicializarFormularioVacio(): void {
     this.resultTables = [this.crearEstructuraTablaInicial()];
     this.imageStates = [this.crearEstadoImagenVacio()];
     this.regenerarTableIds();
     this.sincronizarJsonTexto();
-    this.cargarPatrones();
   }
 
-  // ========== CARGA DE DATOS ==========
+  // ========== DRAFT (localStorage) ==========
+  private leerDraftLocalStorage(): DraftPayload | null {
+    if (!this.isBrowser) return null;
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!parsed?.resultTables?.length || !parsed?.certificado) return null;
+      return parsed as DraftPayload;
+    } catch (e) {
+      console.warn('Draft inválido, se ignora:', e);
+      return null;
+    }
+  }
+
+  private guardarDraftLocalStorage(): void {
+    if (!this.isBrowser) return;
+    try {
+      // Serializar las unidades seleccionadas por índice de tabla
+      const unidadesPorTabla: Record<number, string[]> = {};
+      this.resultTables.forEach((table, idx) => {
+        const set = this.unidadesPorTabla.get(table.table_id);
+        if (set) unidadesPorTabla[idx] = Array.from(set);
+      });
+
+      const payload: DraftPayload = {
+        certificado: this.certificado,
+        resultTables: this.resultTables,
+        direccionTab: this.direccionTab,
+        unidadesPorTabla,
+        savedAt: new Date().toISOString(),
+      };
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(payload));
+    } catch (e) {
+      console.warn('No se pudo guardar draft en localStorage:', e);
+    }
+  }
+
+  private restaurarDraft(draft: DraftPayload): void {
+    this.certificado = draft.certificado;
+    this.resultTables = draft.resultTables;
+    this.direccionTab = draft.direccionTab ?? 'vertical';
+    this.imageStates = this.resultTables.map(() => this.crearEstadoImagenVacio());
+    this.regenerarTableIds();
+
+    // Reconstruir el mapa de unidades seleccionadas por table_id
+    this.unidadesPorTabla.clear();
+    this.resultTables.forEach((table, idx) => {
+      const serializadas = draft.unidadesPorTabla?.[idx];
+      if (Array.isArray(serializadas) && serializadas.length > 0) {
+        this.unidadesPorTabla.set(table.table_id, new Set(serializadas));
+      } else if (table.unit) {
+        // Fallback: si la tabla trae unit "mV, V", parsearlo
+        const set = new Set(
+          String(table.unit).split(',').map(s => s.trim()).filter(Boolean)
+        );
+        if (set.size > 0) this.unidadesPorTabla.set(table.table_id, set);
+      }
+    });
+
+    this.reconstruirUnitsDesdeSets();
+    this.sincronizarJsonTexto();
+    this.cdr.detectChanges();
+    this.alert.success('Borrador recuperado.', 'Bienvenido de vuelta');
+  }
+
+  private descartarDraft(): void {
+    if (!this.isBrowser) return;
+    localStorage.removeItem(DRAFT_KEY);
+    this.alert.info('Borrador descartado.');
+  }
+
+  private agendarGuardadoDraft(): void {
+    if (!this.isBrowser) return;
+    if (this.draftGuardadoTimer) clearTimeout(this.draftGuardadoTimer);
+    this.draftGuardadoTimer = setTimeout(() => {
+      this.guardarDraftLocalStorage();
+      this.draftGuardadoTimer = null;
+    }, 400);
+  }
+
+  // ========== CARGA DE CATÁLOGO ==========
+  cargarCatalogo(force = false): void {
+    this.catalogo.cargarCatalogo(force).subscribe({
+      next: () => {
+        for (const table of this.resultTables) {
+          if (table.title) {
+            const subs = this.catalogo.subparametrosDe(table.title);
+            if (subs.length > 0 && !subs.some(s => s.displayName === table.parameter)) {
+              table.parameter = subs[0].displayName;
+            }
+            // Solo auto-seleccionar si la tabla no tiene unidades ya asignadas
+            if (!this.unidadesPorTabla.has(table.table_id) || this.unidadesPorTabla.get(table.table_id)!.size === 0) {
+              const unidades = this.catalogo.unidadesPara(table.title, table.parameter);
+              if (unidades.length > 0) {
+                this.unidadesPorTabla.set(table.table_id, new Set([unidades[0]]));
+              }
+            }
+          }
+        }
+        this.reconstruirUnitsDesdeSets();
+        this.sincronizarJsonTexto();
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        console.error('Error al cargar catálogo:', err);
+        this.alert.error('No se pudo cargar el catálogo de títulos/unidades.', 'Catálogo');
+      }
+    });
+  }
+
+  // ========== PATRONES ==========
   cargarPatrones(): void {
     this.cargandoPatrones = true;
 
-    // Cargamos el catálogo de PT para las descripciones
     this.ptService.obtenerPt().subscribe({
       next: (ptRaw: any[]) => {
         this.ptDescripcionPorId.clear();
@@ -143,11 +278,13 @@ export class Newcert implements OnInit {
   }
 
   private cargarPatronesCruzados(): void {
-    // Usamos el método getPatronesCruzados() que ya hace el forkJoin y el cruce
     this.equipmentService.getPatronesCruzados().subscribe({
       next: (patronesCruzados: PatronCruzado[]) => {
         this.patrones = this.agruparPatronesPorId(patronesCruzados);
         this.cargandoPatrones = false;
+        if (this.certificado.equipment_id) {
+          this.patronSeleccionado = this.patrones.find(p => p.id === this.certificado.equipment_id) ?? null;
+        }
         this.cdr.detectChanges();
       },
       error: (err) => {
@@ -159,10 +296,6 @@ export class Newcert implements OnInit {
     });
   }
 
-  /**
-   * Toma los patrones cruzados (que pueden estar repetidos por tener varios PTs)
-   * y los agrupa por ID, juntando todos sus PTs en un arreglo.
-   */
   private agruparPatronesPorId(patronesCruzados: PatronCruzado[]): PatronOption[] {
     const mapa = new Map<string, { name: string; pts: Set<string>; calDate?: string; months?: number }>();
 
@@ -174,8 +307,8 @@ export class Newcert implements OnInit {
         mapa.set(id, {
           name: p.name || id,
           pts: new Set<string>(),
-          calDate: p.calibration_date,            // <-- Guardar fecha
-          months: p.months_calibration            // <-- Guardar intervalo
+          calDate: p.calibration_date,
+          months: p.months_calibration
         });
       }
 
@@ -231,10 +364,7 @@ export class Newcert implements OnInit {
       return;
     }
 
-    // El nombre ya viene cruzado desde el servicio
     this.certificado.name_equipment = patron.name || '';
-
-    // Usamos las propiedades directas de PatronOption
     this.certificado.date_cal = patron.calibration_date ?? '';
     this.certificado.calibration_interval = Number(patron.months_calibration) || 0;
 
@@ -255,7 +385,167 @@ export class Newcert implements OnInit {
     this.cdr.detectChanges();
   }
 
-  // ========== 🔑 GENERACIÓN DE table_id ==========
+  // ========== CATÁLOGO: getters para template ==========
+  get opcionesTitulo(): string[] {
+    return this.catalogo.listaTitulos().map(t => t.displayName);
+  }
+
+  obtenerOpcionesParametro(title: string): string[] {
+    return this.catalogo.subparametrosDe(title).map(s => s.displayName);
+  }
+
+  unidadesDeTabla(table: ResultTable): string[] {
+    return this.catalogo.unidadesPara(table.title, table.parameter);
+  }
+
+  labelTitulo(table: ResultTable): string {
+    if (!table.title) return '';
+    const label = this.catalogo.labelDeTitulo(table.title);
+    return label && label !== table.title ? label : '';
+  }
+
+  labelParametro(table: ResultTable): string {
+    if (!table.title || !table.parameter) return '';
+    const label = this.catalogo.labelDeSubparametro(table.title, table.parameter);
+    return label && label !== table.parameter ? label : '';
+  }
+
+  esTituloPredefinido(title: string): boolean {
+    return this.catalogo.listaTitulos().some(t => t.displayName === title);
+  }
+
+  // ========== SELECCIÓN MÚLTIPLE DE UNIDADES ==========
+  /**
+   * Devuelve el Set de unidades seleccionadas para una tabla.
+   * Si no existe, lo crea vacío.
+   */
+  unidadesSeleccionadasDe(table: ResultTable): Set<string> {
+    const key = table.table_id || '';
+    if (!this.unidadesPorTabla.has(key)) {
+      this.unidadesPorTabla.set(key, new Set());
+    }
+    return this.unidadesPorTabla.get(key)!;
+  }
+
+  /** Checkbox toggle para una unidad del catálogo. */
+  toggleUnidad(table: ResultTable, unidad: string): void {
+    const set = this.unidadesSeleccionadasDe(table);
+    if (set.has(unidad)) {
+      set.delete(unidad);
+    } else {
+      set.add(unidad);
+    }
+    this.sincronizarUnitDesdeSeleccion(table);
+  }
+
+  /** Devuelve las unidades "personalizadas" (las que el usuario agregó a mano y no están en el catálogo). */
+  unidadesPersonalizadasDe(table: ResultTable): string[] {
+    const catalogo = this.unidadesDeTabla(table);
+    const set = this.unidadesSeleccionadasDe(table);
+    return Array.from(set).filter(u => !catalogo.includes(u));
+  }
+
+  /** Agrega una unidad personalizada a la selección de la tabla. */
+  agregarUnidadPersonalizada(table: ResultTable, valor: string): void {
+    const limpio = (valor || '').trim();
+    if (!limpio) return;
+    const set = this.unidadesSeleccionadasDe(table);
+    set.add(limpio);
+    this.sincronizarUnitDesdeSeleccion(table);
+  }
+
+  /** Quita una unidad personalizada de la selección. */
+  quitarUnidadPersonalizada(table: ResultTable, valor: string): void {
+    const set = this.unidadesSeleccionadasDe(table);
+    set.delete(valor);
+    this.sincronizarUnitDesdeSeleccion(table);
+  }
+
+  /**
+   * Reconstruye `table.unit` a partir del Set de unidades seleccionadas.
+   * Se guarda como string separado por comas: "mV, V, kV".
+   */
+  private sincronizarUnitDesdeSeleccion(table: ResultTable): void {
+    const set = this.unidadesSeleccionadasDe(table);
+    const arr = Array.from(set);
+    table.unit = arr.join(', ');
+    this.sincronizarJsonTexto();
+    this.cdr.detectChanges();
+  }
+
+  /**
+   * Recorre todas las tablas y sincroniza `table.unit` con el Set correspondiente.
+   * Útil tras cargar catálogo o restaurar draft.
+   */
+  private reconstruirUnitsDesdeSets(): void {
+    for (const table of this.resultTables) {
+      const set = this.unidadesSeleccionadasDe(table);
+      table.unit = Array.from(set).join(', ');
+    }
+  }
+
+  // ========== CAMBIO DE TÍTULO / PARÁMETRO ==========
+  actualizarParametroSegunTitulo(table: ResultTable): void {
+    const opciones = this.obtenerOpcionesParametro(table.title);
+    if (opciones.length > 0 && !opciones.includes(table.parameter)) {
+      table.parameter = opciones[0];
+    }
+
+    // Si el usuario NO tenía unidades seleccionadas, auto-seleccionar la primera del catálogo
+    const set = this.unidadesSeleccionadasDe(table);
+    if (set.size === 0) {
+      const unidades = this.catalogo.unidadesPara(table.title, table.parameter);
+      if (unidades.length > 0) {
+        set.add(unidades[0]);
+        this.sincronizarUnitDesdeSeleccion(table);
+      }
+    } else {
+      // Si ya tenía unidades, filtrar las que ya no pertenecen al nuevo catálogo
+      const unidadesValidas = new Set(this.catalogo.unidadesPara(table.title, table.parameter));
+      // Conservar las personalizadas (las que no estaban en el catálogo anterior tampoco)
+      const personalizadas = Array.from(set).filter(u => !unidadesValidas.has(u));
+      // Pero si el usuario tenía seleccionadas unidades del catálogo anterior, esas ya no aplican
+      const nuevas = new Set<string>();
+      for (const u of set) {
+        if (unidadesValidas.has(u)) nuevas.add(u);
+      }
+      // Si no queda nada del catálogo, agregar la primera del nuevo catálogo
+      if (nuevas.size === 0 && unidadesValidas.size > 0) {
+        nuevas.add(Array.from(unidadesValidas)[0]);
+      }
+      this.unidadesPorTabla.set(table.table_id, nuevas);
+      this.sincronizarUnitDesdeSeleccion(table);
+    }
+
+    this.regenerarTableIds();
+    this.sincronizarJsonTexto();
+  }
+
+  onParameterChange(table: ResultTable): void {
+    const set = this.unidadesSeleccionadasDe(table);
+    if (set.size === 0) {
+      const unidades = this.catalogo.unidadesPara(table.title, table.parameter);
+      if (unidades.length > 0) {
+        set.add(unidades[0]);
+        this.sincronizarUnitDesdeSeleccion(table);
+      }
+    } else {
+      // Filtrar unidades del catálogo anterior
+      const unidadesValidas = new Set(this.catalogo.unidadesPara(table.title, table.parameter));
+      const nuevas = new Set<string>();
+      for (const u of set) {
+        if (unidadesValidas.has(u)) nuevas.add(u);
+      }
+      if (nuevas.size === 0 && unidadesValidas.size > 0) {
+        nuevas.add(Array.from(unidadesValidas)[0]);
+      }
+      this.unidadesPorTabla.set(table.table_id, nuevas);
+      this.sincronizarUnitDesdeSeleccion(table);
+    }
+    this.sincronizarJsonTexto();
+  }
+
+  // ========== table_id ==========
   private construirTableId(indexTable: number): string {
     const folio = (this.certificado.cc || '').trim();
     const sufijo = `T${indexTable + 1}`;
@@ -266,11 +556,28 @@ export class Newcert implements OnInit {
     const folio = (this.certificado.cc || '').trim();
     const equipo = this.certificado.equipment_id || '';
 
+    // Guardar el mapeo de unidades por oldId para remapear si los ids cambian
+    const mapViejo: Array<{ oldId: string; nuevoId: string }> = [];
+
     this.resultTables.forEach((table, i) => {
-      table.table_id = this.construirTableId(i);
+      const oldId = table.table_id;
+      const nuevoId = this.construirTableId(i);
+      if (oldId && oldId !== nuevoId) {
+        mapViejo.push({ oldId, nuevoId });
+      }
+      table.table_id = nuevoId;
       table.cc_id = folio;
       table.equipment_id = equipo;
     });
+
+    // Remapear el mapa de unidades
+    for (const { oldId, nuevoId } of mapViejo) {
+      const set = this.unidadesPorTabla.get(oldId);
+      if (set) {
+        this.unidadesPorTabla.delete(oldId);
+        this.unidadesPorTabla.set(nuevoId, set);
+      }
+    }
   }
 
   // ========== ESTADO DE IMAGEN ==========
@@ -283,11 +590,25 @@ export class Newcert implements OnInit {
 
   // ========== ESTRUCTURA INICIAL ==========
   private crearEstructuraTablaInicial(): ResultTable {
+    const titulos = this.catalogo.listaTitulos();
+    const tituloInicial = titulos.length > 0 ? titulos[0].displayName : 'DC Voltage';
+    const subs = this.catalogo.subparametrosDe(tituloInicial);
+    const paramInicial = subs.length > 0 ? subs[0].displayName : '';
+    const unidades = this.catalogo.unidadesPara(tituloInicial, paramInicial);
+    const unidadInicial = unidades.length > 0 ? unidades[0] : '';
+
     return {
-      title: 'DC Voltage', equipment_id: this.certificado.equipment_id || '',
-      cc_id: this.certificado.cc || '', pt: '', table_id: '',
-      parameter: this.obtenerOpcionesParametro('DC Voltage')[0] || 'Voltage',
-      unit: '', calibration_equation: '', range: '', comments: '',
+      title: tituloInicial,
+      equipment_id: this.certificado.equipment_id || '',
+      cc_id: this.certificado.cc || '',
+      pt: '',
+      table_id: '',
+      parameter: paramInicial,
+      unit: unidadInicial,
+      min_value: null,
+      max_value: null,
+      range: '',
+      comments: '',
       columns: [{ key: 'llave_unica', label: 'etiqueta', unit: 'unidad', type: 'number' }],
       rows: [{}]
     };
@@ -296,6 +617,7 @@ export class Newcert implements OnInit {
   // ========== JSON ==========
   sincronizarJsonTexto(): void {
     this.jsonInputText = this.obtenerJsonString();
+    this.agendarGuardadoDraft();
   }
 
   onTableChange(): void {
@@ -308,21 +630,7 @@ export class Newcert implements OnInit {
     this.sincronizarJsonTexto();
   }
 
-  esTituloPredefinido(title: string): boolean {
-    return this.opcionesTitulo.slice(0, -1).includes(title);
-  }
-
-  obtenerOpcionesParametro(title: string): string[] {
-    return this.opcionesParametroPorTitulo[title] || [];
-  }
-
-  actualizarParametroSegunTitulo(table: ResultTable): void {
-    const opciones = this.obtenerOpcionesParametro(table.title);
-    if (opciones.length > 0 && !opciones.includes(table.parameter)) {
-      table.parameter = opciones[0];
-    }
-  }
-
+  // ========== VALIDACIÓN DE KEY ==========
   private validarKey(key: string, table: ResultTable, columnaActual?: Column): { valido: boolean; mensaje?: string } {
     const keyLimpio = key.trim().toLowerCase().replace(/\s+/g, '_');
     if (!keyLimpio) return { valido: false, mensaje: 'El key no puede estar vacío.' };
@@ -347,12 +655,29 @@ export class Newcert implements OnInit {
         if (!Array.isArray(t.columns) || !Array.isArray(t.rows)) {
           throw new Error(`Estructura inválida en la Tabla #${index + 1}. Debe incluir "columns" y "rows".`);
         }
+
+        let min_value = t.min_value ?? null;
+        let max_value = t.max_value ?? null;
+        if ((min_value === null || max_value === null) && typeof t.range === 'string') {
+          const parsedRange = this.parseRangeString(t.range);
+          if (min_value === null) min_value = parsedRange.min;
+          if (max_value === null) max_value = parsedRange.max;
+        }
+
         return {
-          title: t.title || '', equipment_id: t.equipment_id || this.certificado.equipment_id || '',
-          cc_id: t.cc || t.cc_id || this.certificado.cc || '', pt: t.pt || '',
-          table_id: t.table_id || '', parameter: t.parameter || '', unit: t.unit || '',
-          calibration_equation: t.calibration_equation || '', range: t.range || '', comments: t.comments || '',
-          columns: t.columns, rows: t.rows
+          title: t.title || '',
+          equipment_id: t.equipment_id || this.certificado.equipment_id || '',
+          cc_id: t.cc_id || t.cc || this.certificado.cc || '',
+          pt: t.pt || '',
+          table_id: t.table_id || '',
+          parameter: t.parameter || '',
+          unit: t.unit || '',
+          min_value,
+          max_value,
+          range: t.range || '',
+          comments: t.comments || '',
+          columns: t.columns,
+          rows: t.rows
         };
       });
 
@@ -361,12 +686,46 @@ export class Newcert implements OnInit {
       this.resultTables = tablasNuevas;
       this.imageStates = tablasNuevas.map(() => this.crearEstadoImagenVacio());
       this.regenerarTableIds();
+
+      // Reconstruir sets desde unit strings
+      this.unidadesPorTabla.clear();
+      for (const table of this.resultTables) {
+        if (table.unit) {
+          const set = new Set(
+            String(table.unit).split(',').map(s => s.trim()).filter(Boolean)
+          );
+          if (set.size > 0) this.unidadesPorTabla.set(table.table_id, set);
+        }
+      }
+      this.reconstruirUnitsDesdeSets();
+
       this.sincronizarJsonTexto();
       this.cdr.detectChanges();
       this.alert.success('Las tablas han sido actualizadas desde el JSON.', 'JSON aplicado');
     } catch (err: any) {
       this.alert.error(err?.message ?? 'JSON inválido', 'Error al parsear JSON');
     }
+  }
+
+  private parseRangeString(range: string): { min: number | null; max: number | null } {
+    const s = String(range || '').trim();
+    if (!s) return { min: null, max: null };
+
+    let m = s.match(/^≥\s*(-?\d+(?:[.,]\d+)?)/);
+    if (m) return { min: Number(m[1].replace(',', '.')), max: null };
+
+    m = s.match(/^≤\s*(-?\d+(?:[.,]\d+)?)/);
+    if (m) return { min: null, max: Number(m[1].replace(',', '.')) };
+
+    m = s.match(/^(-?\d+(?:[.,]\d+)?)\s*-\s*(-?\d+(?:[.,]\d+)?)/);
+    if (m) {
+      return {
+        min: Number(m[1].replace(',', '.')),
+        max: Number(m[2].replace(',', '.')),
+      };
+    }
+
+    return { min: null, max: null };
   }
 
   // ========== NAVEGACIÓN TAB ==========
@@ -383,14 +742,21 @@ export class Newcert implements OnInit {
 
   // ========== GESTIÓN DE TABLAS ==========
   agregarTabla(): void {
-    this.resultTables.push(this.crearEstructuraTablaInicial());
+    const nueva = this.crearEstructuraTablaInicial();
+    this.resultTables.push(nueva);
     this.imageStates.push(this.crearEstadoImagenVacio());
     this.regenerarTableIds();
+    // Inicializar set con la unidad inicial
+    if (nueva.unit) {
+      this.unidadesPorTabla.set(nueva.table_id, new Set([nueva.unit]));
+    }
     this.sincronizarJsonTexto();
   }
 
   eliminarTabla(indexTable: number): void {
     if (this.resultTables.length > 1) {
+      const eliminada = this.resultTables[indexTable];
+      this.unidadesPorTabla.delete(eliminada.table_id);
       this.resultTables.splice(indexTable, 1);
       this.imageStates.splice(indexTable, 1);
       this.regenerarTableIds();
@@ -399,12 +765,77 @@ export class Newcert implements OnInit {
   }
 
   // ========== GESTIÓN DE COLUMNAS ==========
-  agregarColumna(table: ResultTable): void {
-    const id = table.columns.length + 1;
-    const nuevaKey = `column_${id}`;
-    table.columns.push({ key: nuevaKey, label: `New Column ${id}`, unit: '', type: 'number' });
+  async agregarColumna(table: ResultTable): Promise<void> {
+    const posicionOptions = [
+      { label: 'Al final (después de la última)', value: '__final__' },
+      ...table.columns.map((c, i) => ({
+        label: `Después de "${c.label || c.key}" (posición ${i + 1})`,
+        value: c.key,
+      })),
+    ];
+
+    const values = await this.alert.form({
+      type: 'question',
+      title: 'Nueva columna',
+      message: '¿Dónde quieres insertar la nueva columna?',
+      confirmText: 'Insertar',
+      cancelText: 'Cancelar',
+      dismissible: true,
+      size: 'md',
+      form: {
+        columns: 1,
+        submitText: 'Insertar',
+        validateOnSubmit: true,
+        fields: [
+          {
+            name: 'posicion',
+            label: 'Posición',
+            type: 'select',
+            required: true,
+            value: '__final__',
+            options: posicionOptions,
+          },
+        ],
+      },
+    });
+
+    if (values === null) return;
+
+    const posicion = String(values['posicion'] ?? '__final__');
+    const nuevaKey = this.generarKeyUnica(table, 'nueva_columna');
+    const nuevaCol: Column = {
+      key: nuevaKey,
+      label: `Nueva Columna`,
+      unit: '',
+      type: 'number',
+    };
+
+    if (posicion === '__final__') {
+      table.columns.push(nuevaCol);
+    } else {
+      const idx = table.columns.findIndex(c => c.key === posicion);
+      if (idx >= 0) {
+        table.columns.splice(idx + 1, 0, nuevaCol);
+      } else {
+        table.columns.push(nuevaCol);
+      }
+    }
+
     table.rows.forEach(row => { row[nuevaKey] = null; });
+
     this.sincronizarJsonTexto();
+    this.cdr.detectChanges();
+  }
+
+  private generarKeyUnica(table: ResultTable, prefijo: string): string {
+    const existentes = new Set(table.columns.map(c => c.key));
+    let base = prefijo;
+    let contador = 1;
+    let key = base;
+    while (existentes.has(key)) {
+      key = `${base}_${contador++}`;
+    }
+    return key;
   }
 
   eliminarColumna(table: ResultTable, indexColumn: number): void {
@@ -644,7 +1075,7 @@ export class Newcert implements OnInit {
     });
   }
 
-  // ========== HELPERS DE NOTACIÓN CIENTÍFICA ==========
+  // ========== NOTACIÓN CIENTÍFICA ==========
   private expandirNotacionCientifica(raw: string): string {
     let s = String(raw ?? '').trim();
     if (!s) return '';
@@ -895,6 +1326,10 @@ export class Newcert implements OnInit {
         return nuevaFila;
       });
 
+      // Sincronizar `unit` con el Set de unidades seleccionadas
+      const set = this.unidadesPorTabla.get(table.table_id);
+      const unitFinal = set ? Array.from(set).join(', ') : (table.unit || '');
+
       return {
         table_id: table.table_id,
         cc_id: this.certificado.cc || '',
@@ -902,9 +1337,10 @@ export class Newcert implements OnInit {
         title: table.title || '',
         equipment_id: this.certificado.equipment_id,
         parameter: table.parameter || '',
-        unit: table.unit || '',
-        calibration_equation: table.calibration_equation || '',
-        range: table.range || '',
+        unit: unitFinal,
+        range: unitFinal,
+        min_value: table.min_value ?? null,
+        max_value: table.max_value ?? null,
         comments: table.comments || '',
         columns: table.columns,
         rows: filasProcesadas
@@ -1030,7 +1466,7 @@ export class Newcert implements OnInit {
     const constraint = body.constraint ?? err?.constraint ?? '';
     const column = body.column ?? err?.column ?? '';
 
-    if (code === '23505' || status === 409) {
+    if (code === 'ER_DUP_ENTRY' || status === 409) {
       const texto = `${message} ${detail} ${constraint}`.toLowerCase();
       const folio = (this.certificado.cc || '').trim();
       if (texto.includes('cc') || texto.includes('folio')) return { titulo: 'Folio duplicado', mensaje: `Ya existe un certificado registrado con el folio "${folio}".` };
@@ -1038,18 +1474,13 @@ export class Newcert implements OnInit {
       return { titulo: 'Registro duplicado', mensaje: detail || message || 'El registro ya existe en la base de datos.' };
     }
 
-    if (code === '23503') return { titulo: 'Referencia inválida', mensaje: detail || 'La entidad o equipo referenciado no existe en el sistema.' };
-    if (code === '23502') return { titulo: 'Campo obligatorio faltante', mensaje: `El campo "${column || detail || 'desconocido'}" es obligatorio en la base de datos.` };
-    if (code === '23514') return { titulo: 'Valor fuera de rango', mensaje: detail || `Un valor no cumple con las restricciones (${constraint}).` };
-    if (code === '22P02' || code === '22007' || code === '22008' || code === '22003') return { titulo: 'Formato de dato inválido', mensaje: detail || 'Revisa el formato de fechas y valores numéricos antes de guardar.' };
-
     if (status === 400) return { titulo: 'Solicitud inválida', mensaje: message || detail || 'Revisa los datos enviados.' };
     if (status === 401 || status === 403) return { titulo: 'Acceso denegado', mensaje: 'No tienes permisos para realizar esta acción.' };
     if (status === 404) return { titulo: 'No encontrado', mensaje: message || 'El recurso solicitado no existe.' };
     if (status === 413) return { titulo: 'Datos demasiado grandes', mensaje: 'El payload excede el tamaño permitido.' };
     if (status >= 500) return { titulo: `Error del servidor (${status})`, mensaje: message || 'Ocurrió un error interno. Intenta más tarde o contacta al administrador.' };
 
-    return { titulo: 'Error al guardar', mensaje: message || detail || 'Error desconocido al conectar con la API de PostgreSQL.' };
+    return { titulo: 'Error al guardar', mensaje: message || detail || 'Error desconocido al conectar con la API.' };
   }
 
   // ========== GUARDAR ==========
@@ -1115,13 +1546,15 @@ export class Newcert implements OnInit {
     this.resultTables = [this.crearEstructuraTablaInicial()];
     this.imageStates = [this.crearEstadoImagenVacio()];
     this.ocrEnProceso = false;
+    this.unidadesPorTabla.clear();
     this.regenerarTableIds();
     this.sincronizarJsonTexto();
+    this.descartarDraft();
     this.cdr.detectChanges();
   }
 
+  // ========== AYUDA ==========
   ayuda(modal: string): void {
-    // ... (Mismo bloque de ayuda sin cambios)
     const clave = String(modal ?? '').trim().toLowerCase();
     let detalle = '';
 
@@ -1133,143 +1566,41 @@ export class Newcert implements OnInit {
         <ul>
           <li>Número único del certificado. No puede repetirse en el sistema.</li>
           <li>Al cambiarlo se <b>regeneran automáticamente</b> los <code>table_id</code> de todas las tablas (<code>CC-XXXX-T1</code>, <code>CC-XXXX-T2</code>, …).</li>
-          <li>Caracteres permitidos: letras, números, guiones, guiones bajos y <code>/</code>.</li>
         </ul>
         <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Fechas</h4>
         <ul>
-          <li><b>Fecha de calibración:</b> se autollena al elegir el patrón, pero sigue siendo editable si la del certificado difiere.</li>
+          <li><b>Fecha de calibración:</b> se autollena al elegir el patrón, pero sigue siendo editable.</li>
           <li><b>Fecha del certificado:</b> la ingresas manualmente. Debe ser <b>igual o posterior</b> a la de calibración y <b>no puede ser futura</b>.</li>
-          <li>Si hay más de 2 años de diferencia entre ambas fechas, el sistema te lo advertirá antes de guardar.</li>
         </ul>
-        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Entidad emisora y tipo</h4>
-        <ul>
-          <li><b>Entidad emisora:</b> organismo que emite el certificado (p. ej. <code>LECOE</code>).</li>
-          <li><b>Tipo:</b> <code>Certificado</code> (calibración formal) o <code>Especificaciones del fabricante</code> (hoja de datos).</li>
-        </ul>
-        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Intervalo y resolución</h4>
-        <ul>
-          <li><b>Intervalo de calibración:</b> se autollena desde el patrón y queda bloqueado. Se reporta en <b>meses</b>.</li>
-          <li><b>Resolución:</b> resolución del instrumento calibrado (la del certificado, no la del patrón).</li>
-        </ul>
-        <p style="color:#6c757d; font-size:0.9em;"><i>Al guardar se validan automáticamente fechas, folio único, entidad, tipo y coherencia de cada tabla.</i></p>
       `;
     } else if (clave === 'patron') {
       detalle = `
         <h3 style="margin-top:0; color:#198754;">2. Selección del patrón y del PT por tabla</h3>
-        <p>El componente usa una jerarquía <b>Patrón → PT por tabla</b>. El PT ya no se almacena en la tabla de certificados: vive dentro del JSON de cada tabla de resultados.</p>
-        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Paso 1 — Elegir el patrón (global)</h4>
-        <ul>
-          <li>Cada patrón puede aparecer varias veces en el catálogo, una por cada PT con el que es compatible.</li>
-          <li>El sistema agrupa esas repeticiones en una sola entrada y acumula la lista de PTs aplicables.</li>
-          <li>Al seleccionar el patrón se autocompletan <b>nombre</b>, <b>fecha de calibración</b> e <b>intervalo</b>.</li>
-        </ul>
-        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Paso 2 — Elegir el PT de cada tabla</h4>
-        <ul>
-          <li>Cada tabla tiene su propio selector de PT, con las opciones que ofrece el patrón seleccionado.</li>
-          <li>Puedes tener varias tablas con PTs distintos (por ejemplo, una tabla en <code>DC Voltage</code> y otra en <code>AC Voltage</code>).</li>
-          <li>Si el patrón no tiene PTs asociados, las tablas se guardan sin PT (cadena vacía).</li>
-        </ul>
-        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Dónde se guarda el PT</h4>
-        <ul>
-          <li>El PT de cada tabla se guarda en <code>Result Tables[i].pt</code>.</li>
-          <li>Ya <b>no</b> existe la columna <code>pt</code> en la tabla de certificados.</li>
-          <li>Al cambiar el patrón global, se limpian los PTs de las tablas que ya no sean válidos para el nuevo patrón.</li>
-        </ul>
-        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Errores comunes</h4>
-        <ul>
-          <li><b>"Debes seleccionar un PT para esta tabla":</b> el patrón tiene PTs y esa tabla no tiene uno asignado.</li>
-          <li><b>"No ves tu patrón":</b> verifica que exista en el catálogo de <code>calibraciones.patron</code>.</li>
-        </ul>
+        <p>El componente usa una jerarquía <b>Patrón → PT por tabla</b>.</p>
       `;
     } else if (clave === 'tablas') {
       detalle = `
         <h3 style="margin-top:0; color:#fd7e14;">3. Estructura de las tablas de resultados</h3>
-        <p>Cada certificado contiene <b>una o más tablas</b>. Cada tabla representa un conjunto de mediciones del mismo mensurando.</p>
-        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Encabezado de la tabla</h4>
-        <ul>
-          <li><b>Título:</b> magnitud general. Al cambiarlo, los parámetros disponibles se actualizan.</li>
-          <li><b>Mesurando (Parameter):</b> variante específica dentro del título.</li>
-          <li><b>PT:</b> procedimiento técnico asociado a esta tabla. Se elige en el selector de PT de la tabla.</li>
-          <li><b>Unidad / Rango / Ecuación / Comentarios:</b> metadatos propios de la tabla.</li>
-          <li><b>CC ID / Table ID:</b> se generan automáticamente. <code>Table ID</code> añade <code>-T1</code>, <code>-T2</code>, …</li>
-        </ul>
-        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Columnas</h4>
-        <ul>
-          <li><b>key:</b> identificador técnico único (minúsculas, números y guiones bajos).</li>
-          <li><b>label:</b> nombre visible.</li>
-          <li><b>unit:</b> unidad específica de la columna.</li>
-          <li><b>type:</b> <code>number</code> o <code>string</code>; define validación y guardado.</li>
-        </ul>
-        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Filas</h4>
-        <ul>
-          <li>Cada fila es un punto de medición.</li>
-          <li>Los valores no numéricos en columnas <code>number</code> se marcan en rojo y bloquean el guardado.</li>
-        </ul>
+        <p>Cada certificado contiene <b>una o más tablas</b>.</p>
+        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Unidades</h4>
+        <p>Puedes seleccionar <b>múltiples unidades</b> por tabla. Se guardan separadas por coma en el campo <code>unit</code>, ej. <code>"mV, V, kV"</code>.</p>
+        <p>Si el catálogo no tiene la unidad que necesitas, agrégala manualmente con el campo <b>"Agregar otra unidad…"</b>.</p>
       `;
     } else if (clave === 'ocr') {
       detalle = `
         <h3 style="margin-top:0; color:#6f42c1;">4. Extracción de tablas desde imagen (OCR)</h3>
         <p>Convierte una captura de la tabla en <b>columnas y filas editables</b>.</p>
-
-        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Paso 1 — Cargar la imagen</h4>
-        <ul>
-          <li><b>Pegar:</b> clic en la zona punteada y <kbd>Ctrl</kbd> + <kbd>V</kbd>.</li>
-          <li><b>Subir archivo:</b> selector de imágenes JPG, PNG, etc.</li>
-        </ul>
-
-        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Paso 2 — Recortar</h4>
-        <p>Recorta solo la tabla, incluyendo encabezados si existen, excluyendo logos y texto externo.</p>
-
-        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Paso 3 — Encabezado sí / no</h4>
-        <ul>
-          <li><b>Sí:</b> la primera fila es el encabezado.</li>
-          <li><b>No:</b> la imagen solo contiene datos; se generan columnas <code>col_1</code>, <code>col_2</code>, …</li>
-        </ul>
-
-        <div style="background:#e7f5ff; border-left:4px solid #0d6efd; padding:.6rem .8rem; border-radius:.35rem; margin:.9rem 0;">
-          <b>📋 Resultado de la extracción</b>
-          <p style="margin:.35rem 0 0;">
-            La tabla extraída se coloca <b>automáticamente</b> en la tabla editable, conservando el <b>mismo formato</b> que se lleva en el HTML
-            (encabezados, columnas, filas y estilos). No es necesario copiar ni pegar manualmente: revisa y corrige los valores directamente sobre la tabla generada.
-          </p>
-        </div>
-
-        <div style="background:#fff3cd; border-left:4px solid #ffc107; padding:.6rem .8rem; border-radius:.35rem; margin:.9rem 0;">
-          <b>⚠ Advertencia</b>
-          <ul style="margin:.35rem 0 0; padding-left:1.2rem;">
-            <li>La IA puede cometer errores. <b>Verifica siempre</b> los valores contra el certificado original.</li>
-            <li>Si el resultado no es bueno, <b>vuelve a tomar la captura</b> con mejor resolución y la tabla recta.</li>
-          </ul>
-        </div>
       `;
     } else if (clave === 'json') {
       detalle = `
         <h3 style="margin-top:0; color:#212529;">5. JSON del certificado y guardado</h3>
-        <p>El JSON es la representación estructurada de todas las tablas y se actualiza automáticamente. El <b>PT</b> vive dentro de cada tabla (<code>Result Tables[i].pt</code>) y ya no en la tabla de certificados.</p>
-        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Acciones</h4>
-        <ul>
-          <li><b>Copiar JSON:</b> copia al portapapeles.</li>
-          <li><b>Actualizar desde JSON:</b> valida y reemplaza las tablas del formulario.</li>
-          <li><b>Guardar Certificado:</b> valida todo y envía el payload al backend.</li>
-        </ul>
-        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Validaciones aplicadas al guardar</h4>
-        <ul>
-          <li>Patrón válido y PT definido en cada tabla si el patrón lo requiere.</li>
-          <li>Folio único, entidad y tipo de certificado.</li>
-          <li>Fechas coherentes (<code>calibración ≤ certificado ≤ hoy</code>).</li>
-          <li>Intervalo y resolución razonables.</li>
-          <li>Cada tabla con título, parámetro, PT (si aplica) y columnas válidas.</li>
-          <li>Valores numéricos correctos en columnas con <code>type = number</code>.</li>
-        </ul>
-        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Errores del servidor</h4>
-        <ul>
-          <li>Códigos SQL/HTTP traducidos: folio duplicado, campos NOT NULL, formato inválido, timeout, etc.</li>
-        </ul>
+        <p>El JSON es la representación estructurada de todas las tablas.</p>
+        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Unidades múltiples</h4>
+        <p>El campo <code>unit</code> del JSON contiene las unidades seleccionadas separadas por coma: <code>"mV, V, kV"</code>.</p>
       `;
     } else {
       detalle = `
         <p>No hay ayuda disponible para <code>${this.escapeHtml(clave)}</code>.</p>
-        <p>Bloques disponibles: <code>general</code>, <code>patron</code>, <code>tablas</code>, <code>ocr</code>, <code>json</code>.</p>
       `;
     }
 
