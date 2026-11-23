@@ -110,160 +110,284 @@ export class Newcert implements OnInit {
     private cdr: ChangeDetectorRef
   ) {}
 
-ngOnInit(): void {
-  this.imageStates = [this.crearEstadoImagenVacio()];
+    // INIT
 
-  // 1) Cargar catálogo y patrones PRIMERO, pero sin guardar draft todavía
-  this.cargarCatalogo();
-  this.cargarPatrones();
+  async ngOnInit(): Promise<void> {
+    this.imageStates = [this.crearEstadoImagenVacio()];
 
-  // 2) Resolver el draft inicial
-  this.resolverDraftInicial();
-}
+    // 1) Cargar catálogo y patrones en paralelo, y esperar a que terminen
+    await Promise.all([
+      this.cargarCatalogoAsync(),
+      this.cargarPatronesAsync(),
+    ]);
 
-private resolverDraftInicial(): void {
-  const draft = this.leerDraftLocalStorage();
-
-  if (!draft) {
-    // Sin draft: inicializar form y habilitar guardado
-    this.inicializarFormularioVacio();
-    this.draftListo = true;
-    return;
+    // 2) Ahora sí, resolver el draft con los patrones ya disponibles
+    this.resolverDraftInicial();
   }
 
-  // Hay draft → preguntar (no inicializar nada aún)
-  this.alert.confirm(
-    `Tienes un borrador guardado del ${new Date(draft.savedAt).toLocaleString('es-MX')}. ¿Quieres recuperarlo?`,
-    'Borrador encontrado',
-    {
-      type: 'question',
-      confirmText: 'Cargar borrador',
-      cancelText: 'Descartar',
-      dismissible: false,
-    }
-  )
-    .then(cargar => {
-      if (cargar) {
-        this.restaurarDraft(draft);
-      } else {
-        this.descartarDraft();
-        this.inicializarFormularioVacio();
-      }
-      this.draftListo = true;
-      this.cdr.detectChanges();
-    })
-    .catch(err => {
-      console.error('Error resolviendo borrador:', err);
-      this.descartarDraft();
+  private cargarCatalogoAsync(): Promise<void> {
+    return new Promise<void>(resolve => {
+      this.catalogo.cargarCatalogo().subscribe({
+        next: () => {
+          for (const table of this.resultTables) {
+            if (table.title) {
+              const subs = this.catalogo.subparametrosDe(table.title);
+              if (subs.length > 0 && !subs.some(s => s.displayName === table.parameter)) {
+                table.parameter = subs[0].displayName;
+              }
+              if (
+                !this.unidadesPorTabla.has(table.table_id) ||
+                this.unidadesPorTabla.get(table.table_id)!.size === 0
+              ) {
+                const unidades = this.catalogo.unidadesPara(table.title, table.parameter);
+                if (unidades.length > 0) {
+                  this.unidadesPorTabla.set(table.table_id, new Set([unidades[0]]));
+                }
+              }
+            }
+          }
+          this.reconstruirUnitsDesdeSets();
+          this.sincronizarJsonTexto();
+          this.cdr.detectChanges();
+          resolve();
+        },
+        error: (err) => {
+          console.error('Error al cargar catálogo:', err);
+          this.alert.error('No se pudo cargar el catálogo de títulos/unidades.', 'Catálogo');
+          resolve();
+        },
+      });
+    });
+  }
+
+  private cargarPatronesAsync(): Promise<void> {
+    this.cargandoPatrones = true;
+    return new Promise<void>(resolve => {
+      this.ptService.obtenerPt().subscribe({
+        next: (ptRaw: any[]) => {
+          this.ptDescripcionPorId.clear();
+          for (const pt of ptRaw ?? []) {
+            const id = String(pt?.id ?? pt?.pt ?? '').trim();
+            if (!id) continue;
+            const desc = String(pt?.description ?? pt?.name ?? pt?.descripcion ?? '').trim();
+            this.ptDescripcionPorId.set(id, desc || id);
+          }
+          this.equipmentService.getPatronesCruzados().subscribe({
+            next: (patronesCruzados: PatronCruzado[]) => {
+              this.patrones = this.agruparPatronesPorId(patronesCruzados);
+              this.cargandoPatrones = false;
+              this.cdr.detectChanges();
+              resolve();
+            },
+            error: (err) => {
+              console.error('Error cargando patrones cruzados:', err);
+              this.cargandoPatrones = false;
+              this.alert.error('No se pudieron cargar los patrones.', 'Error de carga');
+              this.cdr.detectChanges();
+              resolve();
+            },
+          });
+        },
+        error: (err) => {
+          console.error('Error cargando catálogo PT:', err);
+          // Intentar patrones aunque falle el catálogo PT
+          this.equipmentService.getPatronesCruzados().subscribe({
+            next: (patronesCruzados: PatronCruzado[]) => {
+              this.patrones = this.agruparPatronesPorId(patronesCruzados);
+              this.cargandoPatrones = false;
+              this.cdr.detectChanges();
+              resolve();
+            },
+            error: () => {
+              this.cargandoPatrones = false;
+              resolve();
+            },
+          });
+        },
+      });
+    });
+  }
+
+    // DRAFT
+
+  private resolverDraftInicial(): void {
+    const draft = this.leerDraftLocalStorage();
+
+    if (!draft) {
       this.inicializarFormularioVacio();
       this.draftListo = true;
-      this.cdr.detectChanges();
-    });
-}
-
-private inicializarFormularioVacio(): void {
-  this.resultTables = [this.crearEstructuraTablaInicial()];
-  this.imageStates = [this.crearEstadoImagenVacio()];
-  this.regenerarTableIds();
-  this.sincronizarJsonTexto();
-}
-
-private leerDraftLocalStorage(): DraftPayload | null {
-  if (!this.isBrowser) return null;
-  try {
-    const raw = localStorage.getItem(DRAFT_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    // Validación mínima: debe tener certificado y al menos una tabla con columnas
-    if (!parsed?.certificado) return null;
-    if (!Array.isArray(parsed?.resultTables) || parsed.resultTables.length === 0) return null;
-    // Si todas las tablas están vacías (sin filas con datos), no es un draft útil
-    const tieneDatos = parsed.resultTables.some((t: any) =>
-      (t?.rows ?? []).some((row: any) =>
-        row && Object.values(row).some(v => v !== null && v !== '')
-      )
-    );
-    if (!tieneDatos && !parsed?.certificado?.cc) return null;
-    return parsed as DraftPayload;
-  } catch (e) {
-    console.warn('Draft inválido, se ignora:', e);
-    return null;
-  }
-}
-
-private guardarDraftLocalStorage(): void {
-  if (!this.isBrowser) return;
-  if (this.draftDescartado) return;      // ← no guardar si se descartó
-  if (!this.draftListo) return;          // ← no guardar antes de inicializar
-  try {
-    const unidadesPorTabla: Record<number, string[]> = {};
-    this.resultTables.forEach((table, idx) => {
-      const set = this.unidadesPorTabla.get(table.table_id);
-      if (set) unidadesPorTabla[idx] = Array.from(set);
-    });
-
-    const payload: DraftPayload = {
-      certificado: this.certificado,
-      resultTables: this.resultTables,
-      direccionTab: this.direccionTab,
-      unidadesPorTabla,
-      savedAt: new Date().toISOString(),
-    };
-    localStorage.setItem(DRAFT_KEY, JSON.stringify(payload));
-  } catch (e) {
-    console.warn('No se pudo guardar draft en localStorage:', e);
-  }
-}
-
-private agendarGuardadoDraft(): void {
-  if (!this.isBrowser) return;
-  if (this.draftDescartado) return;
-  if (!this.draftListo) return;          // ← esperar a que el draft esté resuelto
-  if (this.draftGuardadoTimer) clearTimeout(this.draftGuardadoTimer);
-  this.draftGuardadoTimer = setTimeout(() => {
-    this.guardarDraftLocalStorage();
-    this.draftGuardadoTimer = null;
-  }, 500);
-}
-
-private descartarDraft(): void {
-  if (!this.isBrowser) return;
-  this.draftDescartado = true;
-  if (this.draftGuardadoTimer) {
-    clearTimeout(this.draftGuardadoTimer);
-    this.draftGuardadoTimer = null;
-  }
-  localStorage.removeItem(DRAFT_KEY);
-}
-
-private restaurarDraft(draft: DraftPayload): void {
-  this.draftDescartado = false;
-  this.certificado = draft.certificado;
-  this.resultTables = draft.resultTables;
-  this.direccionTab = draft.direccionTab ?? 'vertical';
-  this.imageStates = this.resultTables.map(() => this.crearEstadoImagenVacio());
-  this.regenerarTableIds();
-
-  this.unidadesPorTabla.clear();
-  this.resultTables.forEach((table, idx) => {
-    const serializadas = draft.unidadesPorTabla?.[idx];
-    if (Array.isArray(serializadas) && serializadas.length > 0) {
-      this.unidadesPorTabla.set(table.table_id, new Set(serializadas));
-    } else if (table.unit) {
-      const set = new Set(
-        String(table.unit).split(',').map(s => s.trim()).filter(Boolean)
-      );
-      if (set.size > 0) this.unidadesPorTabla.set(table.table_id, set);
+      return;
     }
-  });
 
-  this.reconstruirUnitsDesdeSets();
-  this.sincronizarJsonTexto();
-  this.cdr.detectChanges();
-  this.alert.success('Borrador recuperado.', 'Bienvenido de vuelta');
-}
+    this.alert.confirm(
+      `Tienes un borrador guardado del ${new Date(draft.savedAt).toLocaleString('es-MX')}. ¿Quieres recuperarlo?`,
+      'Borrador encontrado',
+      {
+        type: 'question',
+        confirmText: 'Cargar borrador',
+        cancelText: 'Descartar',
+        dismissible: false,
+      }
+    )
+      .then(cargar => {
+        if (cargar) {
+          this.restaurarDraft(draft);
+        } else {
+          this.descartarDraft();
+          this.inicializarFormularioVacio();
+        }
+        this.draftListo = true;
+        this.cdr.detectChanges();
+      })
+      .catch(err => {
+        console.error('Error resolviendo borrador:', err);
+        this.descartarDraft();
+        this.inicializarFormularioVacio();
+        this.draftListo = true;
+        this.cdr.detectChanges();
+      });
+  }
 
-  // ========== CARGA DE CATÁLOGO ==========
+  private inicializarFormularioVacio(): void {
+    this.resultTables = [this.crearEstructuraTablaInicial()];
+    this.imageStates = [this.crearEstadoImagenVacio()];
+    this.regenerarTableIds();
+    this.sincronizarJsonTexto();
+  }
+
+  private leerDraftLocalStorage(): DraftPayload | null {
+    if (!this.isBrowser) return null;
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!parsed?.certificado) return null;
+      if (!Array.isArray(parsed?.resultTables) || parsed.resultTables.length === 0) return null;
+      const tieneDatos = parsed.resultTables.some((t: any) =>
+        (t?.rows ?? []).some((row: any) =>
+          row && Object.values(row).some(v => v !== null && v !== '')
+        )
+      );
+      if (!tieneDatos && !parsed?.certificado?.cc) return null;
+      return parsed as DraftPayload;
+    } catch (e) {
+      console.warn('Draft inválido, se ignora:', e);
+      return null;
+    }
+  }
+
+  private guardarDraftLocalStorage(): void {
+    if (!this.isBrowser) return;
+    if (this.draftDescartado) return;
+    if (!this.draftListo) return;
+    try {
+      const unidadesPorTabla: Record<number, string[]> = {};
+      this.resultTables.forEach((table, idx) => {
+        const set = this.unidadesPorTabla.get(table.table_id);
+        if (set) unidadesPorTabla[idx] = Array.from(set);
+      });
+
+      const payload: DraftPayload = {
+        certificado: this.certificado,
+        resultTables: this.resultTables,
+        direccionTab: this.direccionTab,
+        unidadesPorTabla,
+        savedAt: new Date().toISOString(),
+      };
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(payload));
+    } catch (e) {
+      console.warn('No se pudo guardar draft en localStorage:', e);
+    }
+  }
+
+  private agendarGuardadoDraft(): void {
+    if (!this.isBrowser) return;
+    if (this.draftDescartado) return;
+    if (!this.draftListo) return;
+    if (this.draftGuardadoTimer) clearTimeout(this.draftGuardadoTimer);
+    this.draftGuardadoTimer = setTimeout(() => {
+      this.guardarDraftLocalStorage();
+      this.draftGuardadoTimer = null;
+    }, 500);
+  }
+
+  private descartarDraft(): void {
+    if (!this.isBrowser) return;
+    this.draftDescartado = true;
+    if (this.draftGuardadoTimer) {
+      clearTimeout(this.draftGuardadoTimer);
+      this.draftGuardadoTimer = null;
+    }
+    localStorage.removeItem(DRAFT_KEY);
+  }
+
+  private restaurarDraft(draft: DraftPayload): void {
+    this.draftDescartado = false;
+    this.certificado = draft.certificado;
+    this.resultTables = draft.resultTables;
+    this.direccionTab = draft.direccionTab ?? 'vertical';
+    this.imageStates = this.resultTables.map(() => this.crearEstadoImagenVacio());
+    this.regenerarTableIds();
+
+    this.unidadesPorTabla.clear();
+    this.resultTables.forEach((table, idx) => {
+      const serializadas = draft.unidadesPorTabla?.[idx];
+      if (Array.isArray(serializadas) && serializadas.length > 0) {
+        this.unidadesPorTabla.set(table.table_id, new Set(serializadas));
+      } else if (table.unit) {
+        const set = new Set(
+          String(table.unit).split(',').map(s => s.trim()).filter(Boolean)
+        );
+        if (set.size > 0) this.unidadesPorTabla.set(table.table_id, set);
+      }
+    });
+
+    this.reconstruirUnitsDesdeSets();
+
+    // Patrones ya cargados (ngOnInit esperó), resolver síncrono
+    this.resolverPatronDesdeCertificado();
+
+    this.sincronizarJsonTexto();
+    this.cdr.detectChanges();
+    this.alert.success('Borrador recuperado.', 'Bienvenido de vuelta');
+  }
+
+  /**
+   * Resuelve `patronSeleccionado` desde `certificado.equipment_id`.
+   * Como los patrones ya están cargados, es síncrono.
+   * Si el patrón del draft ya no existe, avisa y limpia el campo.
+   */
+  private resolverPatronDesdeCertificado(): void {
+    const id = (this.certificado.equipment_id || '').trim();
+
+    if (!id) {
+      this.patronSeleccionado = null;
+      return;
+    }
+
+    const encontrado = this.patrones.find(p => p.id === id) ?? null;
+
+    if (encontrado) {
+      this.patronSeleccionado = encontrado;
+      return;
+    }
+
+    // El patrón del draft ya no existe en la BD
+    this.patronSeleccionado = null;
+    this.certificado.equipment_id = '';
+    this.certificado.name_equipment = '';
+
+    setTimeout(() => {
+      this.alert.warning(
+        `El patrón con ID "${id}" del borrador ya no está disponible. ` +
+        `Se limpió la selección; elige un patrón nuevo.`,
+        'Patrón no encontrado'
+      );
+    }, 0);
+  }
+
+    // CARGA DE CATÁLOGO (recarga manual, opcional)
+
   cargarCatalogo(force = false): void {
     this.catalogo.cargarCatalogo(force).subscribe({
       next: () => {
@@ -273,8 +397,10 @@ private restaurarDraft(draft: DraftPayload): void {
             if (subs.length > 0 && !subs.some(s => s.displayName === table.parameter)) {
               table.parameter = subs[0].displayName;
             }
-            // Solo auto-seleccionar si la tabla no tiene unidades ya asignadas
-            if (!this.unidadesPorTabla.has(table.table_id) || this.unidadesPorTabla.get(table.table_id)!.size === 0) {
+            if (
+              !this.unidadesPorTabla.has(table.table_id) ||
+              this.unidadesPorTabla.get(table.table_id)!.size === 0
+            ) {
               const unidades = this.catalogo.unidadesPara(table.title, table.parameter);
               if (unidades.length > 0) {
                 this.unidadesPorTabla.set(table.table_id, new Set([unidades[0]]));
@@ -293,7 +419,8 @@ private restaurarDraft(draft: DraftPayload): void {
     });
   }
 
-  // ========== PATRONES ==========
+    // PATRONES (recarga manual, opcional)
+
   cargarPatrones(): void {
     this.cargandoPatrones = true;
 
@@ -320,9 +447,8 @@ private restaurarDraft(draft: DraftPayload): void {
       next: (patronesCruzados: PatronCruzado[]) => {
         this.patrones = this.agruparPatronesPorId(patronesCruzados);
         this.cargandoPatrones = false;
-        if (this.certificado.equipment_id) {
-          this.patronSeleccionado = this.patrones.find(p => p.id === this.certificado.equipment_id) ?? null;
-        }
+        // Refuerzo: re-sincronizar el patrón seleccionado con el certificado
+        this.resolverPatronDesdeCertificado();
         this.cdr.detectChanges();
       },
       error: (err) => {
@@ -366,7 +492,8 @@ private restaurarDraft(draft: DraftPayload): void {
       .sort((a, b) => a.id.localeCompare(b.id, 'es'));
   }
 
-  // ========== HELPERS DE PT / PATRÓN ==========
+    // HELPERS DE PT / PATRÓN
+
   descripcionPt(ptId: string): string {
     if (!ptId) return '';
     return this.ptDescripcionPorId.get(ptId) ?? ptId;
@@ -423,7 +550,8 @@ private restaurarDraft(draft: DraftPayload): void {
     this.cdr.detectChanges();
   }
 
-  // ========== CATÁLOGO: getters para template ==========
+    // CATÁLOGO: getters para template
+
   get opcionesTitulo(): string[] {
     return this.catalogo.listaTitulos().map(t => t.displayName);
   }
@@ -452,11 +580,8 @@ private restaurarDraft(draft: DraftPayload): void {
     return this.catalogo.listaTitulos().some(t => t.displayName === title);
   }
 
-  // ========== SELECCIÓN MÚLTIPLE DE UNIDADES ==========
-  /**
-   * Devuelve el Set de unidades seleccionadas para una tabla.
-   * Si no existe, lo crea vacío.
-   */
+    // SELECCIÓN MÚLTIPLE DE UNIDADES
+
   unidadesSeleccionadasDe(table: ResultTable): Set<string> {
     const key = table.table_id || '';
     if (!this.unidadesPorTabla.has(key)) {
@@ -465,7 +590,6 @@ private restaurarDraft(draft: DraftPayload): void {
     return this.unidadesPorTabla.get(key)!;
   }
 
-  /** Checkbox toggle para una unidad del catálogo. */
   toggleUnidad(table: ResultTable, unidad: string): void {
     const set = this.unidadesSeleccionadasDe(table);
     if (set.has(unidad)) {
@@ -476,14 +600,12 @@ private restaurarDraft(draft: DraftPayload): void {
     this.sincronizarUnitDesdeSeleccion(table);
   }
 
-  /** Devuelve las unidades "personalizadas" (las que el usuario agregó a mano y no están en el catálogo). */
   unidadesPersonalizadasDe(table: ResultTable): string[] {
     const catalogo = this.unidadesDeTabla(table);
     const set = this.unidadesSeleccionadasDe(table);
     return Array.from(set).filter(u => !catalogo.includes(u));
   }
 
-  /** Agrega una unidad personalizada a la selección de la tabla. */
   agregarUnidadPersonalizada(table: ResultTable, valor: string): void {
     const limpio = (valor || '').trim();
     if (!limpio) return;
@@ -492,17 +614,12 @@ private restaurarDraft(draft: DraftPayload): void {
     this.sincronizarUnitDesdeSeleccion(table);
   }
 
-  /** Quita una unidad personalizada de la selección. */
   quitarUnidadPersonalizada(table: ResultTable, valor: string): void {
     const set = this.unidadesSeleccionadasDe(table);
     set.delete(valor);
     this.sincronizarUnitDesdeSeleccion(table);
   }
 
-  /**
-   * Reconstruye `table.unit` a partir del Set de unidades seleccionadas.
-   * Se guarda como string separado por comas: "mV, V, kV".
-   */
   private sincronizarUnitDesdeSeleccion(table: ResultTable): void {
     const set = this.unidadesSeleccionadasDe(table);
     const arr = Array.from(set);
@@ -511,10 +628,6 @@ private restaurarDraft(draft: DraftPayload): void {
     this.cdr.detectChanges();
   }
 
-  /**
-   * Recorre todas las tablas y sincroniza `table.unit` con el Set correspondiente.
-   * Útil tras cargar catálogo o restaurar draft.
-   */
   private reconstruirUnitsDesdeSets(): void {
     for (const table of this.resultTables) {
       const set = this.unidadesSeleccionadasDe(table);
@@ -522,14 +635,14 @@ private restaurarDraft(draft: DraftPayload): void {
     }
   }
 
-  // ========== CAMBIO DE TÍTULO / PARÁMETRO ==========
+    // CAMBIO DE TÍTULO / PARÁMETRO
+
   actualizarParametroSegunTitulo(table: ResultTable): void {
     const opciones = this.obtenerOpcionesParametro(table.title);
     if (opciones.length > 0 && !opciones.includes(table.parameter)) {
       table.parameter = opciones[0];
     }
 
-    // Si el usuario NO tenía unidades seleccionadas, auto-seleccionar la primera del catálogo
     const set = this.unidadesSeleccionadasDe(table);
     if (set.size === 0) {
       const unidades = this.catalogo.unidadesPara(table.title, table.parameter);
@@ -538,16 +651,11 @@ private restaurarDraft(draft: DraftPayload): void {
         this.sincronizarUnitDesdeSeleccion(table);
       }
     } else {
-      // Si ya tenía unidades, filtrar las que ya no pertenecen al nuevo catálogo
       const unidadesValidas = new Set(this.catalogo.unidadesPara(table.title, table.parameter));
-      // Conservar las personalizadas (las que no estaban en el catálogo anterior tampoco)
-      const personalizadas = Array.from(set).filter(u => !unidadesValidas.has(u));
-      // Pero si el usuario tenía seleccionadas unidades del catálogo anterior, esas ya no aplican
       const nuevas = new Set<string>();
       for (const u of set) {
         if (unidadesValidas.has(u)) nuevas.add(u);
       }
-      // Si no queda nada del catálogo, agregar la primera del nuevo catálogo
       if (nuevas.size === 0 && unidadesValidas.size > 0) {
         nuevas.add(Array.from(unidadesValidas)[0]);
       }
@@ -568,7 +676,6 @@ private restaurarDraft(draft: DraftPayload): void {
         this.sincronizarUnitDesdeSeleccion(table);
       }
     } else {
-      // Filtrar unidades del catálogo anterior
       const unidadesValidas = new Set(this.catalogo.unidadesPara(table.title, table.parameter));
       const nuevas = new Set<string>();
       for (const u of set) {
@@ -583,7 +690,8 @@ private restaurarDraft(draft: DraftPayload): void {
     this.sincronizarJsonTexto();
   }
 
-  // ========== table_id ==========
+    // table_id
+
   private construirTableId(indexTable: number): string {
     const folio = (this.certificado.cc || '').trim();
     const sufijo = `T${indexTable + 1}`;
@@ -594,7 +702,6 @@ private restaurarDraft(draft: DraftPayload): void {
     const folio = (this.certificado.cc || '').trim();
     const equipo = this.certificado.equipment_id || '';
 
-    // Guardar el mapeo de unidades por oldId para remapear si los ids cambian
     const mapViejo: Array<{ oldId: string; nuevoId: string }> = [];
 
     this.resultTables.forEach((table, i) => {
@@ -608,7 +715,6 @@ private restaurarDraft(draft: DraftPayload): void {
       table.equipment_id = equipo;
     });
 
-    // Remapear el mapa de unidades
     for (const { oldId, nuevoId } of mapViejo) {
       const set = this.unidadesPorTabla.get(oldId);
       if (set) {
@@ -618,7 +724,8 @@ private restaurarDraft(draft: DraftPayload): void {
     }
   }
 
-  // ========== ESTADO DE IMAGEN ==========
+    // ESTADO DE IMAGEN
+
   private crearEstadoImagenVacio(): TableImageState {
     return {
       imageChangedEvent: null, pasteImageFile: undefined, croppedImageBase64: '',
@@ -626,7 +733,8 @@ private restaurarDraft(draft: DraftPayload): void {
     };
   }
 
-  // ========== ESTRUCTURA INICIAL ==========
+    // ESTRUCTURA INICIAL
+
   private crearEstructuraTablaInicial(): ResultTable {
     const titulos = this.catalogo.listaTitulos();
     const tituloInicial = titulos.length > 0 ? titulos[0].displayName : 'DC Voltage';
@@ -652,7 +760,8 @@ private restaurarDraft(draft: DraftPayload): void {
     };
   }
 
-  // ========== JSON ==========
+    // JSON
+
   sincronizarJsonTexto(): void {
     this.jsonInputText = this.obtenerJsonString();
     this.agendarGuardadoDraft();
@@ -668,7 +777,8 @@ private restaurarDraft(draft: DraftPayload): void {
     this.sincronizarJsonTexto();
   }
 
-  // ========== VALIDACIÓN DE KEY ==========
+    // VALIDACIÓN DE KEY
+
   private validarKey(key: string, table: ResultTable, columnaActual?: Column): { valido: boolean; mensaje?: string } {
     const keyLimpio = key.trim().toLowerCase().replace(/\s+/g, '_');
     if (!keyLimpio) return { valido: false, mensaje: 'El key no puede estar vacío.' };
@@ -681,7 +791,8 @@ private restaurarDraft(draft: DraftPayload): void {
     return { valido: true };
   }
 
-  // ========== CARGAR DESDE JSON ==========
+    // CARGAR DESDE JSON
+
   actualizarFormularioDesdeJson(): void {
     try {
       const parsedJson = JSON.parse(this.jsonInputText);
@@ -725,7 +836,6 @@ private restaurarDraft(draft: DraftPayload): void {
       this.imageStates = tablasNuevas.map(() => this.crearEstadoImagenVacio());
       this.regenerarTableIds();
 
-      // Reconstruir sets desde unit strings
       this.unidadesPorTabla.clear();
       for (const table of this.resultTables) {
         if (table.unit) {
@@ -766,7 +876,8 @@ private restaurarDraft(draft: DraftPayload): void {
     return { min: null, max: null };
   }
 
-  // ========== NAVEGACIÓN TAB ==========
+    // NAVEGACIÓN TAB
+
   onTabKeydown(event: Event, tableIndex: number, rowIndex: number, colIndex: number): void {
     if (this.direccionTab === 'horizontal') return;
     const keyEvent = event as KeyboardEvent;
@@ -778,13 +889,13 @@ private restaurarDraft(draft: DraftPayload): void {
     if (targetInput) { targetInput.focus(); targetInput.select(); }
   }
 
-  // ========== GESTIÓN DE TABLAS ==========
+    // GESTIÓN DE TABLAS
+
   agregarTabla(): void {
     const nueva = this.crearEstructuraTablaInicial();
     this.resultTables.push(nueva);
     this.imageStates.push(this.crearEstadoImagenVacio());
     this.regenerarTableIds();
-    // Inicializar set con la unidad inicial
     if (nueva.unit) {
       this.unidadesPorTabla.set(nueva.table_id, new Set([nueva.unit]));
     }
@@ -802,7 +913,8 @@ private restaurarDraft(draft: DraftPayload): void {
     }
   }
 
-  // ========== GESTIÓN DE COLUMNAS ==========
+    // GESTIÓN DE COLUMNAS
+
   async agregarColumna(table: ResultTable): Promise<void> {
     const posicionOptions = [
       { label: 'Al final (después de la última)', value: '__final__' },
@@ -908,7 +1020,8 @@ private restaurarDraft(draft: DraftPayload): void {
     this.sincronizarJsonTexto();
   }
 
-  // ========== GESTIÓN DE FILAS ==========
+    // GESTIÓN DE FILAS
+
   agregarFila(table: ResultTable): void {
     const nuevaFila: Record<string, any> = {};
     table.columns.forEach(col => { nuevaFila[col.key] = null; });
@@ -923,7 +1036,8 @@ private restaurarDraft(draft: DraftPayload): void {
     }
   }
 
-  // ========== HELPERS NUMÉRICOS ==========
+    // HELPERS NUMÉRICOS
+
   esNumeroValido(s: string): boolean {
     const t = (s ?? '').trim();
     if (!t) return false;
@@ -938,7 +1052,8 @@ private restaurarDraft(draft: DraftPayload): void {
     return !this.esNumeroValido(String(valor));
   }
 
-  // ========== HELPERS DE FECHA ==========
+    // HELPERS DE FECHA
+
   private parseFechaLocal(fecha: string | Date | null | undefined): Date | null {
     if (!fecha) return null;
     if (fecha instanceof Date) return isNaN(fecha.getTime()) ? null : fecha;
@@ -963,7 +1078,8 @@ private restaurarDraft(draft: DraftPayload): void {
     return Math.round((b.getTime() - a.getTime()) / MS);
   }
 
-  // ========== MÉTODOS DE IMAGEN ==========
+    // MÉTODOS DE IMAGEN
+
   onPaste(event: ClipboardEvent, tableIndex: number): void {
     if (!this.isBrowser) return;
     const state = this.imageStates[tableIndex];
@@ -1113,7 +1229,8 @@ private restaurarDraft(draft: DraftPayload): void {
     });
   }
 
-  // ========== NOTACIÓN CIENTÍFICA ==========
+    // NOTACIÓN CIENTÍFICA
+
   private expandirNotacionCientifica(raw: string): string {
     let s = String(raw ?? '').trim();
     if (!s) return '';
@@ -1147,7 +1264,8 @@ private restaurarDraft(draft: DraftPayload): void {
     return resultado;
   }
 
-  // ========== PARSEADOR DE TEXTO ==========
+    // PARSEADOR DE TEXTO
+
   private parseTableText(text: string): { headers: string[]; rows: string[][] } {
     const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
     if (lines.length < 1) return { headers: [], rows: [] };
@@ -1174,7 +1292,8 @@ private restaurarDraft(draft: DraftPayload): void {
     return { headers, rows };
   }
 
-  // ========== PARSEADOR DE HTML ==========
+    // PARSEADOR DE HTML
+
   private parseTableHtml(html: string): { headers: string[]; rows: string[][] } {
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, 'text/html');
@@ -1338,7 +1457,8 @@ private restaurarDraft(draft: DraftPayload): void {
     this.cdr.detectChanges();
   }
 
-  // ========== CONSTRUCCIÓN DEL JSON ==========
+    // CONSTRUCCIÓN DEL JSON
+
   obtenerJsonEstructurado(): object {
     this.regenerarTableIds();
 
@@ -1364,7 +1484,6 @@ private restaurarDraft(draft: DraftPayload): void {
         return nuevaFila;
       });
 
-      // Sincronizar `unit` con el Set de unidades seleccionadas
       const set = this.unidadesPorTabla.get(table.table_id);
       const unitFinal = set ? Array.from(set).join(', ') : (table.unit || '');
 
@@ -1402,6 +1521,8 @@ private restaurarDraft(draft: DraftPayload): void {
       }, 2500);
     });
   }
+
+    // VALIDACIÓN DE FORMULARIO
 
   validarFormulario(): boolean {
     const errores: string[] = [];
@@ -1521,7 +1642,8 @@ private restaurarDraft(draft: DraftPayload): void {
     return { titulo: 'Error al guardar', mensaje: message || detail || 'Error desconocido al conectar con la API.' };
   }
 
-  // ========== GUARDAR ==========
+    // GUARDAR
+
   guardarCertificado(): void {
     if (this.guardando) return;
     if (!this.validarFormulario()) return;
@@ -1573,7 +1695,8 @@ private restaurarDraft(draft: DraftPayload): void {
     });
   }
 
-  // ========== LIMPIAR ==========
+    // LIMPIAR
+
   limpiarFormulario(): void {
     this.draftDescartado = false;
     this.draftListo = true;
@@ -1593,7 +1716,8 @@ private restaurarDraft(draft: DraftPayload): void {
     this.cdr.detectChanges();
   }
 
-  // ========== AYUDA ==========
+    // AYUDA
+
   ayuda(modal: string): void {
     const clave = String(modal ?? '').trim().toLowerCase();
     let detalle = '';

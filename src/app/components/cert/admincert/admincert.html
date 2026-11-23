@@ -79,14 +79,14 @@
   <!-- Tabla de certificados -->
   <div *ngIf="!cargando" class="card shadow-sm">
     <div class="table-responsive">
-      <table class="table table-hover align-middle mb-0">
+      <table class="table table-hover align-middle mb-0 tabla-certificados">
         <thead class="table-dark">
           <tr>
-            <th>Estado</th>
-            <th>Equipment ID</th>
-            <th>Folio / CC</th>
+            <th style="width: 100px;">Estado</th>
+            <th style="width: 130px;">Equipment ID</th>
+            <th style="width: 170px;">Folio / CC</th>
             <th>Nombre del Equipo</th>
-            <th class="text-center">Acciones</th>
+            <th class="text-center" style="width: 170px;">Acciones</th>
           </tr>
         </thead>
         <tbody>
@@ -99,9 +99,29 @@
                   {{ esActivo(cert) ? 'Activo' : 'Inactivo' }}
                 </span>
               </td>
-              <td class="fw-bold">{{ cert.equipment_id }}</td>
-              <td><span class="badge bg-light text-dark border">{{ cert.cc || 'N/A' }}</span></td>
-              <td>{{ cert.name_equipment }}</td>
+
+              <td class="fw-bold">
+                <span class="d-inline-block text-truncate w-100"
+                      [title]="cert.equipment_id">
+                  {{ cert.equipment_id }}
+                </span>
+              </td>
+
+              <td>
+                <span class="badge bg-light text-dark border text-truncate d-inline-block"
+                      style="max-width: 100%;"
+                      [title]="cert.cc">
+                  {{ cert.cc || 'N/A' }}
+                </span>
+              </td>
+
+              <td>
+                <span class="d-inline-block text-truncate w-100"
+                      [title]="cert.name_equipment">
+                  {{ cert.name_equipment }}
+                </span>
+              </td>
+
               <td class="text-center">
                 <button
                   class="btn btn-sm"
@@ -180,7 +200,7 @@
                       </div>
                     </div>
 
-                    <!-- Auditoría Detallada (Texto plano con colores semánticos) -->
+                    <!-- Auditoría Detallada -->
                     <div class="border-top border-bottom py-3 mb-4">
                       <h6 class="fw-bold mb-3"><i class="bi bi-shield-check"></i> Datos de Auditoría</h6>
                       <div class="row small">

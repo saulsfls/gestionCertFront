@@ -1,0 +1,19 @@
+.tabla-certificados {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.tabla-certificados th,
+.tabla-certificados td {
+  overflow: hidden;
+  vertical-align: middle;
+}
+
+.tabla-certificados td > .text-truncate {
+  max-width: 100%;
+}
+
+.tabla-certificados .badge.text-truncate {
+  max-width: 100%;
+  vertical-align: middle;
+}

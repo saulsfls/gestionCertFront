@@ -6,6 +6,9 @@ import { Global } from '../../../../environment/environment';
 export interface EquipoMin {
   name: string;
   idequipment: string;
+  months?: number;
+  last_calibration?: string;
+  next_calibration?: string;
 }
 
 export interface PatronCruzado {
@@ -65,6 +68,7 @@ export class EquipmentService {
         equipos.map((e) => ({
           name: String(e.name ?? '').trim(),
           idequipment: String(e.idequipment ?? '').trim(),
+          months: e.months != null ? Number(e.months) : undefined,
         }))
       )
     );
@@ -88,38 +92,53 @@ export class EquipmentService {
    * reconstruye el `name` de cada patrón sustituyendo los `idequipment`
    * por sus nombres legibles.
    */
-  cruzarPatronesEquipos(
-    patrones: any[],
-    equipos: EquipoMin[]
-  ): PatronCruzado[] {
-    const nombrePorIdeq = new Map<string, string>();
-    for (const e of equipos) {
-      if (e.idequipment && e.name) {
-        nombrePorIdeq.set(e.idequipment, e.name);
-      }
-    }
-
-    return patrones.map((p: any) => {
-      const idCompuesto = String(p.name ?? '').trim();
-      const partes = idCompuesto
-        .split('+')
-        .map((s) => s.trim())
-        .filter(Boolean);
-
-      const nombres = partes.map((parte) => {
-        const nombre = nombrePorIdeq.get(parte);
-        return nombre ?? parte;
-      });
-
-      const { id: _oldId, name: _oldName, ...resto } = p;
-      return {
-        id: idCompuesto,
-        name: nombres.join('+'),
-        ...resto,
-      } as PatronCruzado;
-    });
+    cruzarPatronesEquipos(
+  patrones: any[],
+  equipos: EquipoMin[]
+): PatronCruzado[] {
+  // Índice por idequipment
+  const infoPorIdeq = new Map<string, EquipoMin>();
+  for (const e of equipos) {
+    if (e.idequipment) infoPorIdeq.set(e.idequipment, e);
   }
 
+  return patrones.map((p: any) => {
+    const idCompuesto = String(p.name ?? '').trim();
+    const partes = idCompuesto
+      .split('+')
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    const nombres: string[] = [];
+    let months: number | undefined;
+    let lastCal: string | undefined;
+    let nextCal: string | undefined;
+
+    for (const parte of partes) {
+      const eq = infoPorIdeq.get(parte);
+      nombres.push(eq?.name ?? parte);
+
+      // Tomar el primer `months` definido entre los equipos del patrón
+      if (months === undefined && eq?.months != null && Number.isFinite(eq.months)) {
+        months = eq.months;
+      }
+      if (lastCal === undefined && eq?.last_calibration) lastCal = eq.last_calibration;
+      if (nextCal === undefined && eq?.next_calibration) nextCal = eq.next_calibration;
+    }
+
+    const { id: _oldId, name: _oldName, months_calibration: _oldMonths, calibration_date: _oldCal, ...resto } = p;
+
+    return {
+      id: idCompuesto,
+      name: nombres.join('+'),
+      // Ahora vienen del equipment_catalog
+      months_calibration: months,
+      calibration_date: lastCal,
+      next_calibration: nextCal,
+      ...resto,
+    } as PatronCruzado;
+  });
+}
   private getTabla(bd: string, table: string): Observable<any[]> {
     const req = { bd, action: 'get', table, opts: {} };
     console.log(req);
