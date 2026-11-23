@@ -7,19 +7,36 @@ export interface User {
   espoToken: string;
 }
 
-// 🔑 Claves reales que usa EspoCRM en localStorage
+// 🔑 Claves reales de EspoCRM (sin cambios)
 const ESPO_USER_ID_KEY = 'espo-user-lastUserId';
 const ESPO_USER_AUTH_KEY = 'espo-user-auth';
+
+// 🔑 Clave para el flag de sesión local
+const LOCAL_SESSION_KEY = 'app-local-session';
+
+// 🔑 Contraseña local fija (hardcoded)
+const LOCAL_PASSWORD = 'hvtestadmin';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly _user = signal<User | null>(this.readUserFromStorage());
+  private readonly _unlocked = signal<boolean>(this.hasSessionFlag());
 
   readonly user = this._user.asReadonly();
   readonly isLoggedIn = computed(() => this._user() !== null);
+  readonly isUnlocked = this._unlocked.asReadonly();
+
+  // ────────────────────────────────────────────────
+  // USUARIO (igual que antes)
+  // ────────────────────────────────────────────────
 
   getUser(): User | null {
     return this._user();
+  }
+
+  getToken(): string | null {
+    const currentUser = this._user();
+    return currentUser?.espoToken ? currentUser.espoToken : null;
   }
 
   hasValidSession(): boolean {
@@ -45,29 +62,19 @@ export class AuthService {
   logout(): void {
     localStorage.removeItem(ESPO_USER_ID_KEY);
     localStorage.removeItem(ESPO_USER_AUTH_KEY);
+    sessionStorage.removeItem(LOCAL_SESSION_KEY);
     this._user.set(null);
+    this._unlocked.set(false);
   }
 
-  getToken(): string | null {
-    const currentUser = this._user();
-    return currentUser?.espoToken ? currentUser.espoToken : null;
-  }
-
-  /** ➕ Genera y guarda los elementos de prueba con el formato real de EspoCRM */
   addUser(
     username: string = 'testuser',
     id_user: string = 'test_user',
     espoToken: string = 'c252fdda0142bedc99e277bcb6b90a3f'
   ): User {
     const user: User = { id_user, username, espoToken };
-
-    // 1. Guardar el ID de usuario en formato hexadecimal de 16 chars
     localStorage.setItem(ESPO_USER_ID_KEY, id_user);
-
-    // 2. Guardar el auth en Base64 con formato "usuario:token"
-    const encodedAuth = btoa(`${username}:${espoToken}`);
-    localStorage.setItem(ESPO_USER_AUTH_KEY, encodedAuth);
-
+    localStorage.setItem(ESPO_USER_AUTH_KEY, btoa(`${username}:${espoToken}`));
     this._user.set(user);
     return user;
   }
@@ -76,44 +83,90 @@ export class AuthService {
     this.logout();
   }
 
+  // ────────────────────────────────────────────────
+  // CONTRASEÑA LOCAL (fija en código)
+  // ────────────────────────────────────────────────
+
+  /** ¿La sesión está desbloqueada? */
+  isSessionUnlocked(): boolean {
+    return this._unlocked();
+  }
+
+  /**
+   * Valida la contraseña contra el valor fijo del código.
+   * Devuelve true si coincide y marca la sesión como desbloqueada.
+   */
+  loginWithPassword(password: string): boolean {
+    if (!password) return false;
+
+    const ok = this.constantTimeEqualStr(password, LOCAL_PASSWORD);
+    if (ok) this.markSession(true);
+    return ok;
+  }
+
+  /** Bloquea la sesión (pide contraseña otra vez sin cerrar sesión Espo). */
+  lock(): void {
+    sessionStorage.removeItem(LOCAL_SESSION_KEY);
+    this._unlocked.set(false);
+  }
+
+  // ────────────────────────────────────────────────
+  // STORAGE / HELPERS
+  // ────────────────────────────────────────────────
+
   private readUserFromStorage(): User | null {
     try {
       const rawAuth = localStorage.getItem(ESPO_USER_AUTH_KEY);
       const rawId = localStorage.getItem(ESPO_USER_ID_KEY);
+      if (!rawAuth && !rawId) return null;
 
-      // Si no existe absolutamente nada en localStorage, retornamos null de forma limpia
-      if (!rawAuth && !rawId) {
-        return null;
-      }
-
-      // Valores por defecto de respaldo para evitar falsos negativos en el inicio
       let username = ' ';
       let token = ' ';
       let id_user = rawId ? rawId.trim() : ' ';
 
-      // Intentar decodificar 'espo-user-auth' si está presente
       if (rawAuth) {
         try {
-          const decoded = atob(rawAuth);
-          const partes = decoded.split(':');
+          const partes = atob(rawAuth).split(':');
           if (partes.length === 2) {
             username = partes[0];
             token = partes[1];
           }
-        } catch {
-          // Si falla el base64 pero tenemos el ID, mantenemos los valores por defecto sin borrar nada
-        }
+        } catch { /* noop */ }
       }
 
-      // Devolvemos el usuario activo de forma robusta
       return {
         id_user: id_user || ' ',
         username: username || ' ',
-        espoToken: token || ' '
+        espoToken: token || ' ',
       };
     } catch {
-      // En caso de cualquier error crítico de lectura, devolvemos el último usuario conocido en el signal en lugar de null si ya existía
       return this._user();
     }
+  }
+
+  private hasSessionFlag(): boolean {
+    try { return sessionStorage.getItem(LOCAL_SESSION_KEY) === '1'; }
+    catch { return false; }
+  }
+
+  private markSession(unlocked: boolean): void {
+    try {
+      if (unlocked) sessionStorage.setItem(LOCAL_SESSION_KEY, '1');
+      else sessionStorage.removeItem(LOCAL_SESSION_KEY);
+    } catch { /* noop */ }
+    this._unlocked.set(unlocked);
+  }
+
+  /**
+   * Comparación en tiempo constante de dos strings.
+   * Evita filtrar información por longitud o por corto-circuito.
+   */
+  private constantTimeEqualStr(a: string, b: string): boolean {
+    const len = Math.max(a.length, b.length);
+    let diff = a.length ^ b.length;
+    for (let i = 0; i < len; i++) {
+      diff |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
+    }
+    return diff === 0;
   }
 }

@@ -95,3 +95,21 @@ export interface ApiError {
   message: string;
   detail?: string;
 }
+
+// ── Edición masiva (editor JSON) ──
+
+export type CatalogoId = 'titulos' | 'unidades';
+export type ModoActualizacionCatalogo = 'replace' | 'merge';
+
+export interface ActualizarCatalogoCompletoDto {
+  data: TitulosMap | MagnitudesMap;
+  modo?: ModoActualizacionCatalogo;
+}
+
+export interface ActualizarCatalogoCompletoResponse {
+  catalogId: CatalogoId;
+  modo: ModoActualizacionCatalogo;
+  total: number;
+  actor?: string;
+  data: TitulosMap | MagnitudesMap;
+}

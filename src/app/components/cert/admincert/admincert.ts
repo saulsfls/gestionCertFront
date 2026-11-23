@@ -7,6 +7,7 @@ import { Certificado, ApiResponse, CertificadoData } from '../../../models/certi
 import { AlertService } from '../../../services/core/alert.service';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { AuthService } from '../../../services/auth/auth.service';
 
 @Component({
   selector: 'app-admincert',
@@ -18,6 +19,7 @@ import autoTable from 'jspdf-autotable';
 export class admincert implements OnInit {
 
   private readonly alert = inject(AlertService);
+  private auth = inject(AuthService);
   private readonly PASSWORD = 'admin';
 
   listaCertificados: Certificado[] = [];
@@ -41,11 +43,17 @@ export class admincert implements OnInit {
     this.verificarPassword();
   }
 
-  async verificarPassword(): Promise<void> {
+async verificarPassword(): Promise<void> {
     const pass = await this.alert.prompt(
       'Ingrese la contraseña para acceder a la administración de certificados.',
       'Acceso restringido',
-      { type: 'question', confirmText: 'Acceder', cancelText: 'Cancelar', dismissible: false, prompt: { placeholder: 'Contraseña…', defaultValue: '', inputType: 'password' } }
+      {
+        type: 'question',
+        confirmText: 'Acceder',
+        cancelText: 'Cancelar',
+        dismissible: false,
+        prompt: { placeholder: 'Contraseña…', defaultValue: '', inputType: 'password' },
+      }
     );
 
     if (pass === null) {
@@ -54,14 +62,16 @@ export class admincert implements OnInit {
       return;
     }
 
-    if (pass === this.PASSWORD) {
-      this.alert.success('Acceso concedido.', 'Bienvenido');
-      this.obtenerCertificados();
-    } else {
+    if (!pass || !this.auth.loginWithPassword(pass)) {
       this.alert.error('Contraseña incorrecta. Acceso denegado.', 'Acceso denegado');
       this.router.navigate(['/listcert']);
+      return;
     }
+
+    this.alert.success('Acceso concedido.', 'Bienvenido');
+    this.obtenerCertificados();
   }
+
 
   obtenerCertificados(): void {
     this.cargando = true;

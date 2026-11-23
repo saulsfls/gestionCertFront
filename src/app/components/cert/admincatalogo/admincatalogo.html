@@ -1,21 +1,18 @@
 <div class="container-fluid py-4">
 
-  <!-- ============================================= -->
-  <!-- Panel de Búsqueda y Filtros                    -->
-  <!-- ============================================= -->
   <div class="card shadow-sm mb-4">
     <div class="card-body">
       <div class="row g-3 align-items-center">
 
         <!-- Búsqueda -->
-        <div class="col-md-5">
+        <div class="col-md-6">
           <label class="form-label fw-bold small text-secondary">
             Buscar en el catálogo
           </label>
           <input
             type="text"
             class="form-control"
-            placeholder="Buscar por ID, display name, label, magnitud o símbolo…"
+            placeholder="Buscar por título, subparámetro, magnitud o símbolo…"
             [(ngModel)]="terminoBusqueda" />
         </div>
 
@@ -25,84 +22,58 @@
             Sección del catálogo
           </label>
           <select class="form-select" [(ngModel)]="activeTab">
-            <option value="titulos">🏷️ Títulos</option>
-            <option value="subparametros">📋 Subparámetros</option>
-            <option value="magnitudes">⚛️ Magnitudes</option>
-            <option value="unidades">📏 Unidades</option>
+            <option value="titulos">Títulos</option>
+            <option value="magnitudes">Magnitudes</option>
           </select>
         </div>
-
-        <!-- Filtro contextual -->
-        <div class="col-md-2" *ngIf="activeTab === 'subparametros'">
-          <label class="form-label fw-bold small text-secondary">Título</label>
-          <select class="form-select" [(ngModel)]="filtroTituloId">
-            <option [ngValue]="null">Todos</option>
-            <option *ngFor="let t of titulosData" [ngValue]="t.id">
-              {{ t.displayName }}
-            </option>
-          </select>
-        </div>
-        <div class="col-md-2" *ngIf="activeTab === 'unidades'">
-          <label class="form-label fw-bold small text-secondary">Magnitud</label>
-          <select class="form-select" [(ngModel)]="filtroMagnitudId">
-            <option [ngValue]="null">Todas</option>
-            <option *ngFor="let m of magnitudesData" [ngValue]="m.id">
-              {{ m.nombre }}
-            </option>
-          </select>
-        </div>
-
-        <!-- Recargar -->
-        <div class="col-md-2 d-flex align-items-end">
-          <button
-            class="btn btn-outline-secondary w-100"
-            type="button"
-            (click)="cargarTodo(true)"
-            [disabled]="cargando">
-            <span *ngIf="cargando" class="spinner-border spinner-border-sm me-1"></span>
-            ↻ Recargar
-          </button>
-        </div>
-
       </div>
     </div>
   </div>
 
-  <!-- ============================================= -->
-  <!-- Botón de acción (derecha)                     -->
-  <!-- ============================================= -->
-  <div class="d-flex justify-content-end mb-5">
+  <div class="d-flex justify-content-end align-items-center gap-2 mb-5">
+
+    <!-- Recargar -->
     <button
       type="button"
       class="btn btn-outline-secondary shadow-sm px-3"
+      (click)="cargarTodo(true)"
+      [disabled]="cargando">
+      <span
+        *ngIf="cargando"
+        class="spinner-border spinner-border-sm me-1"
+        role="status"
+        aria-hidden="true"></span>
+      Recargar
+    </button>
+
+    <!-- Crear según sección activa -->
+    <button
+      type="button"
+      class="btn btn-outline-success shadow-sm px-3"
       (click)="crearSegunTab()"
       [disabled]="cargando">
       <ng-container [ngSwitch]="activeTab">
         <span *ngSwitchCase="'titulos'">＋ Nuevo Título</span>
-        <span *ngSwitchCase="'subparametros'">＋ Nuevo Subparámetro</span>
         <span *ngSwitchCase="'magnitudes'">＋ Nueva Magnitud</span>
-        <span *ngSwitchCase="'unidades'">＋ Nueva Unidad</span>
       </ng-container>
     </button>
   </div>
 
-  <!-- ============================================= -->
-  <!-- Indicador de carga                            -->
-  <!-- ============================================= -->
+  <!-- ============================================================ -->
+  <!-- Indicador de carga                                          -->
+  <!-- ============================================================ -->
   <div *ngIf="cargando" class="text-center py-5">
     <div class="spinner-border text-primary" role="status">
       <span class="visually-hidden">Cargando…</span>
     </div>
   </div>
 
-  <!-- ============================================= -->
-  <!-- Tabla principal (siempre visible)             -->
-  <!-- ============================================= -->
-  <div class="card shadow-sm">
+  <!-- ============================================================ -->
+  <!-- SECCIÓN: TÍTULOS                                            -->
+  <!-- ============================================================ -->
+  <div *ngIf="!cargando && activeTab === 'titulos'" class="card shadow-sm">
     <div class="table-responsive">
-
-      <!-- ───────────── TABLA: TÍTULOS ───────────── -->
-      <table *ngIf="activeTab === 'titulos'" class="table table-hover align-middle mb-0">
+      <table class="table table-hover align-middle mb-0">
         <thead class="table-dark">
           <tr>
             <th>ID (slug)</th>
@@ -115,103 +86,114 @@
         </thead>
         <tbody>
           <ng-container *ngFor="let t of titulosFiltrados; trackBy: trackTitulo">
+
+            <!-- Fila principal del título -->
             <tr>
-              <td><code>{{ t.id }}</code></td>
+              <td>{{ t.id }}</td>
               <td class="fw-bold">{{ t.displayName }}</td>
               <td class="text-muted">{{ t.label || '—' }}</td>
               <td>
                 <span class="badge"
                   [ngClass]="t.magnitud === '*' ? 'bg-warning text-dark' : 'bg-light text-dark border'">
-                  {{ t.magnitud === '*' ? '＊ comodín' : t.magnitud }}
+                  {{ t.magnitud === '*' ? 'comodín' : t.magnitud }}
                 </span>
               </td>
               <td class="text-center">
-                <span class="badge bg-secondary">{{ t.subparametros?.length ?? 0 }}</span>
+                <span class="badge bg-secondary">{{ subsDeTitulo(t).length }}</span>
               </td>
               <td class="text-center">
                 <div class="btn-group btn-group-sm">
-                  <button class="btn"
-                    [ngClass]="expandidoId === t.id ? 'btn-secondary' : 'btn-outline-primary'"
-                    (click)="toggleDetalle(t.id)">
-                    {{ expandidoId === t.id ? 'Ocultar opciones' : 'Mostrar opciones' }}
+                  <button
+                    class="btn"
+                    [ngClass]="estaExpandidoTitulo(t.id) ? 'btn-secondary' : 'btn-outline-primary'"
+                    (click)="toggleTitulo(t.id)">
+                    {{ estaExpandidoTitulo(t.id) ? 'Ocultar opciones' : 'Mostrar opciones' }}
                   </button>
                 </div>
               </td>
             </tr>
 
-            <!-- Detalle expandible -->
-            <tr *ngIf="expandidoId === t.id" class="table-light">
+            <!-- Fila expandible: subparámetros + sus unidades -->
+            <tr *ngIf="estaExpandidoTitulo(t.id)" class="table-light">
               <td colspan="6" class="p-4">
                 <div class="card border-secondary shadow-sm">
+
                   <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
-                    <span class="fw-bold">Título: {{ t.displayName }}</span>
+                    <span class="fw-bold">Subparámetros del título: {{ t.displayName }}</span>
                     <span class="badge bg-black">ID: {{ t.id }}</span>
                   </div>
+
                   <div class="card-body">
-                    <div class="row g-3">
-                      <div class="col-md-6">
-                        <ul class="list-group list-group-flush">
-                          <li class="list-group-item d-flex justify-content-between">
-                            <strong>ID (slug)</strong>
-                            <code>{{ t.id }}</code>
-                          </li>
-                          <li class="list-group-item d-flex justify-content-between">
-                            <strong>Display Name</strong>
-                            <span>{{ t.displayName }}</span>
-                          </li>
-                          <li class="list-group-item d-flex justify-content-between">
-                            <strong>Label</strong>
-                            <span>{{ t.label || 'N/A' }}</span>
-                          </li>
-                          <li class="list-group-item d-flex justify-content-between">
-                            <strong>Magnitud</strong>
-                            <span class="badge"
-                              [ngClass]="t.magnitud === '*' ? 'bg-warning text-dark' : 'bg-info text-dark'">
-                              {{ t.magnitud }}
-                            </span>
-                          </li>
-                        </ul>
-                      </div>
-                      <div class="col-md-6">
-                        <ul class="list-group list-group-flush">
-                          <li class="list-group-item d-flex justify-content-between">
-                            <strong>Subparámetros</strong>
-                            <span class="badge bg-secondary">{{ t.subparametros?.length ?? 0 }}</span>
-                          </li>
-                        </ul>
-                        <div *ngIf="t.subparametros?.length" class="mt-2">
-                          <span class="badge bg-light text-dark border me-1 mb-1"
-                            *ngFor="let sp of t.subparametros">
-                            {{ sp.displayName }}
-                          </span>
-                        </div>
-                      </div>
+
+                    <!-- Botón crear subparámetro -->
+                    <div class="d-flex justify-content-end mb-3">
+                      <button
+                        class="btn btn-outline-success btn-sm"
+                        (click)="crearSubparametroEnTitulo(t)">
+                        ＋ Nuevo Subparámetro
+                      </button>
+                    </div>
+
+                    <div *ngIf="subsDeTitulo(t).length === 0" class="text-center py-4 text-muted">
+                      Este título aún no tiene subparámetros.
+                    </div>
+
+                    <!-- Tabla de subparámetros -->
+                    <div class="table-responsive" *ngIf="subsDeTitulo(t).length > 0">
+                      <table class="table table-sm table-hover align-middle mb-0">
+                        <thead class="table-light">
+                          <tr>
+                            <th>Subparámetro</th>
+                            <th>Label</th>
+                            <th>Magnitud efectiva</th>
+                            <th>Origen</th>
+                            <th>Unidades</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr *ngFor="let s of subsDeTitulo(t); trackBy: trackSub">
+                            <td class="fw-bold">{{ s.displayName }}</td>
+                            <td class="text-muted">{{ s.label || '—' }}</td>
+                            <td>
+                              <span class="badge bg-info text-dark">
+                                {{ nombreMagnitud(s.magnitudEfectiva) }}
+                              </span>
+                            </td>
+                            <td>
+                              <span class="badge"
+                                [ngClass]="s.tieneOverride ? 'bg-success' : 'bg-secondary'">
+                                {{ s.tieneOverride ? 'propia' : 'heredada' }}
+                              </span>
+                            </td>
+                            <td>
+                              <span
+                                class="badge me-1 mb-1"
+                                [ngClass]="u.origen === 'propia' ? 'bg-success' : 'bg-secondary'"
+                                *ngFor="let u of s.unidades; trackBy: trackUnidad"
+                                [title]="u.nombre + (u.factor ? ' · ' + u.factor : '')">
+                                {{ u.simbolo }}
+                              </span>
+                              <span *ngIf="s.unidades.length === 0" class="text-muted small">
+                                sin unidades
+                              </span>
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
                     </div>
 
                     <div class="mt-3 text-muted small">
-                      <i class="bi bi-info-circle"></i>
-                      El <strong>Display Name</strong> no se puede modificar (se guarda en los certificados).
-                      <br>
-                      <i class="bi bi-info-circle"></i>
-                      Solo puedes cambiar el <strong>Label</strong> y la <strong>Magnitud</strong>.
+                      Las unidades marcadas en <strong>verde</strong> son propias del subparámetro
+                      (override). Las marcadas en <strong>gris</strong> se heredan de la magnitud del título.
                     </div>
 
-                    <div class="mt-4 d-flex justify-content-end gap-2">
-                      <button class="btn btn-outline-warning"
-                        (click)="editarTitulo(t)">
-                        Editar Título
-                      </button>
-                      <button class="btn btn-outline-danger"
-                        (click)="eliminarTitulo(t)">
-                        Eliminar Título
-                      </button>
-                    </div>
                   </div>
                 </div>
               </td>
             </tr>
           </ng-container>
 
+          <!-- Sin resultados -->
           <tr *ngIf="titulosFiltrados.length === 0">
             <td colspan="6" class="text-center py-4 text-muted">
               No se encontraron títulos con los criterios seleccionados.
@@ -219,215 +201,102 @@
           </tr>
         </tbody>
       </table>
+    </div>
+  </div>
 
-      <!-- ───────────── TABLA: SUBPARÁMETROS ───────────── -->
-      <table *ngIf="activeTab === 'subparametros'" class="table table-hover align-middle mb-0">
-        <thead class="table-dark">
-          <tr>
-            <th>Título</th>
-            <th>ID (slug)</th>
-            <th>Display Name</th>
-            <th>Label</th>
-            <th>Override unidades</th>
-            <th class="text-center">Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-          <ng-container *ngFor="let s of subparametrosFiltrados; trackBy: trackSub">
-            <tr>
-              <td class="text-muted">{{ s.tituloDisplay }}</td>
-              <td><code>{{ s.id }}</code></td>
-              <td class="fw-bold">{{ s.displayName }}</td>
-              <td class="text-muted">{{ s.label || '—' }}</td>
-              <td>
-                <ng-container *ngIf="s.unidadesOverride?.length; else sinOverride">
-                  <span class="badge bg-light text-dark border me-1"
-                    *ngFor="let u of s.unidadesOverride">{{ u }}</span>
-                </ng-container>
-                <ng-template #sinOverride>
-                  <span class="text-muted small">hereda magnitud</span>
-                </ng-template>
-              </td>
-              <td class="text-center">
-                <div class="btn-group btn-group-sm">
-                  <button class="btn"
-                    [ngClass]="expandidoId === ('sub::' + s.tituloId + '::' + s.id) ? 'btn-secondary' : 'btn-outline-primary'"
-                    (click)="toggleDetalle('sub::' + s.tituloId + '::' + s.id)">
-                    {{ expandidoId === ('sub::' + s.tituloId + '::' + s.id) ? 'Ocultar opciones' : 'Mostrar opciones' }}
-                  </button>
-                </div>
-              </td>
-            </tr>
-
-            <!-- Detalle expandible -->
-            <tr *ngIf="expandidoId === ('sub::' + s.tituloId + '::' + s.id)" class="table-light">
-              <td colspan="6" class="p-4">
-                <div class="card border-secondary shadow-sm">
-                  <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
-                    <span class="fw-bold">Subparámetro: {{ s.displayName }}</span>
-                    <span class="badge bg-black">ID: {{ s.id }}</span>
-                  </div>
-                  <div class="card-body">
-                    <div class="row g-3">
-                      <div class="col-md-6">
-                        <ul class="list-group list-group-flush">
-                          <li class="list-group-item d-flex justify-content-between">
-                            <strong>Título padre</strong>
-                            <span>{{ s.tituloDisplay }}</span>
-                          </li>
-                          <li class="list-group-item d-flex justify-content-between">
-                            <strong>ID (slug)</strong>
-                            <code>{{ s.id }}</code>
-                          </li>
-                          <li class="list-group-item d-flex justify-content-between">
-                            <strong>Display Name</strong>
-                            <span>{{ s.displayName }}</span>
-                          </li>
-                          <li class="list-group-item d-flex justify-content-between">
-                            <strong>Label</strong>
-                            <span>{{ s.label || 'N/A' }}</span>
-                          </li>
-                        </ul>
-                      </div>
-                      <div class="col-md-6">
-                        <ul class="list-group list-group-flush">
-                          <li class="list-group-item">
-                            <strong class="d-block mb-2">Override de unidades</strong>
-                            <ng-container *ngIf="s.unidadesOverride?.length; else sinOverrideDetalle">
-                              <span class="badge bg-primary me-1 mb-1"
-                                *ngFor="let u of s.unidadesOverride">{{ u }}</span>
-                            </ng-container>
-                            <ng-template #sinOverrideDetalle>
-                              <span class="text-muted">Hereda las unidades de la magnitud del título.</span>
-                            </ng-template>
-                          </li>
-                        </ul>
-                      </div>
-                    </div>
-
-                    <div class="mt-3 text-muted small">
-                      <i class="bi bi-info-circle"></i>
-                      El <strong>Display Name</strong> no se puede modificar.
-                      <br>
-                      <i class="bi bi-info-circle"></i>
-                      El override permite sobrescribir las unidades heredadas de la magnitud.
-                    </div>
-
-                    <div class="mt-4 d-flex justify-content-end gap-2">
-                      <button class="btn btn-outline-warning"
-                        (click)="editarSubparametro(s)">
-                        Editar Subparámetro
-                      </button>
-                      <button class="btn btn-outline-danger"
-                        (click)="eliminarSubparametro(s)">
-                        Eliminar Subparámetro
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </td>
-            </tr>
-          </ng-container>
-
-          <tr *ngIf="subparametrosFiltrados.length === 0">
-            <td colspan="6" class="text-center py-4 text-muted">
-              No se encontraron subparámetros con los criterios seleccionados.
-            </td>
-          </tr>
-        </tbody>
-      </table>
-
-      <!-- ───────────── TABLA: MAGNITUDES ───────────── -->
-      <table *ngIf="activeTab === 'magnitudes'" class="table table-hover align-middle mb-0">
+  <!-- ============================================================ -->
+  <!-- SECCIÓN: MAGNITUDES                                         -->
+  <!-- ============================================================ -->
+  <div *ngIf="!cargando && activeTab === 'magnitudes'" class="card shadow-sm">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
         <thead class="table-dark">
           <tr>
             <th>ID (slug)</th>
             <th>Nombre</th>
-            <th class="text-center">Unidades</th>
+            <th>Unidades registradas</th>
             <th class="text-center">Acciones</th>
           </tr>
         </thead>
         <tbody>
           <ng-container *ngFor="let m of magnitudesFiltradas; trackBy: trackMagnitud">
+
+            <!-- Fila principal de la magnitud -->
             <tr>
-              <td><code>{{ m.id }}</code></td>
+              <td>{{ m.id }}</td>
               <td class="fw-bold">{{ m.nombre }}</td>
-              <td class="text-center">
-                <span class="badge bg-secondary">{{ m.unidades?.length ?? 0 }}</span>
+              <td>
+                <span class="badge bg-light text-dark border me-1 mb-1"
+                  *ngFor="let u of m.unidades; trackBy: trackUnidadSimple">
+                  {{ u.simbolo }}
+                </span>
+                <span *ngIf="!m.unidades?.length" class="text-muted small">sin unidades</span>
               </td>
               <td class="text-center">
                 <div class="btn-group btn-group-sm">
-                  <button class="btn"
-                    [ngClass]="expandidoId === ('mag::' + m.id) ? 'btn-secondary' : 'btn-outline-primary'"
-                    (click)="toggleDetalle('mag::' + m.id)">
-                    {{ expandidoId === ('mag::' + m.id) ? 'Ocultar opciones' : 'Mostrar opciones' }}
+                  <button
+                    class="btn"
+                    [ngClass]="estaExpandidoMagnitud(m.id) ? 'btn-secondary' : 'btn-outline-primary'"
+                    (click)="toggleMagnitud(m.id)">
+                    {{ estaExpandidoMagnitud(m.id) ? 'Ocultar opciones' : 'Mostrar opciones' }}
                   </button>
                 </div>
               </td>
             </tr>
 
-            <!-- Detalle expandible -->
-            <tr *ngIf="expandidoId === ('mag::' + m.id)" class="table-light">
+            <!-- Fila expandible: unidades de la magnitud -->
+            <tr *ngIf="estaExpandidoMagnitud(m.id)" class="table-light">
               <td colspan="4" class="p-4">
                 <div class="card border-secondary shadow-sm">
+
                   <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
-                    <span class="fw-bold">Magnitud: {{ m.nombre }}</span>
+                    <span class="fw-bold">Unidades de la magnitud: {{ m.nombre }}</span>
                     <span class="badge bg-black">ID: {{ m.id }}</span>
                   </div>
+
                   <div class="card-body">
-                    <div class="row g-3">
-                      <div class="col-md-6">
-                        <ul class="list-group list-group-flush">
-                          <li class="list-group-item d-flex justify-content-between">
-                            <strong>ID (slug)</strong>
-                            <code>{{ m.id }}</code>
-                          </li>
-                          <li class="list-group-item d-flex justify-content-between">
-                            <strong>Nombre</strong>
-                            <span>{{ m.nombre }}</span>
-                          </li>
-                          <li class="list-group-item d-flex justify-content-between">
-                            <strong>Unidades</strong>
-                            <span class="badge bg-secondary">{{ m.unidades?.length ?? 0 }}</span>
-                          </li>
-                        </ul>
-                      </div>
-                      <div class="col-md-6">
-                        <div *ngIf="m.unidades?.length; else sinUnidades">
-                          <strong class="d-block mb-2">Unidades registradas:</strong>
-                          <span class="badge bg-dark me-1 mb-1"
-                            *ngFor="let u of m.unidades">{{ u.simbolo }}</span>
-                        </div>
-                        <ng-template #sinUnidades>
-                          <span class="text-muted">Esta magnitud aún no tiene unidades.</span>
-                        </ng-template>
-                      </div>
-                    </div>
 
-                    <div class="mt-3 text-muted small">
-                      <i class="bi bi-info-circle"></i>
-                      El <strong>ID (slug)</strong> no se puede modificar.
-                      <br>
-                      <i class="bi bi-info-circle"></i>
-                      No se puede eliminar si algún título la referencia.
-                    </div>
-
-                    <div class="mt-4 d-flex justify-content-end gap-2">
-                      <button class="btn btn-outline-warning"
-                        (click)="editarMagnitud(m)">
-                        Editar Magnitud
-                      </button>
-                      <button class="btn btn-outline-danger"
-                        (click)="eliminarMagnitud(m)">
-                        Eliminar Magnitud
+                    <!-- Botón agregar unidad a esta magnitud -->
+                    <div class="d-flex justify-content-end mb-3">
+                      <button
+                        class="btn btn-outline-success btn-sm"
+                        (click)="crearUnidadEnMagnitud(m)">
+                        ＋ Agregar Unidad
                       </button>
                     </div>
+
+                    <div *ngIf="!m.unidades?.length" class="text-center py-4 text-muted">
+                      Esta magnitud aún no tiene unidades.
+                    </div>
+
+                    <div class="table-responsive" *ngIf="m.unidades?.length">
+                      <table class="table table-sm table-hover align-middle mb-0">
+                        <thead class="table-light">
+                          <tr>
+                            <th>Símbolo</th>
+                            <th>Nombre</th>
+                            <th>Factor</th>
+                            <th>Prefijo</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr *ngFor="let u of m.unidades; trackBy: trackUnidadSimple">
+                            <td><span class="badge bg-dark">{{ u.simbolo }}</span></td>
+                            <td class="fw-bold">{{ u.nombre }}</td>
+                            <td class="text-muted">{{ u.factor || '—' }}</td>
+                            <td class="text-muted">{{ u.prefijo || '—' }}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+
                   </div>
                 </div>
               </td>
             </tr>
           </ng-container>
 
+          <!-- Sin resultados -->
           <tr *ngIf="magnitudesFiltradas.length === 0">
             <td colspan="4" class="text-center py-4 text-muted">
               No se encontraron magnitudes con los criterios seleccionados.
@@ -435,110 +304,13 @@
           </tr>
         </tbody>
       </table>
-
-      <!-- ───────────── TABLA: UNIDADES ───────────── -->
-      <table *ngIf="activeTab === 'unidades'" class="table table-hover align-middle mb-0">
-        <thead class="table-dark">
-          <tr>
-            <th>Magnitud</th>
-            <th>Símbolo</th>
-            <th>Nombre</th>
-            <th>Factor</th>
-            <th>Prefijo</th>
-            <th class="text-center">Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-          <ng-container *ngFor="let u of unidadesFiltradas; trackBy: trackUnidad">
-            <tr>
-              <td class="text-muted">{{ u.magnitudNombre }}</td>
-              <td><span class="badge bg-light text-dark border">{{ u.simbolo }}</span></td>
-              <td class="fw-bold">{{ u.nombre }}</td>
-              <td class="text-muted">{{ u.factor || '—' }}</td>
-              <td class="text-muted">{{ u.prefijo || '—' }}</td>
-              <td class="text-center">
-                <div class="btn-group btn-group-sm">
-                  <button class="btn"
-                    [ngClass]="expandidoId === ('uni::' + u.magnitudId + '::' + u.simbolo) ? 'btn-secondary' : 'btn-outline-primary'"
-                    (click)="toggleDetalle('uni::' + u.magnitudId + '::' + u.simbolo)">
-                    {{ expandidoId === ('uni::' + u.magnitudId + '::' + u.simbolo) ? 'Ocultar opciones' : 'Mostrar opciones' }}
-                  </button>
-                </div>
-              </td>
-            </tr>
-
-            <!-- Detalle expandible -->
-            <tr *ngIf="expandidoId === ('uni::' + u.magnitudId + '::' + u.simbolo)" class="table-light">
-              <td colspan="6" class="p-4">
-                <div class="card border-secondary shadow-sm">
-                  <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
-                    <span class="fw-bold">Unidad: {{ u.simbolo }}</span>
-                    <span class="badge bg-black">{{ u.magnitudNombre }}</span>
-                  </div>
-                  <div class="card-body">
-                    <div class="row g-3">
-                      <div class="col-md-6">
-                        <ul class="list-group list-group-flush">
-                          <li class="list-group-item d-flex justify-content-between">
-                            <strong>Magnitud</strong>
-                            <span>{{ u.magnitudNombre }}</span>
-                          </li>
-                          <li class="list-group-item d-flex justify-content-between">
-                            <strong>Símbolo</strong>
-                            <span class="badge bg-dark">{{ u.simbolo }}</span>
-                          </li>
-                          <li class="list-group-item d-flex justify-content-between">
-                            <strong>Nombre</strong>
-                            <span>{{ u.nombre }}</span>
-                          </li>
-                        </ul>
-                      </div>
-                      <div class="col-md-6">
-                        <ul class="list-group list-group-flush">
-                          <li class="list-group-item d-flex justify-content-between">
-                            <strong>Factor</strong>
-                            <span>{{ u.factor || 'N/A' }}</span>
-                          </li>
-                          <li class="list-group-item d-flex justify-content-between">
-                            <strong>Prefijo</strong>
-                            <span>{{ u.prefijo || 'N/A' }}</span>
-                          </li>
-                        </ul>
-                      </div>
-                    </div>
-
-                    <div class="mt-3 text-muted small">
-                      <i class="bi bi-info-circle"></i>
-                      El <strong>símbolo</strong> no se puede modificar (los certificados lo guardan tal cual).
-                      <br>
-                      <i class="bi bi-info-circle"></i>
-                      Puedes actualizar el <strong>nombre</strong>, <strong>factor</strong> y <strong>prefijo</strong>.
-                    </div>
-
-                    <div class="mt-4 d-flex justify-content-end gap-2">
-                      <button class="btn btn-outline-warning"
-                        (click)="editarUnidad(u)">
-                        Editar Unidad
-                      </button>
-                      <button class="btn btn-outline-danger"
-                        (click)="eliminarUnidad(u)">
-                        Eliminar Unidad
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </td>
-            </tr>
-          </ng-container>
-
-          <tr *ngIf="unidadesFiltradas.length === 0">
-            <td colspan="6" class="text-center py-4 text-muted">
-              No se encontraron unidades con los criterios seleccionados.
-            </td>
-          </tr>
-        </tbody>
-      </table>
-
     </div>
   </div>
+
 </div>
+<button type="button" class="btn btn-outline-secondary" (click)="editarJsonCatalogo('titulos')">
+  Editar JSON de títulos
+</button>
+<button type="button" class="btn btn-outline-secondary" (click)="editarJsonCatalogo('unidades')">
+  Editar JSON de unidades
+</button>

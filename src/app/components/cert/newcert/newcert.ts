@@ -99,131 +99,169 @@ export class Newcert implements OnInit {
    */
   unidadesPorTabla: Map<string, Set<string>> = new Map();
 
-  // Draft
-  private draftGuardadoTimer: any = null;
+  private draftGuardadoTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Cuando es true, NO se guarda el draft (el usuario descartó o ya se limpió el form). */
+  private draftDescartado = false;
+  /** Cuando es true, aún no se ha cargado nada (evita guardar el form vacío inicial). */
+  private draftListo = false;
 
   constructor(
     private certificadoService: CertService,
     private cdr: ChangeDetectorRef
   ) {}
 
-  ngOnInit(): void {
-    this.imageStates = [this.crearEstadoImagenVacio()];
+ngOnInit(): void {
+  this.imageStates = [this.crearEstadoImagenVacio()];
 
-    const draft = this.leerDraftLocalStorage();
-    if (draft) {
-      this.alert.confirm(
-        `Tienes un borrador guardado del ${new Date(draft.savedAt).toLocaleString('es-MX')}. ¿Quieres recuperarlo?`,
-        'Borrador encontrado',
-        {
-          type: 'question',
-          confirmText: 'Cargar borrador',
-          cancelText: 'Descartar',
-          dismissible: false,
-        }
-      ).then(cargar => {
-        if (cargar) {
-          this.restaurarDraft(draft);
-        } else {
-          this.descartarDraft();
-          this.inicializarFormularioVacio();
-        }
-      });
-    } else {
-      this.inicializarFormularioVacio();
+  // 1) Cargar catálogo y patrones PRIMERO, pero sin guardar draft todavía
+  this.cargarCatalogo();
+  this.cargarPatrones();
+
+  // 2) Resolver el draft inicial
+  this.resolverDraftInicial();
+}
+
+private resolverDraftInicial(): void {
+  const draft = this.leerDraftLocalStorage();
+
+  if (!draft) {
+    // Sin draft: inicializar form y habilitar guardado
+    this.inicializarFormularioVacio();
+    this.draftListo = true;
+    return;
+  }
+
+  // Hay draft → preguntar (no inicializar nada aún)
+  this.alert.confirm(
+    `Tienes un borrador guardado del ${new Date(draft.savedAt).toLocaleString('es-MX')}. ¿Quieres recuperarlo?`,
+    'Borrador encontrado',
+    {
+      type: 'question',
+      confirmText: 'Cargar borrador',
+      cancelText: 'Descartar',
+      dismissible: false,
     }
-
-    this.cargarCatalogo();
-    this.cargarPatrones();
-  }
-
-  private inicializarFormularioVacio(): void {
-    this.resultTables = [this.crearEstructuraTablaInicial()];
-    this.imageStates = [this.crearEstadoImagenVacio()];
-    this.regenerarTableIds();
-    this.sincronizarJsonTexto();
-  }
-
-  // ========== DRAFT (localStorage) ==========
-  private leerDraftLocalStorage(): DraftPayload | null {
-    if (!this.isBrowser) return null;
-    try {
-      const raw = localStorage.getItem(DRAFT_KEY);
-      if (!raw) return null;
-      const parsed = JSON.parse(raw);
-      if (!parsed?.resultTables?.length || !parsed?.certificado) return null;
-      return parsed as DraftPayload;
-    } catch (e) {
-      console.warn('Draft inválido, se ignora:', e);
-      return null;
-    }
-  }
-
-  private guardarDraftLocalStorage(): void {
-    if (!this.isBrowser) return;
-    try {
-      // Serializar las unidades seleccionadas por índice de tabla
-      const unidadesPorTabla: Record<number, string[]> = {};
-      this.resultTables.forEach((table, idx) => {
-        const set = this.unidadesPorTabla.get(table.table_id);
-        if (set) unidadesPorTabla[idx] = Array.from(set);
-      });
-
-      const payload: DraftPayload = {
-        certificado: this.certificado,
-        resultTables: this.resultTables,
-        direccionTab: this.direccionTab,
-        unidadesPorTabla,
-        savedAt: new Date().toISOString(),
-      };
-      localStorage.setItem(DRAFT_KEY, JSON.stringify(payload));
-    } catch (e) {
-      console.warn('No se pudo guardar draft en localStorage:', e);
-    }
-  }
-
-  private restaurarDraft(draft: DraftPayload): void {
-    this.certificado = draft.certificado;
-    this.resultTables = draft.resultTables;
-    this.direccionTab = draft.direccionTab ?? 'vertical';
-    this.imageStates = this.resultTables.map(() => this.crearEstadoImagenVacio());
-    this.regenerarTableIds();
-
-    // Reconstruir el mapa de unidades seleccionadas por table_id
-    this.unidadesPorTabla.clear();
-    this.resultTables.forEach((table, idx) => {
-      const serializadas = draft.unidadesPorTabla?.[idx];
-      if (Array.isArray(serializadas) && serializadas.length > 0) {
-        this.unidadesPorTabla.set(table.table_id, new Set(serializadas));
-      } else if (table.unit) {
-        // Fallback: si la tabla trae unit "mV, V", parsearlo
-        const set = new Set(
-          String(table.unit).split(',').map(s => s.trim()).filter(Boolean)
-        );
-        if (set.size > 0) this.unidadesPorTabla.set(table.table_id, set);
+  )
+    .then(cargar => {
+      if (cargar) {
+        this.restaurarDraft(draft);
+      } else {
+        this.descartarDraft();
+        this.inicializarFormularioVacio();
       }
+      this.draftListo = true;
+      this.cdr.detectChanges();
+    })
+    .catch(err => {
+      console.error('Error resolviendo borrador:', err);
+      this.descartarDraft();
+      this.inicializarFormularioVacio();
+      this.draftListo = true;
+      this.cdr.detectChanges();
+    });
+}
+
+private inicializarFormularioVacio(): void {
+  this.resultTables = [this.crearEstructuraTablaInicial()];
+  this.imageStates = [this.crearEstadoImagenVacio()];
+  this.regenerarTableIds();
+  this.sincronizarJsonTexto();
+}
+
+private leerDraftLocalStorage(): DraftPayload | null {
+  if (!this.isBrowser) return null;
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    // Validación mínima: debe tener certificado y al menos una tabla con columnas
+    if (!parsed?.certificado) return null;
+    if (!Array.isArray(parsed?.resultTables) || parsed.resultTables.length === 0) return null;
+    // Si todas las tablas están vacías (sin filas con datos), no es un draft útil
+    const tieneDatos = parsed.resultTables.some((t: any) =>
+      (t?.rows ?? []).some((row: any) =>
+        row && Object.values(row).some(v => v !== null && v !== '')
+      )
+    );
+    if (!tieneDatos && !parsed?.certificado?.cc) return null;
+    return parsed as DraftPayload;
+  } catch (e) {
+    console.warn('Draft inválido, se ignora:', e);
+    return null;
+  }
+}
+
+private guardarDraftLocalStorage(): void {
+  if (!this.isBrowser) return;
+  if (this.draftDescartado) return;      // ← no guardar si se descartó
+  if (!this.draftListo) return;          // ← no guardar antes de inicializar
+  try {
+    const unidadesPorTabla: Record<number, string[]> = {};
+    this.resultTables.forEach((table, idx) => {
+      const set = this.unidadesPorTabla.get(table.table_id);
+      if (set) unidadesPorTabla[idx] = Array.from(set);
     });
 
-    this.reconstruirUnitsDesdeSets();
-    this.sincronizarJsonTexto();
-    this.cdr.detectChanges();
-    this.alert.success('Borrador recuperado.', 'Bienvenido de vuelta');
+    const payload: DraftPayload = {
+      certificado: this.certificado,
+      resultTables: this.resultTables,
+      direccionTab: this.direccionTab,
+      unidadesPorTabla,
+      savedAt: new Date().toISOString(),
+    };
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(payload));
+  } catch (e) {
+    console.warn('No se pudo guardar draft en localStorage:', e);
   }
+}
 
-  private descartarDraft(): void {
-    if (!this.isBrowser) return;
-    localStorage.removeItem(DRAFT_KEY);
-    this.alert.info('Borrador descartado.');
-  }
+private agendarGuardadoDraft(): void {
+  if (!this.isBrowser) return;
+  if (this.draftDescartado) return;
+  if (!this.draftListo) return;          // ← esperar a que el draft esté resuelto
+  if (this.draftGuardadoTimer) clearTimeout(this.draftGuardadoTimer);
+  this.draftGuardadoTimer = setTimeout(() => {
+    this.guardarDraftLocalStorage();
+    this.draftGuardadoTimer = null;
+  }, 500);
+}
 
-  private agendarGuardadoDraft(): void {
-    if (!this.isBrowser) return;
-    if (this.draftGuardadoTimer) clearTimeout(this.draftGuardadoTimer);
-    this.draftGuardadoTimer = setTimeout(() => {
-      this.guardarDraftLocalStorage();
-      this.draftGuardadoTimer = null;
-    }, 400);
+private descartarDraft(): void {
+  if (!this.isBrowser) return;
+  this.draftDescartado = true;
+  if (this.draftGuardadoTimer) {
+    clearTimeout(this.draftGuardadoTimer);
+    this.draftGuardadoTimer = null;
   }
+  localStorage.removeItem(DRAFT_KEY);
+}
+
+private restaurarDraft(draft: DraftPayload): void {
+  this.draftDescartado = false;
+  this.certificado = draft.certificado;
+  this.resultTables = draft.resultTables;
+  this.direccionTab = draft.direccionTab ?? 'vertical';
+  this.imageStates = this.resultTables.map(() => this.crearEstadoImagenVacio());
+  this.regenerarTableIds();
+
+  this.unidadesPorTabla.clear();
+  this.resultTables.forEach((table, idx) => {
+    const serializadas = draft.unidadesPorTabla?.[idx];
+    if (Array.isArray(serializadas) && serializadas.length > 0) {
+      this.unidadesPorTabla.set(table.table_id, new Set(serializadas));
+    } else if (table.unit) {
+      const set = new Set(
+        String(table.unit).split(',').map(s => s.trim()).filter(Boolean)
+      );
+      if (set.size > 0) this.unidadesPorTabla.set(table.table_id, set);
+    }
+  });
+
+  this.reconstruirUnitsDesdeSets();
+  this.sincronizarJsonTexto();
+  this.cdr.detectChanges();
+  this.alert.success('Borrador recuperado.', 'Bienvenido de vuelta');
+}
 
   // ========== CARGA DE CATÁLOGO ==========
   cargarCatalogo(force = false): void {
@@ -1537,6 +1575,8 @@ export class Newcert implements OnInit {
 
   // ========== LIMPIAR ==========
   limpiarFormulario(): void {
+    this.draftDescartado = false;
+    this.draftListo = true;
     this.certificado = {
       equipment_id: '', name_equipment: '', cc: '',
       date_cal: '', date_cc: '', calibration_interval: 0, resolution: 0,

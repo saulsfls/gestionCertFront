@@ -260,9 +260,9 @@ export class Viewdata implements OnInit {
     // Si el usuario eligió "crear nueva magnitud", pedimos sus datos primero
     let magnitudId = String(values['magnitud'] ?? '').trim();
     if (magnitudId === '__nueva__') {
-      const nueva = await this.crearMagnitudFlow();
-      if (!nueva) return; // canceló
-      magnitudId = nueva;
+      //nst nueva = await this.crearMagnitudFlow();
+     //f (!nueva) return; // canceló
+     //agnitudId = nueva;
     }
 
     const subparametrosIniciales = String(values['subparametrosIniciales'] ?? '')
@@ -289,7 +289,7 @@ export class Viewdata implements OnInit {
   }
 
   // ── Flujo: crear magnitud nueva (usado desde crearTituloFlow) ──
-  private async crearMagnitudFlow(): Promise<string | null> {
+  /*private async crearMagnitudFlow(): Promise<string | null> {
     const values = await this.alert.form({
       type: 'question',
       title: 'Nueva magnitud',
@@ -330,7 +330,7 @@ export class Viewdata implements OnInit {
 
     const id = String(values['id']).trim();
 
-    return new Promise<string | null>((resolve) => {
+    /*return new Promise<string | null>((resolve) => {
       this.catalogo.crearMagnitud({
         id,
         nombre: String(values['nombre']).trim(),
@@ -347,7 +347,7 @@ export class Viewdata implements OnInit {
         },
       });
     });
-  }
+  }*/
 
   // ── Flujo: crear unidad (dentro de una magnitud) ──
   private async crearUnidadFlow(): Promise<void> {
