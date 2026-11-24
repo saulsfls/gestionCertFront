@@ -28,7 +28,6 @@ export type TipoDato = 'number' | 'string';
 
 const DRAFT_KEY = 'newcert_draft_v1';
 
-/** Estados para el cropper de una sola imagen (legacy, usado en tablas individuales) */
 interface TableImageState {
   imageChangedEvent: Event | null;
   pasteImageFile: File | undefined;
@@ -37,7 +36,6 @@ interface TableImageState {
   tieneEncabezado: boolean;
 }
 
-/** Estados para el nuevo flujo multi-imagen (reemplaza al Pimage) */
 interface MultiImageItem {
   id: string;
   file: File;
@@ -98,24 +96,19 @@ export class Newcert implements OnInit {
   jsonInputText: string = '';
   copiadoExitoso: boolean = false;
   guardando: boolean = false;
+  tablasColapsadas = new Set<number>();
 
-  /**
-   * Estados del cropper individual (legacy). Se mantiene por compatibilidad
-   * con la UI antigua que permite recortar una imagen por tabla.
-   */
   imageStates: TableImageState[] = [];
   ocrEnProceso: boolean = false;
+  mostrarPanelMulti = false;
 
-  // ========== NUEVO FLUJO MULTI-IMAGEN (integrado de Pimage) ==========
-  multiItems: MultiImageItem[] = [];
+  // ========== MULTI-IMAGEN POR TABLA ==========
+  // ✅ CAMBIO: antes era `multiItems: MultiImageItem[] = []` (global).
+  // Ahora es una lista independiente por cada tabla.
+  multiItemsPorTabla: MultiImageItem[][] = [];
   cargandoArchivosMulti: boolean = false;
   zonaActivaMulti: boolean = false;
-  mostrarPanelMulti: boolean = false;
 
-  /**
-   * Unidades seleccionadas por tabla (checkboxes).
-   * Se indexa por el `table_id` de la tabla para sobrevivir a reordenamientos.
-   */
   unidadesPorTabla: Map<string, Set<string>> = new Map();
 
   private draftGuardadoTimer: ReturnType<typeof setTimeout> | null = null;
@@ -127,11 +120,9 @@ export class Newcert implements OnInit {
     private cdr: ChangeDetectorRef
   ) {}
 
-  // ==================================================================
-  //  INIT
-  // ==================================================================
   async ngOnInit(): Promise<void> {
     this.imageStates = [this.crearEstadoImagenVacio()];
+    this.multiItemsPorTabla = [[]]; // ✅ NUEVO
 
     await Promise.all([
       this.cargarCatalogoAsync(),
@@ -223,9 +214,6 @@ export class Newcert implements OnInit {
     });
   }
 
-  // ==================================================================
-  //  DRAFT
-  // ==================================================================
   private resolverDraftInicial(): void {
     const draft = this.leerDraftLocalStorage();
 
@@ -267,6 +255,7 @@ export class Newcert implements OnInit {
   private inicializarFormularioVacio(): void {
     this.resultTables = [this.crearEstructuraTablaInicial()];
     this.imageStates = [this.crearEstadoImagenVacio()];
+    this.multiItemsPorTabla = [[]]; // ✅ NUEVO
     this.regenerarTableIds();
     this.sincronizarJsonTexto();
   }
@@ -343,6 +332,7 @@ export class Newcert implements OnInit {
     this.resultTables = draft.resultTables;
     this.direccionTab = draft.direccionTab ?? 'vertical';
     this.imageStates = this.resultTables.map(() => this.crearEstadoImagenVacio());
+    this.multiItemsPorTabla = this.resultTables.map(() => []); // ✅ NUEVO
     this.regenerarTableIds();
 
     this.unidadesPorTabla.clear();
@@ -393,9 +383,6 @@ export class Newcert implements OnInit {
     }, 0);
   }
 
-  // ==================================================================
-  //  CARGA DE CATÁLOGO
-  // ==================================================================
   cargarCatalogo(force = false): void {
     this.catalogo.cargarCatalogo(force).subscribe({
       next: () => {
@@ -427,9 +414,6 @@ export class Newcert implements OnInit {
     });
   }
 
-  // ==================================================================
-  //  PATRONES
-  // ==================================================================
   cargarPatrones(): void {
     this.cargandoPatrones = true;
 
@@ -500,9 +484,6 @@ export class Newcert implements OnInit {
       .sort((a, b) => a.id.localeCompare(b.id, 'es'));
   }
 
-  // ==================================================================
-  //  HELPERS DE PT / PATRÓN
-  // ==================================================================
   descripcionPt(ptId: string): string {
     if (!ptId) return '';
     return this.ptDescripcionPorId.get(ptId) ?? ptId;
@@ -559,9 +540,6 @@ export class Newcert implements OnInit {
     this.cdr.detectChanges();
   }
 
-  // ==================================================================
-  //  CATÁLOGO: getters para template
-  // ==================================================================
   get opcionesTitulo(): string[] {
     return this.catalogo.listaTitulos().map(t => t.displayName);
   }
@@ -590,9 +568,6 @@ export class Newcert implements OnInit {
     return this.catalogo.listaTitulos().some(t => t.displayName === title);
   }
 
-  // ==================================================================
-  //  SELECCIÓN MÚLTIPLE DE UNIDADES
-  // ==================================================================
   unidadesSeleccionadasDe(table: ResultTable): Set<string> {
     const key = table.table_id || '';
     if (!this.unidadesPorTabla.has(key)) {
@@ -646,9 +621,6 @@ export class Newcert implements OnInit {
     }
   }
 
-  // ==================================================================
-  //  CAMBIO DE TÍTULO / PARÁMETRO
-  // ==================================================================
   actualizarParametroSegunTitulo(table: ResultTable): void {
     const opciones = this.obtenerOpcionesParametro(table.title);
     if (opciones.length > 0 && !opciones.includes(table.parameter)) {
@@ -702,9 +674,6 @@ export class Newcert implements OnInit {
     this.sincronizarJsonTexto();
   }
 
-  // ==================================================================
-  //  table_id
-  // ==================================================================
   private construirTableId(indexTable: number): string {
     const folio = (this.certificado.cc || '').trim();
     const sufijo = `T${indexTable + 1}`;
@@ -737,9 +706,6 @@ export class Newcert implements OnInit {
     }
   }
 
-  // ==================================================================
-  //  ESTADO DE IMAGEN (legacy cropper)
-  // ==================================================================
   private crearEstadoImagenVacio(): TableImageState {
     return {
       imageChangedEvent: null, pasteImageFile: undefined, croppedImageBase64: '',
@@ -747,9 +713,6 @@ export class Newcert implements OnInit {
     };
   }
 
-  // ==================================================================
-  //  ESTRUCTURA INICIAL
-  // ==================================================================
   private crearEstructuraTablaInicial(): ResultTable {
     const titulos = this.catalogo.listaTitulos();
     const tituloInicial = titulos.length > 0 ? titulos[0].displayName : 'DC Voltage';
@@ -775,9 +738,6 @@ export class Newcert implements OnInit {
     };
   }
 
-  // ==================================================================
-  //  JSON
-  // ==================================================================
   sincronizarJsonTexto(): void {
     this.jsonInputText = this.obtenerJsonString();
     this.agendarGuardadoDraft();
@@ -793,9 +753,6 @@ export class Newcert implements OnInit {
     this.sincronizarJsonTexto();
   }
 
-  // ==================================================================
-  //  VALIDACIÓN DE KEY
-  // ==================================================================
   private validarKey(key: string, table: ResultTable, columnaActual?: Column): { valido: boolean; mensaje?: string } {
     const keyLimpio = key.trim().toLowerCase().replace(/\s+/g, '_');
     if (!keyLimpio) return { valido: false, mensaje: 'El key no puede estar vacío.' };
@@ -808,9 +765,6 @@ export class Newcert implements OnInit {
     return { valido: true };
   }
 
-  // ==================================================================
-  //  CARGAR DESDE JSON
-  // ==================================================================
   actualizarFormularioDesdeJson(): void {
     try {
       const parsedJson = JSON.parse(this.jsonInputText);
@@ -852,6 +806,7 @@ export class Newcert implements OnInit {
 
       this.resultTables = tablasNuevas;
       this.imageStates = tablasNuevas.map(() => this.crearEstadoImagenVacio());
+      this.multiItemsPorTabla = tablasNuevas.map(() => []); // ✅ NUEVO
       this.regenerarTableIds();
 
       this.unidadesPorTabla.clear();
@@ -894,9 +849,6 @@ export class Newcert implements OnInit {
     return { min: null, max: null };
   }
 
-  // ==================================================================
-  //  NAVEGACIÓN TAB
-  // ==================================================================
   onTabKeydown(event: Event, tableIndex: number, rowIndex: number, colIndex: number): void {
     if (this.direccionTab === 'horizontal') return;
     const keyEvent = event as KeyboardEvent;
@@ -908,13 +860,11 @@ export class Newcert implements OnInit {
     if (targetInput) { targetInput.focus(); targetInput.select(); }
   }
 
-  // ==================================================================
-  //  GESTIÓN DE TABLAS
-  // ==================================================================
   agregarTabla(): void {
     const nueva = this.crearEstructuraTablaInicial();
     this.resultTables.push(nueva);
     this.imageStates.push(this.crearEstadoImagenVacio());
+    this.multiItemsPorTabla.push([]); // ✅ NUEVO: cada tabla tiene su propia lista
     this.regenerarTableIds();
     if (nueva.unit) {
       this.unidadesPorTabla.set(nueva.table_id, new Set([nueva.unit]));
@@ -928,14 +878,12 @@ export class Newcert implements OnInit {
       this.unidadesPorTabla.delete(eliminada.table_id);
       this.resultTables.splice(indexTable, 1);
       this.imageStates.splice(indexTable, 1);
+      this.multiItemsPorTabla.splice(indexTable, 1); // ✅ NUEVO
       this.regenerarTableIds();
       this.sincronizarJsonTexto();
     }
   }
 
-  // ==================================================================
-  //  GESTIÓN DE COLUMNAS
-  // ==================================================================
   async agregarColumna(table: ResultTable): Promise<void> {
     const posicionOptions = [
       { label: 'Al final (después de la última)', value: '__final__' },
@@ -1041,9 +989,6 @@ export class Newcert implements OnInit {
     this.sincronizarJsonTexto();
   }
 
-  // ==================================================================
-  //  GESTIÓN DE FILAS
-  // ==================================================================
   agregarFila(table: ResultTable): void {
     const nuevaFila: Record<string, any> = {};
     table.columns.forEach(col => { nuevaFila[col.key] = null; });
@@ -1058,9 +1003,6 @@ export class Newcert implements OnInit {
     }
   }
 
-  // ==================================================================
-  //  HELPERS NUMÉRICOS
-  // ==================================================================
   esNumeroValido(s: string): boolean {
     const t = (s ?? '').trim();
     if (!t) return false;
@@ -1075,9 +1017,6 @@ export class Newcert implements OnInit {
     return !this.esNumeroValido(String(valor));
   }
 
-  // ==================================================================
-  //  HELPERS DE FECHA
-  // ==================================================================
   private parseFechaLocal(fecha: string | Date | null | undefined): Date | null {
     if (!fecha) return null;
     if (fecha instanceof Date) return isNaN(fecha.getTime()) ? null : fecha;
@@ -1102,9 +1041,6 @@ export class Newcert implements OnInit {
     return Math.round((b.getTime() - a.getTime()) / MS);
   }
 
-  // ==================================================================
-  //  MÉTODOS DE IMAGEN (CROPPER LEGACY POR TABLA)
-  // ==================================================================
   onPaste(event: ClipboardEvent, tableIndex: number): void {
     if (!this.isBrowser) return;
     const state = this.imageStates[tableIndex];
@@ -1176,9 +1112,6 @@ export class Newcert implements OnInit {
     );
   }
 
-  /**
-   * Extrae UNA tabla (cropper legacy) y la inyecta en la tabla `tableIndex`.
-   */
   enviarANode(tableIndex: number): void {
     const state = this.imageStates[tableIndex];
     const table = this.resultTables[tableIndex];
@@ -1207,7 +1140,9 @@ export class Newcert implements OnInit {
       try { this.cdr.detectChanges(); } catch { /* noop */ }
     };
 
-    this.imageService.procesarTabla(state.croppedImageBase64).subscribe({
+    this.imageService.procesarTabla(state.croppedImageBase64).pipe(
+      timeout(300000)
+    ).subscribe({
       next: (res: any) => {
         try {
           if (res?.success && res?.table) {
@@ -1232,7 +1167,7 @@ export class Newcert implements OnInit {
                 '⚠ Revisa los datos',
                 { type: 'warning', confirmText: 'Entendido, los reviso', cancelText: 'Cerrar', dismissible: false }
               ).then(revisar => {
-                if (revisar) this.alert.success('Los datos se vaciaron correctamente.', 'OCR completado');
+                if (revisar) this.alert.success('Los datos se aplicaron correctamente.', 'OCR completado');
                 else this.alert.info('Puedes revisar los datos antes de guardar.');
               });
             } else {
@@ -1250,7 +1185,11 @@ export class Newcert implements OnInit {
       },
       error: (err: any) => {
         console.error('Error en servidor:', err);
-        this.alert.error('Ocurrió un error al procesar la tabla en el servidor.', 'Error OCR');
+        const backendMsg =
+          err?.name === 'TimeoutError'
+            ? 'La extracción tardó demasiado (tiempo de espera agotado). Intenta de nuevo.'
+            : 'Ocurrió un error al procesar la tabla en el servidor (tiempo de espera o conexión perdida).';
+        this.alert.error(backendMsg, 'Error OCR');
         terminar();
       },
       complete: () => terminar()
@@ -1258,15 +1197,18 @@ export class Newcert implements OnInit {
   }
 
   // ==================================================================
-  //  NUEVO FLUJO MULTI-IMAGEN (integrado de Pimage)
+  //  MULTI-IMAGEN POR TABLA
   // ==================================================================
 
-  togglePanelMulti(): void {
-    this.mostrarPanelMulti = !this.mostrarPanelMulti;
-    this.cdr.detectChanges();
+  /** Devuelve (y crea si no existe) la lista de imágenes de una tabla concreta. */
+  itemsDeTabla(tableIndex: number): MultiImageItem[] { // ✅ NUEVO
+    if (!this.multiItemsPorTabla[tableIndex]) {
+      this.multiItemsPorTabla[tableIndex] = [];
+    }
+    return this.multiItemsPorTabla[tableIndex];
   }
 
-  onPasteUniversal(event: ClipboardEvent): void {
+  onPasteUniversal(event: ClipboardEvent, tableIndex: number): void {
     if (!this.isBrowser || this.ocrEnProceso) return;
     const files = this.extraerImagenesDeClipboard(event);
     if (files.length === 0) {
@@ -1274,7 +1216,7 @@ export class Newcert implements OnInit {
       return;
     }
     event.preventDefault();
-    void this.agregarArchivosMulti(files);
+    void this.agregarArchivosMulti(files, tableIndex);
   }
 
   onDragOverMulti(event: DragEvent): void {
@@ -1289,7 +1231,7 @@ export class Newcert implements OnInit {
     this.zonaActivaMulti = false;
   }
 
-  onDropUniversal(event: DragEvent): void {
+  onDropUniversal(event: DragEvent, tableIndex: number): void {
     event.preventDefault();
     event.stopPropagation();
     this.zonaActivaMulti = false;
@@ -1306,11 +1248,10 @@ export class Newcert implements OnInit {
       this.alert.warning('Los archivos arrastrados no son imágenes válidas.', 'Arrastrar imágenes');
       return;
     }
-    void this.agregarArchivosMulti(files);
+    void this.agregarArchivosMulti(files, tableIndex);
   }
 
-  /** Selector de archivos (input type=file) */
-  onFilesSelectedMulti(event: Event): void {
+  onFilesSelectedMulti(event: Event, tableIndex: number): void {
     const input = event.target as HTMLInputElement;
     if (!input.files || input.files.length === 0) return;
     const files: File[] = [];
@@ -1321,8 +1262,8 @@ export class Newcert implements OnInit {
       this.alert.warning('Los archivos seleccionados no son imágenes válidas.', 'Seleccionar imágenes');
       return;
     }
-    void this.agregarArchivosMulti(files);
-    input.value = ''; // permitir reseleccionar los mismos archivos
+    void this.agregarArchivosMulti(files, tableIndex);
+    input.value = '';
   }
 
   private extraerImagenesDeClipboard(event: ClipboardEvent): File[] {
@@ -1342,7 +1283,7 @@ export class Newcert implements OnInit {
     return files;
   }
 
-  private async agregarArchivosMulti(files: File[]): Promise<void> {
+  private async agregarArchivosMulti(files: File[], tableIndex: number): Promise<void> {
     const validos = files.filter((f) => /^image\//.test(f.type));
     if (validos.length === 0) {
       this.alert.error('Los archivos seleccionados no son imágenes.', 'Tipo inválido');
@@ -1353,16 +1294,16 @@ export class Newcert implements OnInit {
     this.cdr.detectChanges();
 
     try {
+      const lista = this.itemsDeTabla(tableIndex); // ✅ lista de ESTA tabla
       for (const f of validos) {
         const base64 = await this.fileToBase64(f);
-        this.multiItems.push({
+        lista.push({
           id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
           file: f,
           base64,
           nombre: f.name || 'imagen',
         });
       }
-      this.mostrarPanelMulti = true;
     } catch (e: any) {
       this.alert.error(
         'No se pudieron leer algunos archivos: ' + (e?.message ?? 'error desconocido'),
@@ -1384,44 +1325,48 @@ export class Newcert implements OnInit {
     });
   }
 
-  quitarItemMulti(itemId: string): void {
-    this.multiItems = this.multiItems.filter((i) => i.id !== itemId);
+  quitarItemMulti(itemId: string, tableIndex: number): void { // ✅ CAMBIO: recibe tableIndex
+    const lista = this.itemsDeTabla(tableIndex);
+    this.multiItemsPorTabla[tableIndex] = lista.filter((i) => i.id !== itemId);
     this.cdr.detectChanges();
   }
 
-  moverItemMulti(itemId: string, direccion: -1 | 1): void {
-    const idx = this.multiItems.findIndex((i) => i.id === itemId);
+  moverItemMulti(itemId: string, direccion: -1 | 1, tableIndex: number): void { // ✅ CAMBIO
+    const lista = this.itemsDeTabla(tableIndex);
+    const idx = lista.findIndex((i) => i.id === itemId);
     if (idx < 0) return;
     const nuevo = idx + direccion;
-    if (nuevo < 0 || nuevo >= this.multiItems.length) return;
-    const [item] = this.multiItems.splice(idx, 1);
-    this.multiItems.splice(nuevo, 0, item);
+    if (nuevo < 0 || nuevo >= lista.length) return;
+    const [item] = lista.splice(idx, 1);
+    lista.splice(nuevo, 0, item);
     this.cdr.detectChanges();
   }
 
-  limpiarItemsMulti(): void {
-    if (this.multiItems.length === 0) return;
+  limpiarItemsMulti(tableIndex: number): void { // ✅ CAMBIO
+    const lista = this.itemsDeTabla(tableIndex);
+    if (lista.length === 0) return;
     this.alert.confirm(
-      '¿Quieres quitar todas las imágenes cargadas?',
+      '¿Quieres quitar todas las imágenes cargadas de esta tabla?',
       'Limpiar imágenes',
       { type: 'question', confirmText: 'Sí, limpiar', cancelText: 'Cancelar' }
     ).then(ok => {
       if (!ok) return;
-      this.multiItems = [];
+      this.multiItemsPorTabla[tableIndex] = [];
       this.cdr.detectChanges();
     });
   }
 
   /**
-   * Envía TODAS las imágenes cargadas al endpoint multi-imagen.
-   * El resultado reemplaza/crea una nueva tabla en `resultTables`.
+   * Envía TODAS las imágenes cargadas de la tabla indicada al endpoint multi-imagen.
    */
-  enviarMultiANode(): void {
+  enviarMultiANode(tableIndex: number): void {
     if (this.ocrEnProceso) {
       this.alert.info('Ya hay un proceso en curso.', 'Espera');
       return;
     }
-    if (this.multiItems.length === 0) {
+
+    const lista = this.itemsDeTabla(tableIndex); // ✅ usa la lista de ESTA tabla
+    if (lista.length === 0) {
       this.alert.warning('Selecciona al menos una imagen.', 'Sin imágenes');
       return;
     }
@@ -1429,19 +1374,22 @@ export class Newcert implements OnInit {
     this.ocrEnProceso = true;
     this.cdr.detectChanges();
 
-    const base64List = this.multiItems.map((i) => i.base64);
-    const order = this.multiItems.map((_, idx) => idx);
+    const base64List = lista.map((i) => i.base64);
+    const order = lista.map((_, idx) => idx);
 
     this.imageService
       .procesarTablasMultiples(base64List, order)
+      .pipe(timeout(300000))
       .subscribe({
-        next: (res: any) => this.procesarRespuestaMulti(res),
+        next: (res: any) => this.procesarRespuestaMulti(tableIndex, res),
         error: (err) => {
           console.error('Error en servidor:', err);
           const backendMsg: string =
-            err?.error?.error ||
-            err?.message ||
-            'Error desconocido al procesar las imágenes.';
+            err?.name === 'TimeoutError'
+              ? 'La extracción tardó demasiado (tiempo de espera agotado). Intenta de nuevo.'
+              : err?.error?.error ||
+                err?.message ||
+                'Error desconocido al procesar las imágenes.';
           this.alert.error(backendMsg, 'OCR');
         },
       })
@@ -1451,7 +1399,7 @@ export class Newcert implements OnInit {
       });
   }
 
-  private procesarRespuestaMulti(res: any): void {
+  private procesarRespuestaMulti(tableIndex: number, res: any): void {
     const html = res?.table;
     if (!(res?.success && typeof html === 'string' && html.trim())) {
       const errMsg = res?.error || 'El servidor no devolvió una tabla unificada.';
@@ -1478,30 +1426,27 @@ export class Newcert implements OnInit {
       return;
     }
 
-    // Crear una nueva tabla con los datos extraídos
-    const nuevaTabla: ResultTable = this.crearEstructuraTablaInicial();
-    this.resultTables.push(nuevaTabla);
-    this.imageStates.push(this.crearEstadoImagenVacio());
-    this.regenerarTableIds();
-    if (nuevaTabla.unit) {
-      this.unidadesPorTabla.set(nuevaTabla.table_id, new Set([nuevaTabla.unit]));
-    }
+    this.alert.confirm(
+      'La AI puede cometer errores. Verifica los valores extraídos antes de continuar.',
+      '⚠ Revisa los datos',
+      { type: 'warning', confirmText: 'Entendido, los reviso', cancelText: 'Cerrar', dismissible: false }
+    ).then(revisar => {
+      if (!revisar) {
+        this.alert.info('Puedes revisar los datos antes de guardar.');
+        return;
+      }
 
-    const indexTabla = this.resultTables.length - 1;
-    this.aplicarDatosExtraidos(indexTabla, headers, rows, true);
+      this.aplicarDatosExtraidos(tableIndex, headers, rows, true);
 
-    this.alert.success(
-      `Se extrajo una tabla con ${rows.length} fila(s) y ${headers.length} columna(s).`,
-      'OCR completado'
-    );
-    this.multiItems = [];
-    this.mostrarPanelMulti = false;
-    this.cdr.detectChanges();
+      this.alert.success(
+        `Se extrajo una tabla con ${rows.length} fila(s) y ${headers.length} columna(s). ` +
+        `Las imágenes quedaron como referencia visual.`,
+        'OCR completado'
+      );
+      this.cdr.detectChanges();
+    });
   }
 
-  // ==================================================================
-  //  NOTACIÓN CIENTÍFICA
-  // ==================================================================
   private expandirNotacionCientifica(raw: string): string {
     let s = String(raw ?? '').trim();
     if (!s) return '';
@@ -1535,9 +1480,6 @@ export class Newcert implements OnInit {
     return resultado;
   }
 
-  // ==================================================================
-  //  PARSEADOR DE TEXTO
-  // ==================================================================
   private parseTableText(text: string): { headers: string[]; rows: string[][] } {
     const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
     if (lines.length < 1) return { headers: [], rows: [] };
@@ -1564,9 +1506,6 @@ export class Newcert implements OnInit {
     return { headers, rows };
   }
 
-  // ==================================================================
-  //  PARSEADOR DE HTML
-  // ==================================================================
   private parseTableHtml(html: string): { headers: string[]; rows: string[][] } {
     if (!this.isBrowser) return { headers: [], rows: [] };
 
@@ -1732,9 +1671,6 @@ export class Newcert implements OnInit {
     this.cdr.detectChanges();
   }
 
-  // ==================================================================
-  //  CONSTRUCCIÓN DEL JSON
-  // ==================================================================
   obtenerJsonEstructurado(): object {
     this.regenerarTableIds();
 
@@ -1798,9 +1734,6 @@ export class Newcert implements OnInit {
     });
   }
 
-  // ==================================================================
-  //  VALIDACIÓN DE FORMULARIO
-  // ==================================================================
   validarFormulario(): boolean {
     const errores: string[] = [];
     const c = this.certificado;
@@ -1919,9 +1852,6 @@ export class Newcert implements OnInit {
     return { titulo: 'Error al guardar', mensaje: message || detail || 'Error desconocido al conectar con la API.' };
   }
 
-  // ==================================================================
-  //  GUARDAR
-  // ==================================================================
   guardarCertificado(): void {
     if (this.guardando) return;
     if (!this.validarFormulario()) return;
@@ -1973,9 +1903,6 @@ export class Newcert implements OnInit {
     });
   }
 
-  // ==================================================================
-  //  LIMPIAR
-  // ==================================================================
   limpiarFormulario(): void {
     this.draftDescartado = false;
     this.draftListo = true;
@@ -1987,7 +1914,7 @@ export class Newcert implements OnInit {
     this.patronSeleccionado = null;
     this.resultTables = [this.crearEstructuraTablaInicial()];
     this.imageStates = [this.crearEstadoImagenVacio()];
-    this.multiItems = [];
+    this.multiItemsPorTabla = [[]]; // ✅ NUEVO
     this.mostrarPanelMulti = false;
     this.ocrEnProceso = false;
     this.unidadesPorTabla.clear();
@@ -1997,9 +1924,18 @@ export class Newcert implements OnInit {
     this.cdr.detectChanges();
   }
 
-  // ==================================================================
-  //  AYUDA
-  // ==================================================================
+  estaColapsada(index: number): boolean {
+    return this.tablasColapsadas.has(index);
+  }
+
+  toggleCollapseTabla(index: number): void {
+    if (this.tablasColapsadas.has(index)) {
+      this.tablasColapsadas.delete(index);
+    } else {
+      this.tablasColapsadas.add(index);
+    }
+  }
+
   ayuda(modal: string): void {
     const clave = String(modal ?? '').trim().toLowerCase();
     let detalle = '';
@@ -2041,6 +1977,7 @@ export class Newcert implements OnInit {
           <li>Pega, arrastra o selecciona varias imágenes de la <b>misma tabla</b> (por ejemplo, la parte superior y la inferior).</li>
           <li>Ordena las imágenes con las flechas ↑/↓ para que coincidan con el orden visual real.</li>
           <li>Al enviarlas, el servidor las unificará <b>verticalmente</b> en una sola tabla.</li>
+          <li>Cada tabla tiene su propio conjunto de imágenes; no se comparten entre tablas.</li>
         </ul>
       `;
     } else if (clave === 'json') {
@@ -2066,11 +2003,6 @@ export class Newcert implements OnInit {
     return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
   }
 
-    /**
-   * Abre una vista previa en grande de la imagen en el modal de alertas.
-   * @param base64OrUrl - Cadena base64 (data:image/...) o URL de la imagen.
-   * @param titulo - Título opcional del modal.
-   */
   verImagenGrande(base64OrUrl: string, titulo: string = 'Vista previa de la imagen'): void {
     if (!base64OrUrl) {
       this.alert.warning('No hay imagen para mostrar.', 'Vista previa');

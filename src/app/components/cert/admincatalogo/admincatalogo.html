@@ -7,7 +7,7 @@
         <!-- Búsqueda -->
         <div class="col-md-6">
           <label class="form-label fw-bold small text-secondary">
-            Buscar en el catálogo
+            <i class="bi bi-search me-1"></i>Buscar en el catálogo
           </label>
           <input
             type="text"
@@ -19,7 +19,7 @@
         <!-- Sección -->
         <div class="col-md-3">
           <label class="form-label fw-bold small text-secondary">
-            Sección del catálogo
+            <i class="bi bi-folder2-open me-1"></i>Sección del catálogo
           </label>
           <select class="form-select" [(ngModel)]="activeTab">
             <option value="titulos">Títulos</option>
@@ -43,6 +43,7 @@
         class="spinner-border spinner-border-sm me-1"
         role="status"
         aria-hidden="true"></span>
+      <i *ngIf="!cargando" class="bi bi-arrow-clockwise me-1"></i>
       Recargar
     </button>
 
@@ -52,61 +53,69 @@
       class="btn btn-outline-success shadow-sm px-3"
       (click)="crearSegunTab()"
       [disabled]="cargando">
+      <i class="bi bi-plus-lg me-1"></i>
       <ng-container [ngSwitch]="activeTab">
-        <span *ngSwitchCase="'titulos'">＋ Nuevo Título</span>
-        <span *ngSwitchCase="'magnitudes'">＋ Nueva Magnitud</span>
+        <span *ngSwitchCase="'titulos'">Nuevo Título</span>
+        <span *ngSwitchCase="'magnitudes'">Nueva Magnitud</span>
       </ng-container>
     </button>
   </div>
 
-  <!-- ============================================================ -->
-  <!-- Indicador de carga                                          -->
-  <!-- ============================================================ -->
+
+  <!-- Indicador de carga -->
+
   <div *ngIf="cargando" class="text-center py-5">
     <div class="spinner-border text-primary" role="status">
       <span class="visually-hidden">Cargando…</span>
     </div>
   </div>
 
-  <!-- ============================================================ -->
-  <!-- SECCIÓN: TÍTULOS                                            -->
-  <!-- ============================================================ -->
+
+  <!-- SECCIÓN: TÍTULOS -->
+
   <div *ngIf="!cargando && activeTab === 'titulos'" class="card shadow-sm">
     <div class="table-responsive">
       <table class="table table-hover align-middle mb-0">
         <thead class="table-dark">
           <tr>
-            <th>ID (slug)</th>
-            <th>Display Name</th>
-            <th>Label</th>
-            <th>Magnitud</th>
-            <th class="text-center">Subparámetros</th>
-            <th class="text-center">Acciones</th>
+            <th><i class="bi bi-hash me-1"></i>ID (slug)</th>
+            <th><i class="bi bi-card-heading me-1"></i>Display Name</th>
+            <th><i class="bi bi-tag me-1"></i>Label</th>
+            <th><i class="bi bi-rulers me-1"></i>Magnitud</th>
+            <th class="text-center"><i class="bi bi-diagram-3 me-1"></i>Subparámetros</th>
+            <th class="text-center"><i class="bi bi-gear me-1"></i>Acciones</th>
           </tr>
         </thead>
         <tbody>
           <ng-container *ngFor="let t of titulosFiltrados; trackBy: trackTitulo">
 
             <!-- Fila principal del título -->
-            <tr>
+            <tr class="align-middle" style="cursor: pointer;" (click)="toggleTitulo(t.id)">
               <td>{{ t.id }}</td>
               <td class="fw-bold">{{ t.displayName }}</td>
               <td class="text-muted">{{ t.label || '—' }}</td>
               <td>
                 <span class="badge"
                   [ngClass]="t.magnitud === '*' ? 'bg-warning text-dark' : 'bg-light text-dark border'">
+                  <i *ngIf="t.magnitud === '*'" class="bi bi-asterisk me-1"></i>
                   {{ t.magnitud === '*' ? 'comodín' : t.magnitud }}
                 </span>
               </td>
               <td class="text-center">
-                <span class="badge bg-secondary">{{ subsDeTitulo(t).length }}</span>
+                <span class="badge bg-secondary">
+                  <i class="bi bi-diagram-3 me-1"></i>{{ subsDeTitulo(t).length }}
+                </span>
               </td>
               <td class="text-center">
                 <div class="btn-group btn-group-sm">
                   <button
+                    type="button"
                     class="btn"
                     [ngClass]="estaExpandidoTitulo(t.id) ? 'btn-secondary' : 'btn-outline-primary'"
-                    (click)="toggleTitulo(t.id)">
+                    (click)="$event.stopPropagation(); toggleTitulo(t.id)">
+                    <i
+                      class="bi me-1"
+                      [ngClass]="estaExpandidoTitulo(t.id) ? 'bi-chevron-up' : 'bi-chevron-down'"></i>
                     {{ estaExpandidoTitulo(t.id) ? 'Ocultar opciones' : 'Mostrar opciones' }}
                   </button>
                 </div>
@@ -119,7 +128,9 @@
                 <div class="card border-secondary shadow-sm">
 
                   <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
-                    <span class="fw-bold">Subparámetros del título: {{ t.displayName }}</span>
+                    <span class="fw-bold">
+                      <i class="bi bi-diagram-3 me-1"></i>Subparámetros del título: {{ t.displayName }}
+                    </span>
                     <span class="badge bg-black">ID: {{ t.id }}</span>
                   </div>
 
@@ -128,14 +139,15 @@
                     <!-- Botón crear subparámetro -->
                     <div class="d-flex justify-content-end mb-3">
                       <button
+                        type="button"
                         class="btn btn-outline-success btn-sm"
                         (click)="crearSubparametroEnTitulo(t)">
-                        ＋ Nuevo Subparámetro
+                        <i class="bi bi-plus-lg me-1"></i>Nuevo Subparámetro
                       </button>
                     </div>
 
                     <div *ngIf="subsDeTitulo(t).length === 0" class="text-center py-4 text-muted">
-                      Este título aún no tiene subparámetros.
+                      <i class="bi bi-inbox me-1"></i>Este título aún no tiene subparámetros.
                     </div>
 
                     <!-- Tabla de subparámetros -->
@@ -162,6 +174,9 @@
                             <td>
                               <span class="badge"
                                 [ngClass]="s.tieneOverride ? 'bg-success' : 'bg-secondary'">
+                                <i
+                                  class="bi me-1"
+                                  [ngClass]="s.tieneOverride ? 'bi-check-circle' : 'bi-arrow-return-right'"></i>
                                 {{ s.tieneOverride ? 'propia' : 'heredada' }}
                               </span>
                             </td>
@@ -174,7 +189,7 @@
                                 {{ u.simbolo }}
                               </span>
                               <span *ngIf="s.unidades.length === 0" class="text-muted small">
-                                sin unidades
+                                <i class="bi bi-dash-circle me-1"></i>sin unidades
                               </span>
                             </td>
                           </tr>
@@ -183,6 +198,7 @@
                     </div>
 
                     <div class="mt-3 text-muted small">
+                      <i class="bi bi-info-circle me-1"></i>
                       Las unidades marcadas en <strong>verde</strong> son propias del subparámetro
                       (override). Las marcadas en <strong>gris</strong> se heredan de la magnitud del título.
                     </div>
@@ -196,7 +212,7 @@
           <!-- Sin resultados -->
           <tr *ngIf="titulosFiltrados.length === 0">
             <td colspan="6" class="text-center py-4 text-muted">
-              No se encontraron títulos con los criterios seleccionados.
+              <i class="bi bi-search me-1"></i>No se encontraron títulos con los criterios seleccionados.
             </td>
           </tr>
         </tbody>
@@ -204,25 +220,25 @@
     </div>
   </div>
 
-  <!-- ============================================================ -->
-  <!-- SECCIÓN: MAGNITUDES                                         -->
-  <!-- ============================================================ -->
+
+  <!-- SECCIÓN: MAGNITUDES -->
+
   <div *ngIf="!cargando && activeTab === 'magnitudes'" class="card shadow-sm">
     <div class="table-responsive">
       <table class="table table-hover align-middle mb-0">
         <thead class="table-dark">
           <tr>
-            <th>ID (slug)</th>
-            <th>Nombre</th>
-            <th>Unidades registradas</th>
-            <th class="text-center">Acciones</th>
+            <th><i class="bi bi-hash me-1"></i>ID (slug)</th>
+            <th><i class="bi bi-rulers me-1"></i>Nombre</th>
+            <th><i class="bi bi-speedometer2 me-1"></i>Unidades registradas</th>
+            <th class="text-center"><i class="bi bi-gear me-1"></i>Acciones</th>
           </tr>
         </thead>
         <tbody>
           <ng-container *ngFor="let m of magnitudesFiltradas; trackBy: trackMagnitud">
 
             <!-- Fila principal de la magnitud -->
-            <tr>
+            <tr class="align-middle" style="cursor: pointer;" (click)="toggleMagnitud(m.id)">
               <td>{{ m.id }}</td>
               <td class="fw-bold">{{ m.nombre }}</td>
               <td>
@@ -230,14 +246,20 @@
                   *ngFor="let u of m.unidades; trackBy: trackUnidadSimple">
                   {{ u.simbolo }}
                 </span>
-                <span *ngIf="!m.unidades?.length" class="text-muted small">sin unidades</span>
+                <span *ngIf="!m.unidades?.length" class="text-muted small">
+                  <i class="bi bi-dash-circle me-1"></i>sin unidades
+                </span>
               </td>
               <td class="text-center">
                 <div class="btn-group btn-group-sm">
                   <button
+                    type="button"
                     class="btn"
                     [ngClass]="estaExpandidoMagnitud(m.id) ? 'btn-secondary' : 'btn-outline-primary'"
-                    (click)="toggleMagnitud(m.id)">
+                    (click)="$event.stopPropagation(); toggleMagnitud(m.id)">
+                    <i
+                      class="bi me-1"
+                      [ngClass]="estaExpandidoMagnitud(m.id) ? 'bi-chevron-up' : 'bi-chevron-down'"></i>
                     {{ estaExpandidoMagnitud(m.id) ? 'Ocultar opciones' : 'Mostrar opciones' }}
                   </button>
                 </div>
@@ -250,7 +272,9 @@
                 <div class="card border-secondary shadow-sm">
 
                   <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
-                    <span class="fw-bold">Unidades de la magnitud: {{ m.nombre }}</span>
+                    <span class="fw-bold">
+                      <i class="bi bi-speedometer2 me-1"></i>Unidades de la magnitud: {{ m.nombre }}
+                    </span>
                     <span class="badge bg-black">ID: {{ m.id }}</span>
                   </div>
 
@@ -259,14 +283,15 @@
                     <!-- Botón agregar unidad a esta magnitud -->
                     <div class="d-flex justify-content-end mb-3">
                       <button
+                        type="button"
                         class="btn btn-outline-success btn-sm"
                         (click)="crearUnidadEnMagnitud(m)">
-                        ＋ Agregar Unidad
+                        <i class="bi bi-plus-lg me-1"></i>Agregar Unidad
                       </button>
                     </div>
 
                     <div *ngIf="!m.unidades?.length" class="text-center py-4 text-muted">
-                      Esta magnitud aún no tiene unidades.
+                      <i class="bi bi-inbox me-1"></i>Esta magnitud aún no tiene unidades.
                     </div>
 
                     <div class="table-responsive" *ngIf="m.unidades?.length">
@@ -299,7 +324,7 @@
           <!-- Sin resultados -->
           <tr *ngIf="magnitudesFiltradas.length === 0">
             <td colspan="4" class="text-center py-4 text-muted">
-              No se encontraron magnitudes con los criterios seleccionados.
+              <i class="bi bi-search me-1"></i>No se encontraron magnitudes con los criterios seleccionados.
             </td>
           </tr>
         </tbody>
@@ -308,9 +333,12 @@
   </div>
 
 </div>
-<button type="button" class="btn btn-outline-secondary" (click)="editarJsonCatalogo('titulos')">
-  Editar JSON de títulos
-</button>
-<button type="button" class="btn btn-outline-secondary" (click)="editarJsonCatalogo('unidades')">
-  Editar JSON de unidades
-</button>
+
+<div class="d-flex justify-content-end my-4 gap-2 flex-wrap">
+  <button type="button" class="btn btn-outline-secondary" (click)="editarJsonCatalogo('titulos')">
+    <i class="bi bi-filetype-json me-1"></i> Editar JSON de títulos
+  </button>
+  <button type="button" class="btn btn-outline-secondary" (click)="editarJsonCatalogo('unidades')">
+    <i class="bi bi-filetype-json me-1"></i> Editar JSON de unidades
+  </button>
+</div>

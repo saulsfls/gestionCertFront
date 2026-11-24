@@ -57,9 +57,9 @@ export class Listcert implements OnInit {
     this.obtenerCertificados();
   }
 
-  // ---------------------------------------------------------------------------
+
   // Navegación
-  // ---------------------------------------------------------------------------
+
   editarCertificado(id: number | string | undefined): void {
     if (!id) return;
     this.router.navigate(['/edit-cert', id]);
@@ -74,9 +74,9 @@ export class Listcert implements OnInit {
     this.router.navigate(['/view-cert', id]);
   }
 
-  // ---------------------------------------------------------------------------
+
   // Filtro reactivo
-  // ---------------------------------------------------------------------------
+
   get certificadosFiltrados(): Certificado[] {
     return this.listaCertificados.filter((cert) => {
       if (this.filtroEstado === 'activos' && !cert.active) return false;
@@ -98,9 +98,9 @@ export class Listcert implements OnInit {
     });
   }
 
-  // ---------------------------------------------------------------------------
+
   // Carga de datos
-  // ---------------------------------------------------------------------------
+
   obtenerCertificados(): void {
     this.cargando = true;
     this.cdr.detectChanges();
@@ -138,9 +138,9 @@ export class Listcert implements OnInit {
     });
   }
 
-  // ---------------------------------------------------------------------------
+
   // Expansión / resumen
-  // ---------------------------------------------------------------------------
+
   toggleDetalle(id: number | string | undefined, cert: Certificado): void {
     if (!id) return;
     if (this.idExpandido === id) {
@@ -203,9 +203,9 @@ export class Listcert implements OnInit {
     return !!this.certificadoSeleccionado?.data;
   }
 
-  // ---------------------------------------------------------------------------
+
   // Procesamiento de 'data' (JSONB) → Result Tables
-  // ---------------------------------------------------------------------------
+
   obtenerTablasResultado(
     data?: CertificadoData | Record<string, any>,
     certEquipmentId?: string
@@ -236,9 +236,9 @@ export class Listcert implements OnInit {
     return tabla.equipment_id || this.certificadoSeleccionado?.equipment_id || '';
   }
 
-  // ---------------------------------------------------------------------------
+
   // Desactivación
-  // ---------------------------------------------------------------------------
+
   async desactivarCertificado(cert: Certificado): Promise<void> {
     if (!cert.active || !cert.id) return;
     if (this.desactivando.has(cert.id)) return;
@@ -289,9 +289,9 @@ export class Listcert implements OnInit {
     });
   }
 
-  // ---------------------------------------------------------------------------
+
   // Helpers de formato
-  // ---------------------------------------------------------------------------
+
   formatearFecha(fecha?: string): string {
     if (!fecha) return '—';
     const d = new Date(fecha);
@@ -315,9 +315,9 @@ export class Listcert implements OnInit {
     });
   }
 
-  // ---------------------------------------------------------------------------
+
   // Modal de edición rápida
-  // ---------------------------------------------------------------------------
+
   abrirModalEdicion(cert: Certificado): void {
     this.certificadoEdicion = { ...cert };
     this.jsonEdicionTexto = cert.data ? JSON.stringify(cert.data, null, 2) : '{}';

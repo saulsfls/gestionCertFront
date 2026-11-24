@@ -1,7 +1,7 @@
 <nav class="navbar navbar-expand-lg fixed-top navbar-dark bg-dark shadow-sm">
   <div class="container">
-    <a class="navbar-brand" routerLink="/inicio">
-      <img src="logo.png" alt="Logo">
+    <a class="navbar-brand d-flex align-items-center" routerLink="/inicio">
+      <img src="logo.png" alt="Logo" class="me-2">
       <span class="fw-bold">Gestión de certificados</span>
     </a>
 
@@ -26,7 +26,7 @@
             routerLinkActive="active"
             [routerLinkActiveOptions]="{exact: true}"
             (click)="isCollapsed = true">
-            Inicio
+            <i class="bi bi-house-door me-1"></i>Inicio
           </a>
         </li>
 
@@ -41,28 +41,28 @@
               role="button"
               [attr.aria-expanded]="dropdowns.certificados"
               (click)="toggleDropdown($event, 'certificados')">
-              Certificados
+              <i class="bi bi-file-earmark-check me-1"></i>Certificados
             </a>
             <ul class="dropdown-menu" [class.show]="dropdowns.certificados">
               <li>
                 <a class="dropdown-item" routerLink="/new-cert" routerLinkActive="active" (click)="isCollapsed = true">
-                  Crear certificado
+                  <i class="bi bi-file-earmark-plus me-2"></i>Crear certificado
                 </a>
               </li>
               <li>
                 <a class="dropdown-item" routerLink="/list-cert" routerLinkActive="active" (click)="isCollapsed = true">
-                  Lista de certificados
+                  <i class="bi bi-list-ul me-2"></i>Lista de certificados
                 </a>
               </li>
               <li><hr class="dropdown-divider"></li>
               <li>
                 <a class="dropdown-item" routerLink="/admin-cert" routerLinkActive="active" (click)="isCollapsed = true">
-                  Administrar certificados
+                  <i class="bi bi-sliders me-2"></i>Administrar certificados
                 </a>
               </li>
               <li>
                 <a class="dropdown-item" routerLink="/admin-titles-units" routerLinkActive="active" (click)="isCollapsed = true">
-                  Administrar Titulos y Unidades
+                  <i class="bi bi-rulers me-2"></i>Administrar Títulos y Unidades
                 </a>
               </li>
             </ul>
@@ -76,18 +76,18 @@
               role="button"
               [attr.aria-expanded]="dropdowns.cmc"
               (click)="toggleDropdown($event, 'cmc')">
-              CMC
+              <i class="bi bi-graph-up-arrow me-1"></i>CMC
             </a>
             <ul class="dropdown-menu" [class.show]="dropdowns.cmc">
               <li>
                 <a class="dropdown-item" routerLink="/cmc-create" routerLinkActive="active" (click)="isCollapsed = true">
-                  Calcular un nuevo CMC
+                  <i class="bi bi-plus-circle me-2"></i>Calcular un nuevo CMC
                 </a>
               </li>
               <li><hr class="dropdown-divider"></li>
               <li>
                 <a class="dropdown-item" routerLink="/cmc-list" routerLinkActive="active" (click)="isCollapsed = true">
-                  Lista de CMC
+                  <i class="bi bi-card-list me-2"></i>Lista de CMC
                 </a>
               </li>
             </ul>
@@ -101,21 +101,22 @@
               role="button"
               [attr.aria-expanded]="dropdowns.herramientas"
               (click)="toggleDropdown($event, 'herramientas')">
-              Herramientas
+              <i class="bi bi-tools me-1"></i>Herramientas
             </a>
             <ul class="dropdown-menu" [class.show]="dropdowns.herramientas">
               <li>
                 <a class="dropdown-item" routerLink="/calcmc" routerLinkActive="active" (click)="isCollapsed = true">
-                  Cálculo de CMC
+                  <i class="bi bi-calculator me-2"></i>Cálculo de CMC
                 </a>
               </li>
               <li>
                 <a class="dropdown-item" routerLink="/pimage" routerLinkActive="active" (click)="isCollapsed = true">
-                  Procesar imagen
+                  <i class="bi bi-image me-2"></i>Procesar imagen
                 </a>
               </li>
             </ul>
           </li>
+
           <!-- Incertidumbres -->
           <li class="nav-item dropdown" [class.show]="dropdowns.incertidumbres">
             <a
@@ -124,23 +125,23 @@
               role="button"
               [attr.aria-expanded]="dropdowns.incertidumbres"
               (click)="toggleDropdown($event, 'incertidumbres')">
-              Incertidumbres
+              <i class="bi bi-bullseye me-1"></i>Incertidumbres
             </a>
             <ul class="dropdown-menu" [class.show]="dropdowns.incertidumbres">
               <li>
                 <a class="dropdown-item" routerLink="/inc-admin" routerLinkActive="active" (click)="isCollapsed = true">
-                  Administracion de Incertidumbres
+                  <i class="bi bi-gear me-2"></i>Administración de Incertidumbres
                 </a>
               </li>
               <li><hr class="dropdown-divider"></li>
               <li>
                 <a class="dropdown-item" routerLink="/inc-repeatability" routerLinkActive="active" (click)="isCollapsed = true">
-                  Experimento de Repetibilidad
+                  <i class="bi bi-arrow-repeat me-2"></i>Experimento de Repetibilidad
                 </a>
               </li>
               <li>
                 <a class="dropdown-item" routerLink="/inc-reproducybility" routerLinkActive="active" (click)="isCollapsed = true">
-                  Experimento de Reproducibilidad
+                  <i class="bi bi-people me-2"></i>Experimento de Reproducibilidad
                 </a>
               </li>
             </ul>

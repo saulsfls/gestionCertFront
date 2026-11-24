@@ -3,21 +3,21 @@
 <!-- ============================================= -->
 <div class="card mb-4 shadow-sm">
   <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center flex-wrap gap-2">
-    <h5 class="m-0">Editar Certificado</h5>
+    <h5 class="m-0"><i class="bi bi-pencil-square me-2"></i>Editar Certificado</h5>
     <div class="d-flex gap-2 flex-wrap align-items-center">
-      <span class="badge bg-secondary" *ngIf="certificado.id">
-        ID: {{ certificado.id }}
-      </span>
-      <span class="btn btn-warning fw-bold" role="button" tabindex="0"
-        (click)="ayuda('general')" (keydown.enter)="ayuda('general')"
+      @if (certificado.id) {
+        <span class="badge bg-secondary"><i class="bi bi-hash me-1"></i>ID: {{ certificado.id }}</span>
+      }
+      <button type="button" class="btn btn-warning fw-bold"
+        (click)="ayuda('general')"
         title="Ayuda: campos editables del certificado">
-        Ayuda datos ❓
-      </span>
-      <span class="btn btn-warning fw-bold" role="button" tabindex="0"
-        (click)="ayuda('json')" (keydown.enter)="ayuda('json')"
+        <i class="bi bi-question-circle me-1"></i>Ayuda datos
+      </button>
+      <button type="button" class="btn btn-warning fw-bold"
+        (click)="ayuda('json')"
         title="Ayuda: JSON y guardado de cambios">
-        Ayuda JSON ❓
-      </span>
+        <i class="bi bi-question-circle me-1"></i>Ayuda JSON
+      </button>
     </div>
   </div>
   <div class="card-body">
@@ -26,48 +26,52 @@
       <!-- ID del Equipo (BLOQUEADO en Editcert) -->
       <div class="col-md-6">
         <label for="equipment_id" class="form-label fw-bold">
-          ID del Equipo <span class="text-danger">*</span>
+          <i class="bi bi-cpu me-1 text-secondary"></i>ID del Equipo <span class="text-danger">*</span>
         </label>
         <input type="text" id="equipment_id" class="form-control"
           [(ngModel)]="certificado.equipment_id"
           [disabled]="estaBloqueado('equipment_id')"
           maxlength="30" (ngModelChange)="onTableChange()"
           placeholder="Ej: 849-0000" required>
-        <small class="text-muted" *ngIf="estaBloqueado('equipment_id')">
-          🔒 Campo bloqueado en modo edición
-        </small>
+        @if (estaBloqueado('equipment_id')) {
+          <small class="text-muted"><i class="bi bi-lock me-1"></i>Campo bloqueado en modo edición</small>
+        }
       </div>
 
       <!-- Nombre del Equipo (BLOQUEADO) -->
       <div class="col-md-6">
         <label for="name_equipment" class="form-label fw-bold">
-          Nombre del Equipo <span class="text-danger">*</span>
+          <i class="bi bi-tools me-1 text-secondary"></i>Nombre del Equipo <span class="text-danger">*</span>
         </label>
         <input type="text" id="name_equipment" class="form-control" maxlength="300"
           [(ngModel)]="certificado.name_equipment"
           [disabled]="estaBloqueado('name_equipment')"
           placeholder="Ej: Multímetro Digital / Calibrador" required>
-        <small class="text-muted" *ngIf="estaBloqueado('name_equipment')">
-          🔒 Campo bloqueado en modo edición
-        </small>
+        @if (estaBloqueado('name_equipment')) {
+          <small class="text-muted"><i class="bi bi-lock me-1"></i>Campo bloqueado en modo edición</small>
+        }
       </div>
 
       <!-- Folio / CC (BLOQUEADO) -->
       <div class="col-md-3">
         <label for="cc" class="form-label fw-bold">
-          Folio / CC <span class="text-danger">*</span>
+          <i class="bi bi-upc-scan me-1 text-secondary"></i>Folio / CC <span class="text-danger">*</span>
         </label>
         <input type="text" id="cc" maxlength="50" class="form-control"
           [(ngModel)]="certificado.cc"
           [disabled]="estaBloqueado('cc')"
           (ngModelChange)="onTableChange()"
           placeholder="Ej: CC-89421">
-        <small class="text-muted" *ngIf="estaBloqueado('cc')">🔒 Bloqueado</small>
+        @if (estaBloqueado('cc')) {
+          <small class="text-muted"><i class="bi bi-lock me-1"></i>Bloqueado</small>
+        }
       </div>
 
       <!-- Fecha de Calibración (EDITABLE) -->
       <div class="col-md-3">
-        <label for="date_cal" class="form-label fw-bold">Fecha de Calibración</label>
+        <label for="date_cal" class="form-label fw-bold">
+          <i class="bi bi-calendar-check me-1 text-secondary"></i>Fecha de Calibración
+        </label>
         <input type="date" id="date_cal" class="form-control"
           [(ngModel)]="certificado.date_cal"
           [disabled]="estaBloqueado('date_cal')">
@@ -75,7 +79,9 @@
 
       <!-- Fecha del Certificado (EDITABLE) -->
       <div class="col-md-3">
-        <label for="date_cc" class="form-label fw-bold">Fecha del Certificado</label>
+        <label for="date_cc" class="form-label fw-bold">
+          <i class="bi bi-calendar-event me-1 text-secondary"></i>Fecha del Certificado
+        </label>
         <input type="date" id="date_cc" class="form-control"
           [(ngModel)]="certificado.date_cc"
           [disabled]="estaBloqueado('date_cc')">
@@ -83,7 +89,9 @@
 
       <!-- Entidad Emisora (EDITABLE) -->
       <div class="col-md-3">
-        <label for="entity" class="form-label fw-bold">Entidad emisora</label>
+        <label for="entity" class="form-label fw-bold">
+          <i class="bi bi-building me-1 text-secondary"></i>Entidad emisora
+        </label>
         <input type="text" id="entity" class="form-control" maxlength="30"
           [(ngModel)]="certificado.entity"
           [disabled]="estaBloqueado('entity')"
@@ -92,7 +100,9 @@
 
       <!-- Tipo de Certificado (BLOQUEADO) -->
       <div class="col-md-6">
-        <label for="cert_type" class="form-label fw-bold">Tipo de certificado</label>
+        <label for="cert_type" class="form-label fw-bold">
+          <i class="bi bi-award me-1 text-secondary"></i>Tipo de certificado
+        </label>
         <select id="cert_type" class="form-select"
           [(ngModel)]="certificado.cert_type"
           [disabled]="estaBloqueado('cert_type')">
@@ -105,7 +115,7 @@
       <!-- Intervalo de Calibración (BLOQUEADO) -->
       <div class="col-md-3">
         <label for="calibration_interval" class="form-label fw-bold">
-          Intervalo de Calibración
+          <i class="bi bi-clock-history me-1 text-secondary"></i>Intervalo de Calibración
         </label>
         <input type="number" id="calibration_interval" class="form-control"
           [(ngModel)]="certificado.calibration_interval"
@@ -115,7 +125,9 @@
 
       <!-- Resolución (EDITABLE) -->
       <div class="col-md-3">
-        <label for="resolution" class="form-label fw-bold">Resolución</label>
+        <label for="resolution" class="form-label fw-bold">
+          <i class="bi bi-crosshair me-1 text-secondary"></i>Resolución
+        </label>
         <input type="number" id="resolution" class="form-control"
           [(ngModel)]="certificado.resolution"
           [disabled]="estaBloqueado('resolution')"
@@ -124,7 +136,9 @@
 
       <!-- Comentarios Generales (EDITABLE) -->
       <div class="col-md-12">
-        <label for="comments" class="form-label fw-bold">Comentarios</label>
+        <label for="comments" class="form-label fw-bold">
+          <i class="bi bi-chat-left-text me-1 text-secondary"></i>Comentarios
+        </label>
         <input type="text" id="comments" class="form-control" maxlength="100"
           [(ngModel)]="certificado.comments"
           [disabled]="estaBloqueado('comments')"
@@ -138,6 +152,11 @@
             [(ngModel)]="certificado.active"
             [disabled]="estaBloqueado('active')">
           <label class="form-check-label fw-bold" for="active">
+            <i class="bi me-1"
+              [class.bi-check-circle-fill]="certificado.active"
+              [class.text-success]="certificado.active"
+              [class.bi-x-circle-fill]="!certificado.active"
+              [class.text-danger]="!certificado.active"></i>
             Certificado Activo {{ certificado.active ? '(Habilitado)' : '(Inactivo)' }}
           </label>
         </div>
@@ -152,22 +171,26 @@
 <!-- ============================================= -->
 <div class="container my-4">
   <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-    <h3 class="fw-bold m-0">Resultados del Certificado</h3>
+    <h3 class="fw-bold m-0"><i class="bi bi-table me-2"></i>Resultados del Certificado</h3>
 
     <div class="d-flex align-items-center gap-3 flex-wrap">
       <!-- Navegación Tab -->
       <div class="d-flex align-items-center bg-light border rounded px-2 py-1">
         <label class="form-label fw-semibold small text-secondary m-0 me-2">
-          Navegación con Tab:
+          <i class="bi bi-keyboard me-1"></i>Navegación con Tab:
         </label>
         <div class="btn-group btn-group-sm" role="group">
           <input type="radio" class="btn-check" name="direccionTab" id="tabVertical"
             value="vertical" [(ngModel)]="direccionTab">
-          <label class="btn btn-outline-primary" for="tabVertical">Vertical ↓</label>
+          <label class="btn btn-outline-primary" for="tabVertical">
+            Vertical <i class="bi bi-arrow-down ms-1"></i>
+          </label>
 
           <input type="radio" class="btn-check" name="direccionTab" id="tabHorizontal"
             value="horizontal" [(ngModel)]="direccionTab">
-          <label class="btn btn-outline-primary" for="tabHorizontal">Horizontal →</label>
+          <label class="btn btn-outline-primary" for="tabHorizontal">
+            Horizontal <i class="bi bi-arrow-right ms-1"></i>
+          </label>
         </div>
       </div>
 
@@ -177,7 +200,8 @@
         (click)="toggleModoEliminarTexto()"
         [attr.aria-pressed]="modoEliminarTexto"
         title="Elimina el texto de los valores (ej: 1.1A → 1.1)">
-        <span *ngIf="modoEliminarTexto">✓ </span>Eliminar Texto
+        @if (modoEliminarTexto) { <i class="bi bi-check-lg me-1"></i> } @else { <i class="bi bi-eraser me-1"></i> }
+        Eliminar Texto
       </button>
 
       <!-- Toggle: Separar ± -->
@@ -186,124 +210,159 @@
         (click)="toggleModoSepararSimbolo()"
         [attr.aria-pressed]="modoSepararSimbolo"
         title="Separa valores como 0.226±0.21 en dos columnas">
-        <span *ngIf="modoSepararSimbolo">✓ </span>Separar ±
+        @if (modoSepararSimbolo) { <i class="bi bi-check-lg me-1"></i> } @else { <i class="bi bi-scissors me-1"></i> }
+        Separar ±
+      </button>
+
+      <!-- Fusionar tablas -->
+      <button class="btn btn-primary fw-bold" type="button"
+        (click)="fusionarTablas()"
+        [disabled]="resultTables.length < 2"
+        title="Une dos tablas con la misma cantidad de columnas">
+        <i class="bi bi-link-45deg me-1"></i>Fusionar Tablas
+      </button>
+
+      <button type="button" class="btn btn-warning fw-bold"
+        (click)="ayuda('tablas')"
+        title="Ayuda: estructura de las tablas">
+        <i class="bi bi-question-circle me-1"></i>Ayuda tablas
       </button>
 
       <button class="btn btn-outline-success btn-lg" type="button" (click)="agregarTabla()">
-        + Agregar Nueva Tabla
+        <i class="bi bi-plus-lg me-1"></i>Agregar Nueva Tabla
       </button>
-
-      <span class="btn btn-warning fw-bold" role="button" tabindex="0"
-        (click)="ayuda('tablas')" (keydown.enter)="ayuda('tablas')"
-        title="Ayuda: estructura de las tablas">
-        Ayuda tablas ❓
-      </span>
     </div>
   </div>
 
   <!-- Banner: modo eliminar texto -->
-  <div *ngIf="modoEliminarTexto" class="alert alert-warning d-flex align-items-center gap-2 shadow-sm flex-wrap">
-    <span class="fs-5">⚠️</span>
-    <div class="flex-grow-1">
-      <strong>Modo "Eliminar Texto" activado.</strong>
-      Haz clic en las columnas que quieras procesar y presiona
-      <strong>"🧹 Formatear Texto"</strong>. Ejemplo: <code>1.1A</code> → <code>1.1</code>.
+  @if (modoEliminarTexto) {
+    <div class="alert alert-warning d-flex align-items-center gap-2 shadow-sm flex-wrap">
+      <span class="fs-5"><i class="bi bi-exclamation-triangle-fill"></i></span>
+      <div class="flex-grow-1">
+        <strong>Modo "Eliminar Texto" activado.</strong>
+        Haz clic en las columnas que quieras procesar y presiona
+        <strong><i class="bi bi-eraser me-1"></i>Formatear Texto</strong>. Ejemplo: <code>1.1A</code> → <code>1.1</code>.
+      </div>
     </div>
-  </div>
+  }
 
   <!-- Banner: modo separar ± -->
-  <div *ngIf="modoSepararSimbolo" class="alert alert-info d-flex align-items-center gap-2 shadow-sm flex-wrap">
-    <span class="fs-5">ℹ️</span>
-    <div class="flex-grow-1">
-      <strong>Modo "Separar ±" activado.</strong>
-      Selecciona columnas con valores como <code>0.226 ± 0.21</code> y presiona
-      <strong>"✂️ Separar Columnas"</strong>. Se crearán <code>Error Relativo</code> e
-      <code>Incertidumbre</code>.
+  @if (modoSepararSimbolo) {
+    <div class="alert alert-info d-flex align-items-center gap-2 shadow-sm flex-wrap">
+      <span class="fs-5"><i class="bi bi-info-circle-fill"></i></span>
+      <div class="flex-grow-1">
+        <strong>Modo "Separar ±" activado.</strong>
+        Selecciona columnas con valores como <code>0.226 ± 0.21</code> y presiona
+        <strong><i class="bi bi-scissors me-1"></i>Separar Columnas</strong>. Se crearán
+        <code>Error Relativo</code> e <code>Incertidumbre</code>.
+      </div>
     </div>
-  </div>
+  }
 
   <!-- Bucle de Tablas -->
-  <ng-container *ngFor="let tabla of resultTables; let i = index">
+  @for (tabla of resultTables; track tabla.table_id; let i = $index) {
     <div class="card mb-4 border-light shadow-sm">
 
-      <!-- Encabezado colapsable -->
+      <!-- Encabezado colapsable con flecha dinámica -->
       <div class="card-header bg-black text-white d-flex justify-content-between align-items-center">
-        <button class="btn btn-link text-white text-decoration-none p-0 fw-bold d-flex align-items-center gap-2 shadow-none"
-          type="button" data-bs-toggle="collapse"
-          [attr.data-bs-target]="'#collapseTabla' + i"
-          aria-expanded="true" [attr.aria-controls]="'collapseTabla' + i">
-          <span>▼</span>
+        <button
+          class="btn btn-link text-white text-decoration-none p-0 fw-bold d-flex align-items-center gap-2 shadow-none"
+          type="button"
+          [attr.aria-expanded]="!estaColapsada(i)"
+          [attr.aria-controls]="'collapseTabla' + i"
+          (click)="toggleCollapseTabla(i)">
+          <i
+            class="bi"
+            [class.bi-chevron-down]="!estaColapsada(i)"
+            [class.bi-chevron-up]="estaColapsada(i)"></i>
           <span class="fs-5">
+            <i class="bi bi-table me-1"></i>
             Tabla #{{ i + 1 }} {{ tabla.title }}
-            <span class="badge bg-light text-black ms-2" *ngIf="tabla.unit">{{ tabla.unit }}</span>
+            @if (tabla.pt) {
+              <span class="badge bg-secondary ms-2">
+                <i class="bi bi-journal-code me-1"></i>{{ tabla.pt }}
+              </span>
+            }
+            @if (tabla.unit) {
+              <span class="badge bg-light text-black ms-2">
+                <i class="bi bi-rulers me-1"></i>{{ tabla.unit }}
+              </span>
+            }
           </span>
         </button>
 
-        <button *ngIf="resultTables.length > 1" class="btn btn-danger btn-sm"
-          type="button" (click)="eliminarTabla(i)">
-          Eliminar Tabla
-        </button>
+        @if (resultTables.length > 1) {
+          <button class="btn btn-danger btn-sm"
+            type="button" (click)="eliminarTabla(i)">
+            <i class="bi bi-trash me-1"></i>Eliminar Tabla
+          </button>
+        }
       </div>
 
       <!-- Cuerpo colapsable -->
-      <div [id]="'collapseTabla' + i" class="collapse show">
+      <div [id]="'collapseTabla' + i" class="collapse" [class.show]="!estaColapsada(i)">
         <div class="card-body">
 
           <!-- Propiedades de la Tabla -->
           <div class="row g-3 p-3 mb-4 bg-light rounded border">
-            <h6 class="text-secondary fw-bold mb-0">Propiedades de la tabla</h6>
+            <h6 class="text-secondary fw-bold mb-0">
+              <i class="bi bi-sliders me-1"></i>Propiedades de la tabla
+            </h6>
 
             <!-- Título -->
             <div class="col-md-6">
               <label class="form-label fw-semibold small">
-                Título: <span class="text-danger">*</span>
+                <i class="bi bi-type me-1"></i>Título: <span class="text-danger">*</span>
               </label>
               <div class="d-flex gap-2 align-items-center">
                 <select class="form-select"
                   [ngModel]="tabla.title"
                   (ngModelChange)="tabla.title = $event; actualizarParametroSegunTitulo(tabla); onTableChange()"
                   style="flex:1;">
-                  <option *ngFor="let opcion of opcionesTitulo" [value]="opcion">
-                    {{ opcion }}
-                  </option>
+                  @for (opcion of opcionesTitulo; track opcion) {
+                    <option [value]="opcion">{{ opcion }}</option>
+                  }
                 </select>
-                <input *ngIf="!esTituloPredefinido(tabla.title)" type="text" class="form-control"
-                  [(ngModel)]="tabla.title" (ngModelChange)="onTableChange()"
-                  placeholder="Título personalizado" style="flex:2;">
+                @if (!esTituloPredefinido(tabla.title)) {
+                  <input type="text" class="form-control"
+                    [(ngModel)]="tabla.title" (ngModelChange)="onTableChange()"
+                    placeholder="Título personalizado" style="flex:2;">
+                }
               </div>
-              <small class="text-muted fst-italic d-block mt-1" *ngIf="labelTitulo(tabla)">
-                {{ labelTitulo(tabla) }}
-              </small>
+              @if (labelTitulo(tabla)) {
+                <small class="text-muted fst-italic d-block mt-1">{{ labelTitulo(tabla) }}</small>
+              }
             </div>
 
             <!-- Mesurando -->
             <div class="col-md-6">
               <label class="form-label fw-semibold small">
-                Mesurando (Parameter): <span class="text-danger">*</span>
+                <i class="bi bi-rulers me-1"></i>Mesurando (Parameter): <span class="text-danger">*</span>
               </label>
-              <ng-container *ngIf="esTituloPredefinido(tabla.title); else otroMesurando">
+              @if (esTituloPredefinido(tabla.title)) {
                 <select class="form-select" [(ngModel)]="tabla.parameter"
                   (ngModelChange)="onParameterChange(tabla)">
-                  <option *ngFor="let opcion of obtenerOpcionesParametro(tabla.title)" [value]="opcion">
-                    {{ opcion }}
-                  </option>
-                  <option *ngIf="obtenerOpcionesParametro(tabla.title).length === 0" value="">
-                    (Sin subparámetros)
-                  </option>
+                  @for (opcion of obtenerOpcionesParametro(tabla.title); track opcion) {
+                    <option [value]="opcion">{{ opcion }}</option>
+                  }
+                  @if (obtenerOpcionesParametro(tabla.title).length === 0) {
+                    <option value="">(Sin subparámetros)</option>
+                  }
                 </select>
-              </ng-container>
-              <ng-template #otroMesurando>
+              } @else {
                 <input type="text" class="form-control" [(ngModel)]="tabla.parameter"
                   (ngModelChange)="onTableChange()" placeholder="Especifique el mesurando">
-              </ng-template>
-              <small class="text-muted fst-italic d-block mt-1" *ngIf="labelParametro(tabla)">
-                {{ labelParametro(tabla) }}
-              </small>
+              }
+              @if (labelParametro(tabla)) {
+                <small class="text-muted fst-italic d-block mt-1">{{ labelParametro(tabla) }}</small>
+              }
             </div>
 
-            <!-- Unidades con dropdown (FUNCIONAL con el componente) -->
+            <!-- Unidades con dropdown -->
             <div class="col-md-6">
-              <label class="form-label fw-semibold small">Unidades:</label>
+              <label class="form-label fw-semibold small">
+                <i class="bi bi-rulers me-1"></i>Unidades:
+              </label>
 
               <div class="dropdown">
                 <button class="btn btn-outline-secondary w-100 d-flex justify-content-between align-items-center text-start"
@@ -312,12 +371,11 @@
                   data-bs-auto-close="outside"
                   aria-expanded="false">
                   <span class="text-truncate">
-                    <ng-container *ngIf="tabla.unit; else sinUnidadesSeleccionadas">
+                    @if (tabla.unit) {
                       {{ tabla.unit }}
-                    </ng-container>
-                    <ng-template #sinUnidadesSeleccionadas>
+                    } @else {
                       <span class="text-muted">— Selecciona unidades —</span>
-                    </ng-template>
+                    }
                   </span>
                   <span class="badge bg-secondary ms-2">
                     {{ unidadesSeleccionadasDe(tabla).size }}
@@ -326,42 +384,46 @@
 
                 <div class="dropdown-menu p-3 w-100 shadow" style="min-width: 280px;">
 
-                  <!-- Checkboxes del catálogo -->
-                  <ng-container *ngIf="unidadesDeTabla(tabla).length > 0; else sinCatalogo">
-                    <small class="text-muted d-block mb-2">Del catálogo:</small>
-                    <div style="max-height: 180px; overflow-y: auto;">
-                      <div class="form-check" *ngFor="let u of unidadesDeTabla(tabla)">
-                        <input class="form-check-input" type="checkbox"
-                          [id]="'unidad-' + i + '-' + u"
-                          [checked]="unidadesSeleccionadasDe(tabla).has(u)"
-                          (change)="toggleUnidad(tabla, u)">
-                        <label class="form-check-label" [for]="'unidad-' + i + '-' + u">
-                          {{ u }}
-                        </label>
-                      </div>
-                    </div>
-                  </ng-container>
-
-                  <ng-template #sinCatalogo>
+                  @if (unidadesDeTabla(tabla).length > 0) {
                     <small class="text-muted d-block mb-2">
-                      Sin unidades en catálogo para este título + parámetro.
+                      <i class="bi bi-list-ul me-1"></i>Del catálogo:
                     </small>
-                  </ng-template>
+                    <div style="max-height: 180px; overflow-y: auto;">
+                      @for (u of unidadesDeTabla(tabla); track u) {
+                        <div class="form-check">
+                          <input class="form-check-input" type="checkbox"
+                            [id]="'unidad-' + i + '-' + u"
+                            [checked]="unidadesSeleccionadasDe(tabla).has(u)"
+                            (change)="toggleUnidad(tabla, u)">
+                          <label class="form-check-label" [for]="'unidad-' + i + '-' + u">
+                            {{ u }}
+                          </label>
+                        </div>
+                      }
+                    </div>
+                  } @else {
+                    <small class="text-muted d-block mb-2">
+                      <i class="bi bi-info-circle me-1"></i>Sin unidades en catálogo para este título + parámetro.
+                    </small>
+                  }
 
-                  <!-- Unidades personalizadas -->
-                  <div class="mt-2" *ngIf="unidadesPersonalizadasDe(tabla).length > 0">
-                    <small class="text-muted d-block mb-1">Personalizadas:</small>
-                    <span class="badge bg-secondary d-inline-flex align-items-center me-1 mb-1"
-                      *ngFor="let u of unidadesPersonalizadasDe(tabla)">
-                      {{ u }}
-                      <button type="button" class="btn-close btn-close-white ms-2"
-                        style="font-size: 0.55rem;" title="Quitar unidad"
-                        (click)="quitarUnidadPersonalizada(tabla, u)">
-                      </button>
-                    </span>
-                  </div>
+                  @if (unidadesPersonalizadasDe(tabla).length > 0) {
+                    <div class="mt-2">
+                      <small class="text-muted d-block mb-1">
+                        <i class="bi bi-stars me-1"></i>Personalizadas:
+                      </small>
+                      @for (u of unidadesPersonalizadasDe(tabla); track u) {
+                        <span class="badge bg-secondary d-inline-flex align-items-center me-1 mb-1">
+                          {{ u }}
+                          <button type="button" class="btn-close btn-close-white ms-2"
+                            style="font-size: 0.55rem;" title="Quitar unidad"
+                            (click)="quitarUnidadPersonalizada(tabla, u)">
+                          </button>
+                        </span>
+                      }
+                    </div>
+                  }
 
-                  <!-- Agregar personalizada -->
                   <div class="input-group input-group-sm mt-2">
                     <input type="text" class="form-control" placeholder="Otra unidad…"
                       #nuevaUnidad
@@ -369,7 +431,7 @@
                     <button class="btn btn-outline-success" type="button"
                       title="Agregar unidad personalizada"
                       (click)="agregarUnidadPersonalizada(tabla, nuevaUnidad.value); nuevaUnidad.value = ''">
-                      ＋
+                      <i class="bi bi-plus-lg"></i>
                     </button>
                   </div>
 
@@ -381,40 +443,46 @@
               </small>
             </div>
 
-            <!-- PT de la tabla (SOLO LECTURA en Editcert) -->
+            <!-- PT de la tabla (SOLO LECTURA) -->
             <div class="col-md-6">
               <label [for]="'tablePt' + i" class="form-label fw-semibold small">
-                PT asociado a la tabla:
+                <i class="bi bi-journal-code me-1"></i>PT asociado a la tabla:
               </label>
               <input type="text" [id]="'tablePt' + i" class="form-control"
                 [(ngModel)]="tabla.pt" disabled placeholder="Sin PT">
-              <small class="text-muted">🔒 El PT no se puede modificar en edición</small>
+              <small class="text-muted"><i class="bi bi-lock me-1"></i>El PT no se puede modificar en edición</small>
             </div>
 
             <!-- CC ID -->
             <div class="col-md-4">
-              <label class="form-label fw-semibold small">CC ID:</label>
-              <input type="text" class="form-control"
-                [ngModel]="certificado.cc" disabled>
+              <label class="form-label fw-semibold small">
+                <i class="bi bi-upc-scan me-1"></i>CC ID:
+              </label>
+              <input type="text" class="form-control" [ngModel]="certificado.cc" disabled>
             </div>
 
             <!-- Tabla ID -->
             <div class="col-md-4">
-              <label class="form-label fw-semibold small">Tabla ID:</label>
-              <input type="text" class="form-control"
-                [ngModel]="tabla.table_id" disabled>
+              <label class="form-label fw-semibold small">
+                <i class="bi bi-hash me-1"></i>Tabla ID:
+              </label>
+              <input type="text" class="form-control" [ngModel]="tabla.table_id" disabled>
             </div>
 
             <!-- Rango (Range) -->
             <div class="col-md-4">
-              <label class="form-label fw-semibold small">Rango (Range):</label>
+              <label class="form-label fw-semibold small">
+                <i class="bi bi-arrows-expand me-1"></i>Rango (Range):
+              </label>
               <input type="text" class="form-control" [(ngModel)]="tabla.range"
                 (ngModelChange)="onTableChange()" placeholder="Ej: 0v - 100v">
             </div>
 
             <!-- Mínimo / Máximo -->
             <div class="col-md-6">
-              <label class="form-label fw-semibold small">Intervalo de medición:</label>
+              <label class="form-label fw-semibold small">
+                <i class="bi bi-arrows-angle-expand me-1"></i>Intervalo de medición:
+              </label>
               <div class="d-flex gap-2 align-items-start">
                 <div class="flex-fill">
                   <input type="number" class="form-control" [(ngModel)]="tabla.min_value"
@@ -433,7 +501,7 @@
             <!-- Comentarios de la tabla -->
             <div class="col-md-6">
               <label [for]="'tableComments' + i" class="form-label fw-semibold small">
-                Comentarios de la tabla:
+                <i class="bi bi-chat-left-text me-1"></i>Comentarios de la tabla:
               </label>
               <input [id]="'tableComments' + i" type="text" class="form-control"
                 [(ngModel)]="tabla.comments" (ngModelChange)="onTableChange()"
@@ -442,20 +510,20 @@
           </div>
 
           <!-- ============================================= -->
-          <!-- 📷 OCR / IMAGEN (mapeado al componente)       -->
+          <!-- 📷 OCR / IMAGEN (multi-imagen POR TABLA)      -->
           <!-- ============================================= -->
           <div class="mt-4 p-3 border rounded bg-white">
             <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-              <h6 class="fw-bold m-0">📷 Extraer datos desde imagen</h6>
+              <h6 class="fw-bold m-0"><i class="bi bi-camera me-1"></i>Extraer datos desde imagen</h6>
               <div class="d-flex align-items-center gap-2 flex-wrap">
                 <small class="text-muted">
-                  Pega o sube una imagen, ajusta el recorte y presiona "Extraer Tabla".
+                  Pega, arrastra o sube una o varias imágenes de la misma tabla.
                 </small>
-                <span class="btn btn-warning" role="button" tabindex="0"
-                  (click)="ayuda('ocr')" (keydown.enter)="ayuda('ocr')"
+                <button type="button" class="btn btn-warning btn-sm"
+                  (click)="ayuda('ocr')"
                   title="Ayuda: cómo extraer tablas desde una imagen">
-                  Ayuda OCR ❓
-                </span>
+                  <i class="bi bi-question-circle me-1"></i>Ayuda OCR
+                </button>
               </div>
             </div>
 
@@ -469,7 +537,7 @@
 
               <div class="flex-grow-1">
                 <div class="fw-semibold d-flex align-items-center gap-2">
-                  <span>📋 La imagen tiene encabezado</span>
+                  <span><i class="bi bi-card-list me-1"></i>La imagen tiene encabezado</span>
                   <span class="badge"
                     [class.bg-success]="imageStates[i]?.tieneEncabezado"
                     [class.bg-secondary]="!imageStates[i]?.tieneEncabezado">
@@ -491,71 +559,149 @@
               </div>
             </label>
 
-            <!-- Input archivo (el componente expone fileChangeEvent) -->
-            <!--<div class="mb-2">
-              <label [for]="'fileInput' + i" class="form-label small fw-semibold">
-                Subir archivo:
-              </label>
-              <input [id]="'fileInput' + i" type="file" accept="image/*"
-                class="form-control form-control-sm"
-                (change)="fileChangeEvent($event, i)">
-            </div>-->
-
-            <!-- Área de Pegado -->
-            <div *ngIf="!imageStates[i]?.imageChangedEvent && !imageStates[i]?.pasteImageFile"
+            <!-- Zona de pegado multi-imagen con tableIndex -->
+            <div
               class="paste-zone p-4 text-center border border-2 border-dashed rounded mb-3 bg-light"
-              (paste)="onPaste($event, i)"
-              tabindex="0">
+              [class.bg-primary-subtle]="zonaActivaMulti"
+              [class.border-primary]="zonaActivaMulti"
+              (paste)="onPasteUniversal($event, i)"
+              (dragover)="onDragOverMulti($event)"
+              (dragleave)="onDragLeaveMulti($event)"
+              (drop)="onDropUniversal($event, i)"
+              tabindex="0"
+              (focus)="zonaActivaMulti = true"
+              (blur)="zonaActivaMulti = false">
               <p class="mb-1 text-primary fw-bold">
-                📋 Haz clic aquí y presiona <kbd>Ctrl + V</kbd> para pegar la imagen
+                <i class="bi bi-clipboard me-1"></i>Haz clic aquí y presiona <kbd>Ctrl + V</kbd> para pegar
               </p>
             </div>
 
-            <!-- Cropper -->
-            <ng-container *ngIf="isBrowser">
-              <div class="cropper-wrapper mb-3"
-                *ngIf="imageStates[i]?.imageChangedEvent || imageStates[i]?.pasteImageFile">
-                <p class="small text-muted mb-1 p-2">
-                  Ajusta los bordes para seleccionar únicamente la tabla:
-                </p>
+            <!-- Lista de miniaturas multi-imagen POR TABLA -->
+            @if (itemsDeTabla(i).length > 0) {
+              <ul class="list-group mb-3">
+                @for (item of itemsDeTabla(i); track item.id; let idx = $index) {
+                  <li class="list-group-item d-flex align-items-center gap-2">
+                    <span class="badge bg-secondary">{{ idx + 1 }}</span>
+                    <img
+                      [src]="item.base64"
+                      alt="preview"
+                      style="width:48px;height:48px;object-fit:cover;border-radius:4px;border:1px solid #ddd;cursor:zoom-in;"
+                      (click)="verImagenGrande(item.base64, item.nombre)"
+                      title="Clic para ver en grande" />
+                    <span class="flex-grow-1 text-truncate">
+                      <i class="bi bi-image me-1"></i>{{ item.nombre }}
+                    </span>
 
-                <image-cropper
-                  [imageChangedEvent]="imageStates[i].imageChangedEvent"
-                  [imageFile]="imageStates[i].pasteImageFile"
-                  [maintainAspectRatio]="false"
-                  format="png"
-                  (imageCropped)="imageCropped($event, i)"
-                  (imageLoaded)="imageLoaded($event)"
-                  (cropperReady)="cropperReady()"
-                  (loadImageFailed)="loadImageFailed(i)">
-                </image-cropper>
+                    <button type="button" class="btn btn-sm btn-outline-secondary"
+                      (click)="moverItemMulti(item.id, -1, i)"
+                      [disabled]="idx === 0" title="Subir">
+                      <i class="bi bi-arrow-up"></i>
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary"
+                      (click)="moverItemMulti(item.id, 1, i)"
+                      [disabled]="idx === itemsDeTabla(i).length - 1" title="Bajar">
+                      <i class="bi bi-arrow-down"></i>
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-danger"
+                      (click)="quitarItemMulti(item.id, i)" title="Quitar">
+                      <i class="bi bi-x-lg"></i>
+                    </button>
+                  </li>
+                }
+              </ul>
 
-                <div class="d-flex justify-content-center mt-3">
-                  <button type="button" class="btn btn-outline-danger btn-sm"
-                    (click)="cancelarImagen(i)">
-                    ✕ Cancelar y cargar otra imagen
-                  </button>
+              @if (cargandoArchivosMulti) {
+                <div class="text-muted small mb-2">
+                  <span class="spinner-border spinner-border-sm me-1"></span>
+                  Cargando archivos…
                 </div>
-              </div>
-            </ng-container>
+              }
 
-            <!-- Botón de Procesar -->
-            <div class="d-flex justify-content-end mb-1"
-              *ngIf="imageStates[i]?.imageChangedEvent || imageStates[i]?.pasteImageFile">
-              <button class="btn btn-primary btn-sm" type="button"
-                [disabled]="ocrEnProceso || imageStates[i]?.cargando"
-                (click)="enviarANode(i)">
-                <span *ngIf="imageStates[i]?.cargando" class="spinner-border spinner-border-sm me-1"></span>
-                {{ imageStates[i]?.cargando ? 'Procesando...' : 'Extraer Tabla' }}
-              </button>
-            </div>
+              <div class="d-flex justify-content-end mb-3">
+                <button class="btn btn-primary" [disabled]="ocrEnProceso"
+                  (click)="enviarMultiANode(i)">
+                  @if (ocrEnProceso) {
+                    <span class="spinner-border spinner-border-sm me-1"></span>
+                  } @else {
+                    <i class="bi bi-cpu me-1"></i>
+                  }
+                  {{
+                    ocrEnProceso
+                      ? 'Procesando...'
+                      : itemsDeTabla(i).length === 1
+                        ? 'Extraer Tabla'
+                        : 'Extraer y unir (' + itemsDeTabla(i).length + ')'
+                  }}
+                </button>
+              </div>
+            }
+
+            <!-- Cropper individual (legacy) -->
+            @if (isBrowser) {
+              @if (imageStates[i]?.imageChangedEvent || imageStates[i]?.pasteImageFile) {
+                <div class="cropper-wrapper mb-3">
+                  <p class="small text-muted mb-1 p-2">
+                    <i class="bi bi-crop me-1"></i>Ajusta los bordes para seleccionar únicamente la tabla:
+                  </p>
+
+                  <image-cropper
+                    [imageChangedEvent]="imageStates[i].imageChangedEvent"
+                    [imageFile]="imageStates[i].pasteImageFile"
+                    [maintainAspectRatio]="false"
+                    format="png"
+                    (imageCropped)="imageCropped($event, i)"
+                    (imageLoaded)="imageLoaded($event)"
+                    (cropperReady)="cropperReady()"
+                    (loadImageFailed)="loadImageFailed(i)">
+                  </image-cropper>
+
+                  @if (imageStates[i]?.croppedImageBase64) {
+                    <div class="d-flex justify-content-center mt-3">
+                      <div class="preview-thumb-wrapper"
+                        (click)="verImagenGrande(imageStates[i].croppedImageBase64, 'Recorte de la tabla #' + (i + 1))">
+                        <img [src]="imageStates[i].croppedImageBase64"
+                          alt="Recorte actual"
+                          class="preview-thumb"
+                          title="Clic para ver en grande" />
+                        <span class="preview-thumb-hint">
+                          <i class="bi bi-zoom-in me-1"></i>Ver en grande
+                        </span>
+                      </div>
+                    </div>
+                  }
+
+                  <div class="d-flex justify-content-center mt-3">
+                    <button type="button" class="btn btn-outline-danger btn-sm"
+                      (click)="cancelarImagen(i)">
+                      <i class="bi bi-x-circle me-1"></i>Cancelar y cargar otra imagen
+                    </button>
+                  </div>
+                </div>
+              }
+            }
+
+            <!-- Botón de procesar (cropper legacy) -->
+            @if (imageStates[i]?.imageChangedEvent || imageStates[i]?.pasteImageFile) {
+              <div class="d-flex justify-content-end mb-1">
+                <button class="btn btn-primary btn-sm" type="button"
+                  [disabled]="ocrEnProceso || imageStates[i]?.cargando"
+                  (click)="enviarANode(i)">
+                  @if (imageStates[i]?.cargando) {
+                    <span class="spinner-border spinner-border-sm me-1"></span>
+                  } @else {
+                    <i class="bi bi-crop me-1"></i>
+                  }
+                  {{ imageStates[i]?.cargando ? 'Procesando...' : 'Extraer Tabla' }}
+                </button>
+              </div>
+            }
           </div>
 
           <!-- Estructura de Tabla -->
           <div class="d-flex justify-content-between align-items-center mt-4">
-            <h6 class="fw-bold m-0">Estructura y Resultados</h6>
+            <h6 class="fw-bold m-0"><i class="bi bi-grid-3x3 me-1"></i>Estructura y Resultados</h6>
             <button class="btn btn-outline-primary btn-sm" type="button" (click)="agregarColumna(tabla)">
-              + Agregar Columna
+              <i class="bi bi-plus-lg me-1"></i>Agregar Columna
             </button>
           </div>
 
@@ -563,157 +709,177 @@
             <table class="table table-bordered align-middle mt-2">
               <thead class="table-secondary">
                 <tr>
-                  <th *ngFor="let col of tabla.columns; let j = index" class="p-2"
-                    style="min-width: 170px;"
-                    [ngClass]="{
-                      'border-warning border-3': (modoEliminarTexto && esColumnaSeleccionada(i, j)) || (modoSepararSimbolo && esColumnaParaSeparar(i, j)),
-                      'bg-warning bg-opacity-10': (modoEliminarTexto && esColumnaSeleccionada(i, j)) || (modoSepararSimbolo && esColumnaParaSeparar(i, j))
-                    }">
-                    <div class="d-flex flex-column gap-1">
-                      <div class="d-flex justify-content-between align-items-center">
-                        <span class="badge bg-dark">Col {{ j + 1 }}</span>
-                        <button *ngIf="tabla.columns.length > 1"
-                          class="btn btn-outline-danger btn-sm p-0 px-1 border-0"
-                          type="button" (click)="eliminarColumna(tabla, j)">
-                          &times;
+                  @for (col of tabla.columns; track col.key; let j = $index) {
+                    <th class="p-2" style="min-width: 170px;"
+                      [ngClass]="{
+                        'border-warning border-3': (modoEliminarTexto && esColumnaSeleccionada(i, j)) || (modoSepararSimbolo && esColumnaParaSeparar(i, j)),
+                        'bg-warning bg-opacity-10': (modoEliminarTexto && esColumnaSeleccionada(i, j)) || (modoSepararSimbolo && esColumnaParaSeparar(i, j))
+                      }">
+                      <div class="d-flex flex-column gap-1">
+                        <div class="d-flex justify-content-between align-items-center">
+                          <span class="badge bg-dark"><i class="bi bi-columns-gap me-1"></i>Col {{ j + 1 }}</span>
+                          @if (tabla.columns.length > 1) {
+                            <button class="btn btn-outline-danger btn-sm p-0 px-1 border-0"
+                              type="button" (click)="eliminarColumna(tabla, j)" title="Eliminar columna">
+                              <i class="bi bi-x-lg"></i>
+                            </button>
+                          }
+                        </div>
+
+                        <input type="text" class="form-control form-control-sm"
+                          [ngModel]="col.key"
+                          (ngModelChange)="actualizarKeyColumna(col, $event, tabla)"
+                          placeholder="key">
+
+                        <input type="text" class="form-control form-control-sm"
+                          [(ngModel)]="col.label" (ngModelChange)="onTableChange()"
+                          placeholder="label">
+
+                        <input type="text" class="form-control form-control-sm"
+                          [(ngModel)]="col.unit" (ngModelChange)="onTableChange()"
+                          placeholder="unit">
+
+                        <select class="form-select form-select-sm fw-bold text-primary"
+                          [(ngModel)]="col.type"
+                          (change)="cambiarTipoDato(col, tabla)">
+                          <option value="number">Numero</option>
+                          <option value="string">Cadena de Texto</option>
+                        </select>
+
+                        <!-- Cargar datos desde Excel -->
+                        <button type="button"
+                          class="w-100 mt-1 d-flex align-items-center justify-content-center gap-2 py-2 px-2 rounded-3 fw-bold border-2 bg-success bg-opacity-10 text-dark border-success"
+                          style="cursor: pointer; font-size: 0.85rem; transition: all .18s ease; letter-spacing: .3px; border-style: dashed;"
+                          (click)="abrirCargaExcel(i, j)"
+                          title="Pega una columna completa copiada de Excel (incluye encabezado)">
+                          <i class="bi bi-clipboard-data"></i>
+                          <span>Cargar datos de Excel</span>
                         </button>
+
+                        <!-- Pill: Limpiar texto -->
+                        @if (modoEliminarTexto) {
+                          <button type="button"
+                            class="w-100 mt-1 d-flex align-items-center justify-content-center gap-2 py-2 px-2 rounded-3 fw-bold border-2"
+                            [ngClass]="esColumnaSeleccionada(i, j)
+                              ? 'bg-warning text-dark shadow border-warning'
+                              : 'bg-warning bg-opacity-10 text-dark border-warning'"
+                            [style.border-style]="esColumnaSeleccionada(i, j) ? 'solid' : 'dashed'"
+                            [style.transform]="esColumnaSeleccionada(i, j) ? 'scale(1.05)' : 'scale(1)'"
+                            [style.box-shadow]="esColumnaSeleccionada(i, j) ? '0 0 0 3px rgba(255,193,7,.35)' : 'none'"
+                            (click)="toggleColumnaLimpiar(i, j)"
+                            style="cursor: pointer; font-size: 0.85rem; transition: all .18s ease; letter-spacing: .3px;"
+                            title="Clic para seleccionar/deseleccionar esta columna">
+                            <i class="bi" [class.bi-check-circle-fill]="esColumnaSeleccionada(i, j)" [class.bi-bullseye]="!esColumnaSeleccionada(i, j)"></i>
+                            <span>{{ esColumnaSeleccionada(i, j) ? 'Seleccionada' : 'Limpiar texto' }}</span>
+                          </button>
+                        }
+
+                        <!-- Pill: Separar ± -->
+                        @if (modoSepararSimbolo) {
+                          <button type="button"
+                            class="w-100 mt-1 d-flex align-items-center justify-content-center gap-2 py-2 px-2 rounded-3 fw-bold border-2"
+                            [ngClass]="esColumnaParaSeparar(i, j)
+                              ? 'bg-info text-white shadow border-info'
+                              : 'bg-info bg-opacity-10 text-dark border-info'"
+                            [style.border-style]="esColumnaParaSeparar(i, j) ? 'solid' : 'dashed'"
+                            [style.transform]="esColumnaParaSeparar(i, j) ? 'scale(1.05)' : 'scale(1)'"
+                            [style.box-shadow]="esColumnaParaSeparar(i, j) ? '0 0 0 3px rgba(13,202,240,.35)' : 'none'"
+                            (click)="toggleColumnaParaSeparar(i, j)"
+                            style="cursor: pointer; font-size: 0.85rem; transition: all .18s ease; letter-spacing: .3px;"
+                            title="Clic para seleccionar/deseleccionar esta columna">
+                            <i class="bi" [class.bi-check-circle-fill]="esColumnaParaSeparar(i, j)" [class.bi-scissors]="!esColumnaParaSeparar(i, j)"></i>
+                            <span>{{ esColumnaParaSeparar(i, j) ? 'Seleccionada' : 'Separar ±' }}</span>
+                          </button>
+                        }
                       </div>
-
-                      <input type="text" class="form-control form-control-sm"
-                        [ngModel]="col.key"
-                        (ngModelChange)="actualizarKeyColumna(col, $event, tabla)"
-                        placeholder="key">
-
-                      <input type="text" class="form-control form-control-sm"
-                        [(ngModel)]="col.label" (ngModelChange)="onTableChange()"
-                        placeholder="label">
-
-                      <input type="text" class="form-control form-control-sm"
-                        [(ngModel)]="col.unit" (ngModelChange)="onTableChange()"
-                        placeholder="unit">
-
-                      <select class="form-select form-select-sm fw-bold text-primary"
-                        [(ngModel)]="col.type"
-                        (change)="cambiarTipoDato(col, tabla)">
-                        <option value="number">Numero</option>
-                        <option value="string">Cadena de Texto</option>
-                      </select>
-
-                      <!-- Cargar datos desde Excel -->
-                      <button type="button"
-                        class="w-100 mt-1 d-flex align-items-center justify-content-center gap-2 py-2 px-2 rounded-3 fw-bold border-2 bg-success bg-opacity-10 text-dark border-success"
-                        style="cursor: pointer; font-size: 0.85rem; transition: all .18s ease; letter-spacing: .3px; border-style: dashed;"
-                        (click)="abrirCargaExcel(i, j)"
-                        title="Pega una columna completa copiada de Excel (incluye encabezado)">
-                        <span class="fs-6">📋</span>
-                        <span>Cargar datos de Excel</span>
-                      </button>
-
-                      <!-- Pill: Limpiar texto -->
-                      <button *ngIf="modoEliminarTexto" type="button"
-                        class="w-100 mt-1 d-flex align-items-center justify-content-center gap-2 py-2 px-2 rounded-3 fw-bold border-2"
-                        [ngClass]="esColumnaSeleccionada(i, j)
-                          ? 'bg-warning text-dark shadow border-warning'
-                          : 'bg-warning bg-opacity-10 text-dark border-warning'"
-                        [style.border-style]="esColumnaSeleccionada(i, j) ? 'solid' : 'dashed'"
-                        [style.transform]="esColumnaSeleccionada(i, j) ? 'scale(1.05)' : 'scale(1)'"
-                        [style.box-shadow]="esColumnaSeleccionada(i, j) ? '0 0 0 3px rgba(255,193,7,.35)' : 'none'"
-                        (click)="toggleColumnaLimpiar(i, j)"
-                        style="cursor: pointer; font-size: 0.85rem; transition: all .18s ease; letter-spacing: .3px;"
-                        title="Clic para seleccionar/deseleccionar esta columna">
-                        <span class="fs-6">{{ esColumnaSeleccionada(i, j) ? '✅' : '🎯' }}</span>
-                        <span>{{ esColumnaSeleccionada(i, j) ? 'Seleccionada' : 'Limpiar texto' }}</span>
-                      </button>
-
-                      <!-- Pill: Separar ± -->
-                      <button *ngIf="modoSepararSimbolo" type="button"
-                        class="w-100 mt-1 d-flex align-items-center justify-content-center gap-2 py-2 px-2 rounded-3 fw-bold border-2"
-                        [ngClass]="esColumnaParaSeparar(i, j)
-                          ? 'bg-info text-white shadow border-info'
-                          : 'bg-info bg-opacity-10 text-dark border-info'"
-                        [style.border-style]="esColumnaParaSeparar(i, j) ? 'solid' : 'dashed'"
-                        [style.transform]="esColumnaParaSeparar(i, j) ? 'scale(1.05)' : 'scale(1)'"
-                        [style.box-shadow]="esColumnaParaSeparar(i, j) ? '0 0 0 3px rgba(13,202,240,.35)' : 'none'"
-                        (click)="toggleColumnaParaSeparar(i, j)"
-                        style="cursor: pointer; font-size: 0.85rem; transition: all .18s ease; letter-spacing: .3px;"
-                        title="Clic para seleccionar/deseleccionar esta columna">
-                        <span class="fs-6">{{ esColumnaParaSeparar(i, j) ? '✅' : '✂️' }}</span>
-                        <span>{{ esColumnaParaSeparar(i, j) ? 'Seleccionada' : 'Separar ±' }}</span>
-                      </button>
-                    </div>
-                  </th>
+                    </th>
+                  }
                   <th style="width: 50px;" class="text-center align-middle"></th>
                 </tr>
               </thead>
 
               <tbody>
-                <tr *ngFor="let fila of tabla.rows; let filaIndex = index">
-                  <td *ngFor="let col of tabla.columns; let colIndex = index">
-                    <input
-                      [id]="'input-' + i + '-' + filaIndex + '-' + colIndex"
-                      [type]="col.type === 'number' ? 'number' : 'text'"
-                      class="form-control form-control-sm"
-                      [class.is-invalid]="esValorInvalido(fila[col.key], col)"
-                      [(ngModel)]="fila[col.key]"
-                      (ngModelChange)="onTableChange()"
-                      (keydown.tab)="onTabKeydown($event, i, filaIndex, colIndex)"
-                      placeholder="null">
-                  </td>
+                @for (fila of tabla.rows; track $index; let filaIndex = $index) {
+                  <tr>
+                    @for (col of tabla.columns; track col.key; let colIndex = $index) {
+                      <td>
+                        <input
+                          [id]="'input-' + i + '-' + filaIndex + '-' + colIndex"
+                          [type]="col.type === 'number' ? 'number' : 'text'"
+                          class="form-control form-control-sm"
+                          [class.is-invalid]="esValorInvalido(fila[col.key], col)"
+                          [(ngModel)]="fila[col.key]"
+                          (ngModelChange)="onTableChange()"
+                          (keydown.tab)="onTabKeydown($event, i, filaIndex, colIndex)"
+                          placeholder="null">
+                      </td>
+                    }
 
-                  <td class="text-center align-middle">
-                    <button *ngIf="tabla.rows.length > 1"
-                      class="btn btn-outline-danger btn-sm"
-                      type="button" (click)="eliminarFila(tabla, filaIndex)"
-                      title="Eliminar fila">
-                      &times;
-                    </button>
-                  </td>
-                </tr>
+                    <td class="text-center align-middle">
+                      @if (tabla.rows.length > 1) {
+                        <button class="btn btn-outline-danger btn-sm"
+                          type="button" (click)="eliminarFila(tabla, filaIndex)"
+                          title="Eliminar fila">
+                          <i class="bi bi-trash"></i>
+                        </button>
+                      }
+                    </td>
+                  </tr>
+                }
               </tbody>
             </table>
           </div>
 
           <button class="btn btn-secondary btn-sm" type="button" (click)="agregarFila(tabla)">
-            + Agregar Fila
+            <i class="bi bi-plus-lg me-1"></i>Agregar Fila
           </button>
 
         </div>
       </div>
     </div>
-  </ng-container>
+  }
 
   <!-- Botón global: Formatear Texto -->
-  <div *ngIf="modoEliminarTexto" class="d-flex justify-content-end mb-3">
-    <button class="btn btn-warning btn-lg shadow-sm fw-bold" type="button"
-      (click)="formatearTexto()" [disabled]="columnasParaLimpiar.size === 0">
-      🧹 Formatear Texto
-      <span class="badge bg-dark ms-2">
-        {{ columnasParaLimpiar.size }} columna{{ columnasParaLimpiar.size === 1 ? '' : 's' }}
-      </span>
-    </button>
-  </div>
+  @if (modoEliminarTexto) {
+    <div class="d-flex justify-content-end mb-3">
+      <button class="btn btn-warning btn-lg shadow-sm fw-bold" type="button"
+        (click)="formatearTexto()" [disabled]="columnasParaLimpiar.size === 0">
+        <i class="bi bi-eraser me-1"></i>Formatear Texto
+        <span class="badge bg-dark ms-2">
+          {{ columnasParaLimpiar.size }} columna{{ columnasParaLimpiar.size === 1 ? '' : 's' }}
+        </span>
+      </button>
+    </div>
+  }
 
   <!-- Botón global: Separar Columnas -->
-  <div *ngIf="modoSepararSimbolo" class="d-flex justify-content-end mb-4">
-    <button class="btn btn-info text-white btn-lg shadow-sm fw-bold" type="button"
-      (click)="separarColumnas()" [disabled]="columnasParaSeparar.size === 0">
-      ✂️ Separar Columnas
-      <span class="badge bg-dark ms-2" *ngIf="columnasParaSeparar.size > 0">
-        {{ columnasParaSeparar.size }} columna{{ columnasParaSeparar.size === 1 ? '' : 's' }}
-      </span>
-    </button>
-  </div>
+  @if (modoSepararSimbolo) {
+    <div class="d-flex justify-content-end mb-4">
+      <button class="btn btn-info text-white btn-lg shadow-sm fw-bold" type="button"
+        (click)="separarColumnas()" [disabled]="columnasParaSeparar.size === 0">
+        <i class="bi bi-scissors me-1"></i>Separar Columnas
+        @if (columnasParaSeparar.size > 0) {
+          <span class="badge bg-dark ms-2">
+            {{ columnasParaSeparar.size }} columna{{ columnasParaSeparar.size === 1 ? '' : 's' }}
+          </span>
+        }
+      </button>
+    </div>
+  }
 
   <!-- Botones de Acción -->
   <div class="d-flex justify-content-between align-items-center my-4 gap-2 flex-wrap">
 
-    <!-- Izquierda: Copiar JSON + Nueva Tabla -->
+    <!-- Izquierda: Copiar JSON + Nueva Tabla + Fusionar -->
     <div class="d-flex gap-2 flex-wrap">
       <button class="btn btn-outline-secondary btn-lg" type="button" (click)="copiarJson()">
+        <i class="bi me-1"
+          [class.bi-clipboard-check]="copiadoExitoso"
+          [class.bi-clipboard]="!copiadoExitoso"></i>
         {{ copiadoExitoso ? 'Copiado' : 'Copiar JSON' }}
       </button>
       <button class="btn btn-outline-success btn-lg" type="button" (click)="agregarTabla()">
-        + Agregar Nueva Tabla
+        <i class="bi bi-plus-lg me-1"></i>Agregar Nueva Tabla
       </button>
     </div>
 
@@ -721,11 +887,15 @@
     <div class="d-flex gap-2">
       <button type="button" class="btn btn-outline-danger btn-lg shadow-sm"
         [disabled]="cargando" (click)="cancelar()">
-        Cancelar
+        <i class="bi bi-x-circle me-1"></i>Cancelar
       </button>
       <button type="button" class="btn btn-success btn-lg shadow-sm"
         [disabled]="cargando" (click)="guardarCertificado()">
-        <span *ngIf="cargando" class="spinner-border spinner-border-sm me-2"></span>
+        @if (cargando) {
+          <span class="spinner-border spinner-border-sm me-2"></span>
+        } @else {
+          <i class="bi bi-floppy me-1"></i>
+        }
         {{ cargando ? 'Guardando...' : 'Guardar Cambios' }}
       </button>
     </div>

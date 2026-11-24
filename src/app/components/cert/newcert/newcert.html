@@ -1,25 +1,13 @@
 <div class="card mb-4 shadow-sm">
   <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center flex-wrap gap-2">
-    <h5 class="m-0">Datos Generales del Certificado</h5>
+    <h5 class="m-0"><i class="bi bi-file-earmark-text me-2"></i>Datos Generales del Certificado</h5>
     <div class="d-flex gap-2 flex-wrap">
-      <span
-        class="btn btn-warning"
-        role="button"
-        tabindex="0"
-        (click)="ayuda('general')"
-        (keydown.enter)="ayuda('general')"
-        title="Ayuda: campos generales del certificado">
-        Ayuda datos ❓
-      </span>
-      <span
-        class="btn btn-warning"
-        role="button"
-        tabindex="0"
-        (click)="ayuda('patron')"
-        (keydown.enter)="ayuda('patron')"
-        title="Ayuda: selección del patrón y PT por tabla">
-        Ayuda Patrón / PT ❓
-      </span>
+      <button type="button" class="btn btn-warning" (click)="ayuda('general')" title="Ayuda: campos generales del certificado">
+        <i class="bi bi-question-circle me-1"></i>Ayuda datos
+      </button>
+      <button type="button" class="btn btn-warning" (click)="ayuda('patron')" title="Ayuda: selección del patrón y PT por tabla">
+        <i class="bi bi-question-circle me-1"></i>Ayuda Patrón / PT
+      </button>
     </div>
   </div>
   <div class="card-body">
@@ -28,7 +16,7 @@
       <!-- Selector de Patrón -->
       <div class="col-md-6">
         <label for="equipment_id" class="form-label fw-bold">
-          Patrón / ID del Equipo <span class="text-danger">*</span>
+          <i class="bi bi-cpu me-1 text-secondary"></i>Patrón / ID del Equipo <span class="text-danger">*</span>
         </label>
         <select
           id="equipment_id"
@@ -53,11 +41,11 @@
           </small>
         } @else if (!cargandoPatrones && patrones.length === 0) {
           <small class="text-danger d-block mt-1">
-            No hay patrones disponibles en el catálogo.
+            <i class="bi bi-exclamation-circle me-1"></i>No hay patrones disponibles en el catálogo.
           </small>
         } @else if (hayPatronSeleccionado) {
           <small class="text-muted d-block mt-1">
-            El PT se elige por tabla en la sección "Resultados del Certificado".
+            <i class="bi bi-info-circle me-1"></i>El PT se elige por tabla en la sección "Resultados del Certificado".
           </small>
         }
       </div>
@@ -65,7 +53,7 @@
       <!-- Nombre del Equipo -->
       <div class="col-md-6">
         <label for="name_equipment" class="form-label fw-bold">
-          Nombre del Equipo <span class="text-danger">*</span>
+          <i class="bi bi-tools me-1 text-secondary"></i>Nombre del Equipo <span class="text-danger">*</span>
         </label>
         <input
           type="text"
@@ -80,7 +68,7 @@
       <!-- Folio / CC -->
       <div class="col-md-3">
         <label for="cc" class="form-label fw-bold">
-          Folio / CC <span class="text-danger">*</span>
+          <i class="bi bi-upc-scan me-1 text-secondary"></i>Folio / CC <span class="text-danger">*</span>
         </label>
         <input
           type="text"
@@ -95,50 +83,33 @@
       <!-- Fecha de Calibración -->
       <div class="col-md-3">
         <label for="date_cal" class="form-label fw-bold">
-          Fecha de Calibración
+          <i class="bi bi-calendar-check me-1 text-secondary"></i>Fecha de Calibración
         </label>
-        <input
-          type="date"
-          id="date_cal"
-          class="form-control"
-          [(ngModel)]="certificado.date_cal">
+        <input type="date" id="date_cal" class="form-control" [(ngModel)]="certificado.date_cal">
       </div>
 
       <!-- Fecha del Certificado -->
       <div class="col-md-3">
         <label for="date_cc" class="form-label fw-bold">
-          Fecha del Certificado
+          <i class="bi bi-calendar-event me-1 text-secondary"></i>Fecha del Certificado
         </label>
-        <input
-          type="date"
-          id="date_cc"
-          class="form-control"
-          [(ngModel)]="certificado.date_cc">
+        <input type="date" id="date_cc" class="form-control" [(ngModel)]="certificado.date_cc">
       </div>
 
       <!-- Entidad Emisora -->
       <div class="col-md-3">
         <label for="entity" class="form-label fw-bold">
-          Entidad emisora
+          <i class="bi bi-building me-1 text-secondary"></i>Entidad emisora
         </label>
-        <input
-          type="text"
-          id="entity"
-          class="form-control"
-          maxlength="30"
-          [(ngModel)]="certificado.entity"
-          placeholder="LECOE">
+        <input type="text" id="entity" class="form-control" maxlength="30" [(ngModel)]="certificado.entity" placeholder="LECOE">
       </div>
 
       <!-- Tipo de Certificado -->
       <div class="col-md-6">
         <label for="cert_type" class="form-label fw-bold">
-          Tipo de certificado
+          <i class="bi bi-award me-1 text-secondary"></i>Tipo de certificado
         </label>
-        <select
-          id="cert_type"
-          class="form-select"
-          [(ngModel)]="certificado.cert_type">
+        <select id="cert_type" class="form-select" [(ngModel)]="certificado.cert_type">
           <option value="" disabled>Seleccione una opción</option>
           <option value="Certificado">Certificado</option>
           <option value="Especificaciones del fabricante">Especificaciones del fabricante</option>
@@ -148,7 +119,7 @@
       <!-- Intervalo de calibración -->
       <div class="col-md-3">
         <label for="calibration_interval" class="form-label fw-bold">
-          Intervalo de Calibración (meses)
+          <i class="bi bi-clock-history me-1 text-secondary"></i>Intervalo de Calibración (meses)
         </label>
         <input
           type="number"
@@ -162,38 +133,25 @@
       <!-- Resolución del instrumento -->
       <div class="col-md-3">
         <label for="resolution" class="form-label fw-bold">
-          Resolución del Instrumento
+          <i class="bi bi-crosshair me-1 text-secondary"></i>Resolución del Instrumento
         </label>
-        <input
-          type="number"
-          id="resolution"
-          class="form-control"
-          [(ngModel)]="certificado.resolution"
-          placeholder="Ej: 4">
+        <input type="number" id="resolution" class="form-control" [(ngModel)]="certificado.resolution" placeholder="Ej: 4">
       </div>
 
       <!-- Comentarios Generales -->
       <div class="col-md-12">
-        <label for="comments" class="form-label fw-bold">Comentarios</label>
-        <input
-          type="text"
-          id="comments"
-          class="form-control"
-          maxlength="100"
-          [(ngModel)]="certificado.comments"
-          placeholder="Comments">
+        <label for="comments" class="form-label fw-bold">
+          <i class="bi bi-chat-left-text me-1 text-secondary"></i>Comentarios
+        </label>
+        <input type="text" id="comments" class="form-control" maxlength="100" [(ngModel)]="certificado.comments" placeholder="Comments">
       </div>
 
       <!-- Switch Activo -->
       <div class="col-12 mt-3">
         <div class="form-check form-switch">
-          <input
-            class="form-check-input"
-            type="checkbox"
-            role="switch"
-            id="active"
-            [(ngModel)]="certificado.active">
+          <input class="form-check-input" type="checkbox" role="switch" id="active" [(ngModel)]="certificado.active">
           <label class="form-check-label fw-bold" for="active">
+            <i class="bi me-1" [class.bi-check-circle-fill]="certificado.active" [class.text-success]="certificado.active" [class.bi-x-circle-fill]="!certificado.active" [class.text-danger]="!certificado.active"></i>
             Certificado Activo {{ certificado.active ? '(Habilitado)' : '(Inactivo)' }}
           </label>
         </div>
@@ -203,135 +161,115 @@
   </div>
 </div>
 
-
 <div class="container my-4">
   <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-    <h3 class="fw-bold m-0">Resultados del Certificado</h3>
+    <h3 class="fw-bold m-0"><i class="bi bi-table me-2"></i>Resultados del Certificado</h3>
 
     <div class="d-flex align-items-center gap-3 flex-wrap">
       <div class="d-flex align-items-center bg-light border rounded px-2 py-1">
         <label class="form-label fw-semibold small text-secondary m-0 me-2">
-          Navegación con Tab:
+          <i class="bi bi-keyboard me-1"></i>Navegación con Tab:
         </label>
         <div class="btn-group btn-group-sm" role="group">
-          <input
-            type="radio"
-            class="btn-check"
-            name="direccionTab"
-            id="tabVertical"
-            value="vertical"
-            [(ngModel)]="direccionTab">
-          <label class="btn btn-outline-primary" for="tabVertical">Vertical ↓</label>
+          <input type="radio" class="btn-check" name="direccionTab" id="tabVertical" value="vertical" [(ngModel)]="direccionTab">
+          <label class="btn btn-outline-primary" for="tabVertical">
+            Vertical <i class="bi bi-arrow-down ms-1"></i>
+          </label>
 
-          <input
-            type="radio"
-            class="btn-check"
-            name="direccionTab"
-            id="tabHorizontal"
-            value="horizontal"
-            [(ngModel)]="direccionTab">
-          <label class="btn btn-outline-primary" for="tabHorizontal">Horizontal →</label>
+          <input type="radio" class="btn-check" name="direccionTab" id="tabHorizontal" value="horizontal" [(ngModel)]="direccionTab">
+          <label class="btn btn-outline-primary" for="tabHorizontal">
+            Horizontal <i class="bi bi-arrow-right ms-1"></i>
+          </label>
         </div>
       </div>
 
-      <span
-        class="btn btn-warning"
-        role="button"
-        tabindex="0"
-        (click)="ayuda('tablas')"
-        (keydown.enter)="ayuda('tablas')"
-        title="Ayuda: estructura de las tablas de resultados">
-        Ayuda tablas ❓
-      </span>
+      <button type="button" class="btn btn-warning" (click)="ayuda('tablas')" title="Ayuda: estructura de las tablas de resultados">
+        <i class="bi bi-question-circle me-1"></i>Ayuda tablas
+      </button>
 
       <button class="btn btn-outline-success btn-lg" type="button" (click)="agregarTabla()">
-        + Agregar Nueva Tabla
+        <i class="bi bi-plus-lg me-1"></i>Agregar Nueva Tabla
       </button>
     </div>
   </div>
 
   <!-- Bucle de Tablas -->
-  <ng-container *ngFor="let tabla of resultTables; let i = index">
+  @for (tabla of resultTables; track $index; let i = $index) {
     <div class="card mb-4 border-light shadow-sm">
 
       <!-- Encabezado colapsable -->
-      <div class="card-header bg-black text-white d-flex justify-content-between align-items-center">
-        <button
-          class="btn btn-link text-white text-decoration-none p-0 fw-bold d-flex align-items-center gap-2 shadow-none"
-          type="button"
-          data-bs-toggle="collapse"
-          [attr.data-bs-target]="'#collapseTabla' + i"
-          aria-expanded="true"
-          [attr.aria-controls]="'collapseTabla' + i">
-          <span>▼</span>
-          <span class="fs-5">
-            Tabla #{{ i + 1 }} {{ tabla.title }}
-            <span class="badge bg-secondary ms-2" *ngIf="tabla.pt">{{ tabla.pt }}</span>
-            <span class="badge bg-light text-black ms-2" *ngIf="tabla.unit">{{ tabla.unit }}</span>
-          </span>
-        </button>
+            <div class="card-header bg-black text-white d-flex justify-content-between align-items-center">
+              <button
+                class="btn btn-link text-white text-decoration-none p-0 fw-bold d-flex align-items-center gap-2 shadow-none"
+                type="button"
+                [attr.aria-expanded]="!estaColapsada(i)"
+                [attr.aria-controls]="'collapseTabla' + i"
+                (click)="toggleCollapseTabla(i)">
+                <i
+                  class="bi"
+                  [class.bi-chevron-down]="!estaColapsada(i)"
+                  [class.bi-chevron-up]="estaColapsada(i)"></i>
+                <span class="fs-5">
+                  Tabla #{{ i + 1 }} {{ tabla.title }}
+                  @if (tabla.pt) {
+                    <span class="badge bg-secondary ms-2"><i class="bi bi-journal-code me-1"></i>{{ tabla.pt }}</span>
+                  }
+                  @if (tabla.unit) {
+                    <span class="badge bg-light text-black ms-2"><i class="bi bi-rulers me-1"></i>{{ tabla.unit }}</span>
+                  }
+                </span>
+              </button>
 
-        <button
-          *ngIf="resultTables.length > 1"
-          class="btn btn-danger btn-sm"
-          type="button"
-          (click)="eliminarTabla(i)">
-          Eliminar Tabla
-        </button>
-      </div>
+              @if (resultTables.length > 1) {
+                <button class="btn btn-danger btn-sm" type="button" (click)="eliminarTabla(i)">
+                  <i class="bi bi-trash me-1"></i>Eliminar Tabla
+                </button>
+              }
+            </div>
 
-      <!-- Cuerpo colapsable -->
-      <div [id]="'collapseTabla' + i" class="collapse show">
-        <div class="card-body">
+            <!-- Cuerpo colapsable -->
+            <div [id]="'collapseTabla' + i" class="collapse" [class.show]="!estaColapsada(i)">
+              <div class="card-body">
 
           <!-- Propiedades de la Tabla -->
           <div class="row g-3 p-3 mb-4 bg-light rounded border">
-            <h6 class="text-secondary fw-bold mb-0">Propiedades de la tabla</h6>
+            <h6 class="text-secondary fw-bold mb-0"><i class="bi bi-sliders me-1"></i>Propiedades de la tabla</h6>
 
             <!-- Título -->
             <div class="col-md-4">
-              <label class="form-label fw-semibold small">
-                Título: <span class="text-danger">*</span>
-              </label>
+              <label class="form-label fw-semibold small">Título: <span class="text-danger">*</span></label>
               <select
                 class="form-select"
                 [ngModel]="tabla.title"
                 (ngModelChange)="tabla.title = $event; actualizarParametroSegunTitulo(tabla)">
-                <option *ngFor="let opcion of opcionesTitulo" [value]="opcion">
-                  {{ opcion }}
-                </option>
+                @for (opcion of opcionesTitulo; track opcion) {
+                  <option [value]="opcion">{{ opcion }}</option>
+                }
               </select>
-              <small class="text-muted fst-italic d-block mt-1" *ngIf="labelTitulo(tabla)">
-                {{ labelTitulo(tabla) }}
-              </small>
+              @if (labelTitulo(tabla)) {
+                <small class="text-muted fst-italic d-block mt-1">{{ labelTitulo(tabla) }}</small>
+              }
             </div>
 
             <!-- Mesurando -->
             <div class="col-md-4">
-              <label class="form-label fw-semibold small">
-                Mesurando (Parameter): <span class="text-danger">*</span>
-              </label>
-              <select
-                class="form-select"
-                [(ngModel)]="tabla.parameter"
-                (ngModelChange)="onParameterChange(tabla)">
-                <option *ngFor="let opcion of obtenerOpcionesParametro(tabla.title)" [value]="opcion">
-                  {{ opcion }}
-                </option>
-                <option *ngIf="obtenerOpcionesParametro(tabla.title).length === 0" value="">
-                  (Sin subparámetros)
-                </option>
+              <label class="form-label fw-semibold small">Mesurando (Parameter): <span class="text-danger">*</span></label>
+              <select class="form-select" [(ngModel)]="tabla.parameter" (ngModelChange)="onParameterChange(tabla)">
+                @for (opcion of obtenerOpcionesParametro(tabla.title); track opcion) {
+                  <option [value]="opcion">{{ opcion }}</option>
+                }
+                @if (obtenerOpcionesParametro(tabla.title).length === 0) {
+                  <option value="">(Sin subparámetros)</option>
+                }
               </select>
-              <small class="text-muted fst-italic d-block mt-1" *ngIf="labelParametro(tabla)">
-                {{ labelParametro(tabla) }}
-              </small>
+              @if (labelParametro(tabla)) {
+                <small class="text-muted fst-italic d-block mt-1">{{ labelParametro(tabla) }}</small>
+              }
             </div>
 
             <!-- Unidades con dropdown -->
             <div class="col-md-4">
               <label class="form-label fw-semibold small">Unidades:</label>
-
-              <!-- Botón que muestra el resumen y abre el dropdown -->
               <div class="dropdown">
                 <button
                   class="btn btn-outline-secondary w-100 d-flex justify-content-between align-items-center text-start"
@@ -340,92 +278,64 @@
                   data-bs-auto-close="outside"
                   aria-expanded="false">
                   <span class="text-truncate">
-                    <ng-container *ngIf="tabla.unit; else sinUnidadesSeleccionadas">
+                    @if (tabla.unit) {
                       {{ tabla.unit }}
-                    </ng-container>
-                    <ng-template #sinUnidadesSeleccionadas>
+                    } @else {
                       <span class="text-muted">— Selecciona unidades —</span>
-                    </ng-template>
+                    }
                   </span>
-                  <span class="badge bg-secondary ms-2">
-                    {{ unidadesSeleccionadasDe(tabla).size }}
-                  </span>
+                  <span class="badge bg-secondary ms-2">{{ unidadesSeleccionadasDe(tabla).size }}</span>
                 </button>
 
-                <!-- Dropdown con checkboxes + personalizadas + input -->
                 <div class="dropdown-menu p-3 w-100 shadow" style="min-width: 280px;">
-
-                  <!-- Checkboxes del catálogo -->
-                  <ng-container *ngIf="unidadesDeTabla(tabla).length > 0; else sinCatalogo">
+                  @if (unidadesDeTabla(tabla).length > 0) {
                     <small class="text-muted d-block mb-2">Del catálogo:</small>
                     <div style="max-height: 180px; overflow-y: auto;">
-                      <div class="form-check" *ngFor="let u of unidadesDeTabla(tabla)">
-                        <input
-                          class="form-check-input"
-                          type="checkbox"
-                          [id]="'unidad-' + i + '-' + u"
-                          [checked]="unidadesSeleccionadasDe(tabla).has(u)"
-                          (change)="toggleUnidad(tabla, u)">
-                        <label class="form-check-label" [for]="'unidad-' + i + '-' + u">
-                          {{ u }}
-                        </label>
-                      </div>
+                      @for (u of unidadesDeTabla(tabla); track u) {
+                        <div class="form-check">
+                          <input
+                            class="form-check-input"
+                            type="checkbox"
+                            [id]="'unidad-' + i + '-' + u"
+                            [checked]="unidadesSeleccionadasDe(tabla).has(u)"
+                            (change)="toggleUnidad(tabla, u)">
+                          <label class="form-check-label" [for]="'unidad-' + i + '-' + u">{{ u }}</label>
+                        </div>
+                      }
                     </div>
-                  </ng-container>
+                  } @else {
+                    <small class="text-muted d-block mb-2">Sin unidades en catálogo para este título + parámetro.</small>
+                  }
 
-                  <ng-template #sinCatalogo>
-                    <small class="text-muted d-block mb-2">
-                      Sin unidades en catálogo para este título + parámetro.
-                    </small>
-                  </ng-template>
-
-                  <!-- Unidades personalizadas -->
-                  <div class="mt-2" *ngIf="unidadesPersonalizadasDe(tabla).length > 0">
-                    <small class="text-muted d-block mb-1">Personalizadas:</small>
-                    <span
-                      class="badge bg-secondary d-inline-flex align-items-center me-1 mb-1"
-                      *ngFor="let u of unidadesPersonalizadasDe(tabla)">
-                      {{ u }}
-                      <button
-                        type="button"
-                        class="btn-close btn-close-white ms-2"
-                        style="font-size: 0.55rem;"
-                        title="Quitar unidad"
-                        (click)="quitarUnidadPersonalizada(tabla, u)">
-                      </button>
-                    </span>
-                  </div>
-
-                  <!-- Agregar personalizada -->
-                  <!--<div class="input-group input-group-sm mt-2">
-                    <input
-                      type="text"
-                      class="form-control"
-                      placeholder="Otra unidad…"
-                      #nuevaUnidad
-                      (keydown.enter)="$event.preventDefault(); agregarUnidadPersonalizada(tabla, nuevaUnidad.value); nuevaUnidad.value = ''">
-                    <button
-                      class="btn btn-outline-success"
-                      type="button"
-                      title="Agregar unidad personalizada"
-                      (click)="agregarUnidadPersonalizada(tabla, nuevaUnidad.value); nuevaUnidad.value = ''">
-                      ＋
-                    </button>
-                  </div>-->
-
+                  @if (unidadesPersonalizadasDe(tabla).length > 0) {
+                    <div class="mt-2">
+                      <small class="text-muted d-block mb-1">Personalizadas:</small>
+                      @for (u of unidadesPersonalizadasDe(tabla); track u) {
+                        <span class="badge bg-secondary d-inline-flex align-items-center me-1 mb-1">
+                          {{ u }}
+                          <button
+                            type="button"
+                            class="btn-close btn-close-white ms-2"
+                            style="font-size: 0.55rem;"
+                            title="Quitar unidad"
+                            (click)="quitarUnidadPersonalizada(tabla, u)">
+                          </button>
+                        </span>
+                      }
+                    </div>
+                  }
                 </div>
               </div>
-
-              <small class="text-muted d-block mt-1">
-                Selecciona una o varias. Se guardan separadas por coma.
-              </small>
+              <small class="text-muted d-block mt-1">Selecciona una o varias. Se guardan separadas por coma.</small>
             </div>
 
             <!-- PT de la tabla -->
             <div class="col-md-4">
               <label [for]="'tablePt' + i" class="form-label fw-semibold small">
                 Procedimiento Técnico (PT):
-                <span class="text-danger" *ngIf="patronTienePts">*</span>
+                @if (patronTienePts) {
+                  <span class="text-danger">*</span>
+                }
               </label>
               <select
                 [id]="'tablePt' + i"
@@ -447,13 +357,9 @@
                 }
               </select>
               @if (hayPatronSeleccionado && ptsDelPatron.length === 0) {
-                <small class="text-muted d-block mt-1">
-                  Este patrón no tiene PTs asociados; se guardará sin PT.
-                </small>
+                <small class="text-muted d-block mt-1">Este patrón no tiene PTs asociados; se guardará sin PT.</small>
               } @else if (hayPatronSeleccionado && ptsDelPatron.length === 1) {
-                <small class="text-muted d-block mt-1">
-                  Único PT disponible para este patrón.
-                </small>
+                <small class="text-muted d-block mt-1">Único PT disponible para este patrón.</small>
               }
             </div>
 
@@ -464,7 +370,7 @@
                 type="text"
                 class="form-control"
                 [(ngModel)]="tabla.cc_id"
-                placeholder="{{ certificado.cc || 'Ej: CC-89421' }}"
+                [placeholder]="certificado.cc || 'Ej: CC-89421'"
                 disabled>
             </div>
 
@@ -475,7 +381,7 @@
                 type="text"
                 class="form-control"
                 [(ngModel)]="tabla.table_id"
-                placeholder="{{ tabla.table_id || 'Ej: CC-89421-T1' }}"
+                [placeholder]="tabla.table_id || 'Ej: CC-89421-T1'"
                 disabled>
             </div>
 
@@ -484,22 +390,12 @@
               <label class="form-label fw-semibold small">Intervalo de medición:</label>
               <div class="d-flex gap-2 align-items-start">
                 <div class="flex-fill">
-                  <input
-                    type="number"
-                    class="form-control"
-                    [(ngModel)]="tabla.min_value"
-                    (ngModelChange)="onTableChange()"
-                    placeholder="Mínimo">
+                  <input type="number" class="form-control" [(ngModel)]="tabla.min_value" (ngModelChange)="onTableChange()" placeholder="Mínimo">
                   <small class="text-muted d-block mt-1">Mínimo</small>
                 </div>
                 <span class="text-muted fw-bold mt-2">—</span>
                 <div class="flex-fill">
-                  <input
-                    type="number"
-                    class="form-control"
-                    [(ngModel)]="tabla.max_value"
-                    (ngModelChange)="onTableChange()"
-                    placeholder="Máximo">
+                  <input type="number" class="form-control" [(ngModel)]="tabla.max_value" (ngModelChange)="onTableChange()" placeholder="Máximo">
                   <small class="text-muted d-block mt-1">Máximo</small>
                 </div>
               </div>
@@ -507,9 +403,7 @@
 
             <!-- Comentarios de la tabla -->
             <div class="col-md-6">
-              <label [for]="'tableComments' + i" class="form-label fw-semibold small">
-                Comentarios de la tabla:
-              </label>
+              <label [for]="'tableComments' + i" class="form-label fw-semibold small">Comentarios de la tabla:</label>
               <input
                 [id]="'tableComments' + i"
                 type="text"
@@ -520,22 +414,17 @@
             </div>
           </div>
 
-          <div class="mt-4 p-3 border rounded bg-white">
+          <!-- ============================================================ -->
+          <!-- BLOQUE OCR MULTI-IMAGEN                                      -->
+          <!-- ============================================================ -->
+          <div class="mt-4 p-3 border rounded bg-white ocr-block">
             <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-              <h6 class="fw-bold m-0">📷 Extraer datos desde imagen</h6>
+              <h6 class="fw-bold m-0"><i class="bi bi-camera me-1"></i>Extraer datos desde imagen</h6>
               <div class="d-flex align-items-center gap-2 flex-wrap">
-                <small class="text-muted">
-                  Pega o sube una imagen, ajusta el recorte sobre la tabla y presiona "Extraer Tabla".
-                </small>
-                <span
-                  class="btn btn-warning"
-                  role="button"
-                  tabindex="0"
-                  (click)="ayuda('ocr')"
-                  (keydown.enter)="ayuda('ocr')"
-                  title="Ayuda: cómo extraer tablas desde una imagen">
-                  Ayuda OCR ❓
-                </span>
+                <small class="text-muted">Pega, arrastra o sube una o varias imágenes de la misma tabla.</small>
+                <button type="button" class="btn btn-warning btn-sm" (click)="ayuda('ocr')" title="Ayuda: cómo extraer tablas desde una imagen">
+                  <i class="bi bi-question-circle me-1"></i>Ayuda OCR
+                </button>
               </div>
             </div>
 
@@ -546,23 +435,18 @@
               style="cursor: pointer; transition: all .15s;"
               [class.border-primary]="imageStates[i].tieneEncabezado"
               [class.bg-primary-subtle]="imageStates[i].tieneEncabezado">
-
               <div class="flex-grow-1">
                 <div class="fw-semibold d-flex align-items-center gap-2">
-                  <span>📋 La imagen tiene encabezado</span>
-                  <span
-                    class="badge"
-                    [class.bg-success]="imageStates[i].tieneEncabezado"
-                    [class.bg-secondary]="!imageStates[i].tieneEncabezado">
+                  <span><i class="bi bi-card-list me-1"></i>La imagen tiene encabezado</span>
+                  <span class="badge" [class.bg-success]="imageStates[i].tieneEncabezado" [class.bg-secondary]="!imageStates[i].tieneEncabezado">
                     {{ imageStates[i].tieneEncabezado ? 'Sí' : 'No' }}
                   </span>
                 </div>
                 <small class="text-muted d-block mt-1">
-                  Si la desmarcas, la primera fila extraída se tratará como datos y los encabezados
-                  serán generados como <code>col_1</code>, <code>col_2</code>, ... <code>col_n</code>.
+                  Si la desmarcas, la primera fila extraída se tratará como datos y los encabezados serán generados como
+                  <code>col_1</code>, <code>col_2</code>, ... <code>col_n</code>.
                 </small>
               </div>
-
               <div class="form-check form-switch m-0">
                 <input
                   [id]="'tieneEncabezado' + i"
@@ -574,71 +458,138 @@
               </div>
             </label>
 
-            <!-- Área de Pegado -->
+            <!-- Zona de pegado / drop -->
             <div
-              *ngIf="!imageStates[i]?.imageChangedEvent && !imageStates[i]?.pasteImageFile"
               class="paste-zone p-4 text-center border border-2 border-dashed rounded mb-3 bg-light"
-              (paste)="onPaste($event, i)"
-              tabindex="0">
+              [class.bg-primary-subtle]="zonaActivaMulti"
+              [class.border-primary]="zonaActivaMulti"
+              (paste)="onPasteUniversal($event, i)"
+              (dragover)="onDragOverMulti($event)"
+              (dragleave)="onDragLeaveMulti($event)"
+              (drop)="onDropUniversal($event, i)"
+              tabindex="0"
+              (focus)="zonaActivaMulti = true"
+              (blur)="zonaActivaMulti = false">
               <p class="mb-1 text-primary fw-bold">
-                📋 Haz clic aquí y presiona <kbd>Ctrl + V</kbd> para pegar la imagen
+                <i class="bi bi-clipboard me-1"></i>Haz clic aquí y presiona <kbd>Ctrl + V</kbd> para pegar
               </p>
             </div>
 
-            <!-- Cropper -->
-            @if (isBrowser) {
-              <div
-                class="cropper-wrapper mb-3"
-                *ngIf="imageStates[i]?.imageChangedEvent || imageStates[i]?.pasteImageFile">
-                <p class="small text-muted mb-1 p-2">
-                  Ajusta los bordes para seleccionar únicamente la tabla:
-                </p>
+            <!-- Lista de miniaturas -->
+            @if (itemsDeTabla(i).length > 0) {
+              <ul class="list-group mb-3">
+                @for (item of itemsDeTabla(i); track item.id; let idx = $index) {
+                  <li class="list-group-item d-flex align-items-center gap-2">
+                    <span class="badge bg-secondary">{{ idx + 1 }}</span>
+                    <img
+                      [src]="item.base64"
+                      alt="preview"
+                      style="width:48px;height:48px;object-fit:cover;border-radius:4px;border:1px solid #ddd;cursor:zoom-in;"
+                      (click)="verImagenGrande(item.base64, item.nombre)"
+                      title="Clic para ver en grande" />
+                    <span class="flex-grow-1 text-truncate">{{ item.nombre }}</span>
 
-                <image-cropper
-                  [imageChangedEvent]="imageStates[i].imageChangedEvent"
-                  [imageFile]="imageStates[i].pasteImageFile"
-                  [maintainAspectRatio]="false"
-                  format="png"
-                  (imageCropped)="imageCropped($event, i)"
-                  (imageLoaded)="imageLoaded($event)"
-                  (cropperReady)="cropperReady()"
-                  (loadImageFailed)="loadImageFailed(i)">
-                </image-cropper>
+                    <button type="button" class="btn btn-sm btn-outline-secondary"
+                            (click)="moverItemMulti(item.id, -1, i)"
+                            [disabled]="idx === 0" title="Subir">
+                      <i class="bi bi-arrow-up"></i>
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary"
+                            (click)="moverItemMulti(item.id, 1, i)"
+                            [disabled]="idx === itemsDeTabla(i).length - 1" title="Bajar">
+                      <i class="bi bi-arrow-down"></i>
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-danger"
+                            (click)="quitarItemMulti(item.id, i)" title="Quitar">
+                      <i class="bi bi-x-lg"></i>
+                    </button>
+                  </li>
+                }
+              </ul>
 
-                <div class="d-flex justify-content-center mt-3">
-                  <button
-                    type="button"
-                    class="btn btn-outline-danger btn-sm"
-                    (click)="cancelarImagen(i)">
-                    ✕ Cancelar y cargar otra imagen
-                  </button>
+              @if (cargandoArchivosMulti) {
+                <div class="text-muted small mb-2">
+                  <span class="spinner-border spinner-border-sm me-1"></span>
+                  Cargando archivos…
                 </div>
+              }
+
+              <div class="d-flex justify-content-end mb-3">
+                <button type="button" class="btn btn-primary" [disabled]="ocrEnProceso" (click)="enviarMultiANode(i)">
+                  @if (ocrEnProceso) {
+                    <span class="spinner-border spinner-border-sm me-1"></span>
+                  } @else {
+                    <i class="bi bi-cpu me-1"></i>
+                  }
+                  {{
+                    ocrEnProceso
+                      ? 'Procesando...'
+                      : itemsDeTabla(i).length === 1
+                        ? 'Extraer Tabla'
+                        : 'Extraer y unir (' + itemsDeTabla(i).length + ')'
+                  }}
+                </button>
               </div>
             }
 
-            <!-- Botón de Procesar -->
-            <div
-              class="d-flex justify-content-end mb-1"
-              *ngIf="imageStates[i]?.imageChangedEvent || imageStates[i]?.pasteImageFile">
-              <button
-                class="btn btn-primary btn-sm"
-                type="button"
-                [disabled]="imageStates[i]?.cargando"
-                (click)="enviarANode(i)">
-                <span *ngIf="imageStates[i]?.cargando" class="spinner-border spinner-border-sm me-1"></span>
-                {{ imageStates[i]?.cargando ? 'Procesando...' : 'Extraer Tabla' }}
-              </button>
-            </div>
+            <!-- Cropper legacy -->
+            @if (isBrowser) {
+              @if (imageStates[i]?.imageChangedEvent || imageStates[i]?.pasteImageFile) {
+                <div class="cropper-wrapper mb-3">
+                  <p class="small text-muted mb-1 p-2">
+                    <i class="bi bi-crop me-1"></i>Ajusta los bordes para seleccionar únicamente la tabla:
+                  </p>
+
+                  <image-cropper
+                    [imageChangedEvent]="imageStates[i].imageChangedEvent"
+                    [imageFile]="imageStates[i].pasteImageFile"
+                    [maintainAspectRatio]="false"
+                    format="png"
+                    (imageCropped)="imageCropped($event, i)"
+                    (imageLoaded)="imageLoaded($event)"
+                    (cropperReady)="cropperReady()"
+                    (loadImageFailed)="loadImageFailed(i)">
+                  </image-cropper>
+
+                  @if (imageStates[i]?.croppedImageBase64) {
+                    <div class="d-flex justify-content-center mt-3">
+                      <div class="preview-thumb-wrapper" (click)="verImagenGrande(imageStates[i].croppedImageBase64, 'Recorte de la tabla #' + (i + 1))">
+                        <img [src]="imageStates[i].croppedImageBase64" alt="Recorte actual" class="preview-thumb" title="Clic para ver en grande" />
+                        <span class="preview-thumb-hint"><i class="bi bi-zoom-in me-1"></i>Ver en grande</span>
+                      </div>
+                    </div>
+                  }
+
+                  <div class="d-flex justify-content-center mt-3">
+                    <button type="button" class="btn btn-outline-danger btn-sm" (click)="cancelarImagen(i)">
+                      <i class="bi bi-x-circle me-1"></i>Cancelar y cargar otra imagen
+                    </button>
+                  </div>
+                </div>
+              }
+            }
+
+            <!-- Botón de procesar (cropper legacy) -->
+            @if (imageStates[i]?.imageChangedEvent || imageStates[i]?.pasteImageFile) {
+              <div class="d-flex justify-content-end mb-1">
+                <button class="btn btn-primary btn-sm" type="button" [disabled]="imageStates[i]?.cargando" (click)="enviarANode(i)">
+                  @if (imageStates[i]?.cargando) {
+                    <span class="spinner-border spinner-border-sm me-1"></span>
+                  } @else {
+                    <i class="bi bi-crop me-1"></i>
+                  }
+                  {{ imageStates[i]?.cargando ? 'Procesando...' : 'Extraer Tabla (recorte)' }}
+                </button>
+              </div>
+            }
           </div>
+          <!-- FIN BLOQUE OCR -->
 
           <!-- Estructura de Tabla -->
           <div class="d-flex justify-content-between align-items-center mt-2">
-            <h6 class="fw-bold m-0">Estructura y Resultados</h6>
-            <button
-              class="btn btn-outline-primary btn-sm"
-              type="button"
-              (click)="agregarColumna(tabla)">
-              + Agregar Columna
+            <h6 class="fw-bold m-0"><i class="bi bi-grid-3x3 me-1"></i>Estructura y Resultados</h6>
+            <button class="btn btn-outline-primary btn-sm" type="button" (click)="agregarColumna(tabla)">
+              <i class="bi bi-plus-lg me-1"></i>Agregar Columna
             </button>
           </div>
 
@@ -646,113 +597,114 @@
             <table class="table table-bordered align-middle mt-2">
               <thead class="table-secondary">
                 <tr>
-                  <th *ngFor="let col of tabla.columns; let j = index" class="p-2" style="min-width: 170px;">
-                    <div class="d-flex flex-column gap-1">
-                      <div class="d-flex justify-content-between align-items-center">
-                        <span class="badge bg-dark">Col {{ j + 1 }}</span>
-                        <button
-                          *ngIf="tabla.columns.length > 1"
-                          class="btn btn-outline-danger btn-sm p-0 px-1 border-0"
-                          type="button"
-                          (click)="eliminarColumna(tabla, j)">
-                          &times;
-                        </button>
+                  @for (col of tabla.columns; track $index; let j = $index) {
+                    <th class="p-2" style="min-width: 170px;">
+                      <div class="d-flex flex-column gap-1">
+                        <div class="d-flex justify-content-between align-items-center">
+                          <span class="badge bg-dark">Col {{ j + 1 }}</span>
+                          @if (tabla.columns.length > 1) {
+                            <button class="btn btn-outline-danger btn-sm p-0 px-1 border-0" type="button" (click)="eliminarColumna(tabla, j)" title="Eliminar columna">
+                              <i class="bi bi-x-lg"></i>
+                            </button>
+                          }
+                        </div>
+
+                        <input
+                          type="text"
+                          class="form-control form-control-sm"
+                          [ngModel]="col.key"
+                          (ngModelChange)="actualizarKeyColumna(col, $event, tabla)"
+                          placeholder="key">
+
+                        <input
+                          type="text"
+                          class="form-control form-control-sm"
+                          [(ngModel)]="col.label"
+                          (ngModelChange)="onTableChange()"
+                          placeholder="label">
+
+                        <input
+                          type="text"
+                          class="form-control form-control-sm"
+                          [(ngModel)]="col.unit"
+                          (ngModelChange)="onTableChange()"
+                          placeholder="unit">
+
+                        <select
+                          class="form-select form-select-sm fw-bold text-primary"
+                          [(ngModel)]="col.type"
+                          (change)="cambiarTipoDato(col, tabla)">
+                          <option value="number">Numero</option>
+                          <option value="string">Cadena de Texto</option>
+                        </select>
                       </div>
-
-                      <input
-                        type="text"
-                        class="form-control form-control-sm"
-                        [ngModel]="col.key"
-                        (ngModelChange)="actualizarKeyColumna(col, $event, tabla)"
-                        placeholder="key">
-
-                      <input
-                        type="text"
-                        class="form-control form-control-sm"
-                        [(ngModel)]="col.label"
-                        (ngModelChange)="onTableChange()"
-                        placeholder="label">
-
-                      <input
-                        type="text"
-                        class="form-control form-control-sm"
-                        [(ngModel)]="col.unit"
-                        (ngModelChange)="onTableChange()"
-                        placeholder="unit">
-
-                      <select
-                        class="form-select form-select-sm fw-bold text-primary"
-                        [(ngModel)]="col.type"
-                        (change)="cambiarTipoDato(col, tabla)">
-                        <option value="number" selected="true">Numero</option>
-                        <option value="string">Cadena de Texto</option>
-                      </select>
-                    </div>
-                  </th>
+                    </th>
+                  }
                   <th style="width: 50px;" class="text-center align-middle"></th>
                 </tr>
               </thead>
 
               <tbody>
-                <tr *ngFor="let fila of tabla.rows; let filaIndex = index">
-                  <td *ngFor="let col of tabla.columns; let colIndex = index">
-                    <input
-                      [id]="'input-' + i + '-' + filaIndex + '-' + colIndex"
-                      [type]="col.type === 'number' ? 'number' : 'string'"
-                      class="form-control form-control-sm"
-                      [class.is-invalid]="esValorInvalido(fila[col.key], col)"
-                      [(ngModel)]="fila[col.key]"
-                      (ngModelChange)="onTableChange()"
-                      (keydown.tab)="onTabKeydown($event, i, filaIndex, colIndex)"
-                      placeholder="null">
-                  </td>
-
-                  <td class="text-center align-middle">
-                    <button
-                      *ngIf="tabla.rows.length > 1"
-                      class="btn btn-outline-danger btn-sm"
-                      type="button"
-                      (click)="eliminarFila(tabla, filaIndex)"
-                      title="Eliminar fila">
-                      &times;
-                    </button>
-                  </td>
-                </tr>
+                @for (fila of tabla.rows; track $index; let filaIndex = $index) {
+                  <tr>
+                    @for (col of tabla.columns; track col.key; let colIndex = $index) {
+                      <td>
+                        <input
+                          [id]="'input-' + i + '-' + filaIndex + '-' + colIndex"
+                          [type]="col.type === 'number' ? 'number' : 'text'"
+                          class="form-control form-control-sm"
+                          [class.is-invalid]="esValorInvalido(fila[col.key], col)"
+                          [(ngModel)]="fila[col.key]"
+                          (ngModelChange)="onTableChange()"
+                          (keydown.tab)="onTabKeydown($event, i, filaIndex, colIndex)"
+                          placeholder="null">
+                      </td>
+                    }
+                    <td class="text-center align-middle">
+                      @if (tabla.rows.length > 1) {
+                        <button class="btn btn-outline-danger btn-sm" type="button" (click)="eliminarFila(tabla, filaIndex)" title="Eliminar fila">
+                          <i class="bi bi-trash"></i>
+                        </button>
+                      }
+                    </td>
+                  </tr>
+                }
               </tbody>
             </table>
           </div>
 
           <button class="btn btn-secondary btn-sm" type="button" (click)="agregarFila(tabla)">
-            + Agregar Fila
+            <i class="bi bi-plus-lg me-1"></i>Agregar Fila
           </button>
 
         </div>
       </div>
     </div>
-  </ng-container>
+  }
 
   <!-- Botón de Guardado -->
   <div class="d-flex justify-content-between align-items-center my-4 gap-2 flex-wrap">
-
-    <!-- Izquierda: Copiar JSON + Nueva Tabla -->
     <div class="d-flex gap-2 flex-wrap">
       <button class="btn btn-outline-secondary btn-lg" type="button" (click)="copiarJson()">
+        <i class="bi me-1" [class.bi-clipboard-check]="copiadoExitoso" [class.bi-clipboard]="!copiadoExitoso"></i>
         {{ copiadoExitoso ? 'Copiado' : 'Copiar JSON' }}
       </button>
       <button class="btn btn-outline-success btn-lg" type="button" (click)="agregarTabla()">
-        + Agregar Nueva Tabla
+        <i class="bi bi-plus-lg me-1"></i>Agregar Nueva Tabla
       </button>
     </div>
 
-    <!-- Derecha: Guardar Certificado -->
     <button
       type="button"
       class="btn btn-success btn-lg shadow-sm"
       [disabled]="guardando"
       (click)="guardarCertificado()">
-      <span *ngIf="guardando" class="spinner-border spinner-border-sm me-2"></span>
+      @if (guardando) {
+        <span class="spinner-border spinner-border-sm me-2"></span>
+      } @else {
+        <i class="bi bi-floppy me-1"></i>
+      }
       {{ guardando ? 'Guardando...' : 'Guardar Certificado' }}
     </button>
-
   </div>
 </div>

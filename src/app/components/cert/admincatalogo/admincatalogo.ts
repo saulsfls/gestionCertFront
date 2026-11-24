@@ -87,10 +87,6 @@ export class Admincatalogo implements OnInit {
     this.cargarTodo();
   }
 
-  // ============================================================
-  // CARGA
-  // ============================================================
-
   cargarTodo(force = false): void {
     this.cargando = true;
     this.cdr.detectChanges();
@@ -213,9 +209,6 @@ export class Admincatalogo implements OnInit {
     });
   }
 
-  // ============================================================
-  // FILTROS
-  // ============================================================
 
   get titulosFiltrados(): TituloRow[] {
     const q = this.norm(this.terminoBusqueda);
@@ -252,10 +245,6 @@ export class Admincatalogo implements OnInit {
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '');
   }
-
-  // ============================================================
-  // TÍTULOS: helpers de vista
-  // ============================================================
 
   subsDeTitulo(t: TituloRow): SubparametroRow[] {
     return this.subparametrosData
@@ -295,19 +284,15 @@ export class Admincatalogo implements OnInit {
     return this.expandidoId === `m::${id}`;
   }
 
-  // ============================================================
-  // CREAR TÍTULO
-  // ============================================================
-
   async crearTitulo(): Promise<void> {
     const magnitudes = this.catalogo.listaMagnitudes().map((m) => ({
       label: m.nombre,
       value: m.id,
     }));
-    magnitudes.push({
+    /*magnitudes.push({
       label: 'Comodín (acepta cualquier unidad)',
       value: '*',
-    });
+    });*/
 
     const values = await this.alert.form({
       type: 'question',
@@ -325,16 +310,16 @@ export class Admincatalogo implements OnInit {
         fields: [
           {
             name: 'displayName',
-            label: 'Nombre visible (se guarda en el certificado)',
+            label: 'Nombre en ingles (se guarda en el certificado)',
             type: 'text',
             required: true,
             minLength: 3,
             maxLength: 150,
-            placeholder: 'ej. Temperature',
+            placeholder: 'ej. Teperature',
           },
           {
             name: 'label',
-            label: 'Nombre largo (opcional, solo visual)',
+            label: 'Nombre en español (opcional, solo visual)',
             type: 'text',
             placeholder: 'ej. Temperatura',
           },
@@ -362,10 +347,6 @@ export class Admincatalogo implements OnInit {
     );
   }
 
-  // ============================================================
-  // CREAR SUBPARÁMETRO
-  // ============================================================
-
   async crearSubparametroEnTitulo(titulo: TituloRow): Promise<void> {
     const modoInicial = titulo.magnitud === '*' ? 'override' : 'heredar';
 
@@ -385,7 +366,7 @@ export class Admincatalogo implements OnInit {
         fields: [
           {
             name: 'displayName',
-            label: 'Nombre visible (se guarda en el certificado)',
+            label: 'Nombre en ingles (se guarda en el certificado)',
             type: 'text',
             required: true,
             minLength: 2,
@@ -394,7 +375,7 @@ export class Admincatalogo implements OnInit {
           },
           {
             name: 'label',
-            label: 'Nombre largo (opcional)',
+            label: 'Nombre largo esapñol (opcional)',
             type: 'text',
             placeholder: 'ej. Temperatura verdadera',
           },
@@ -427,13 +408,13 @@ export class Admincatalogo implements OnInit {
               value: m.id,
             })),
           },
-          {
+          /*{
             name: 'unidadesOverride',
             label: 'Unidades propias (una por línea). Vacío = todas las de la magnitud',
             type: 'textarea',
             rows: 3,
             placeholder: 'ej.\nmV\nV\nkV',
-          },
+          },*/
         ],
       },
     });
@@ -490,10 +471,6 @@ export class Admincatalogo implements OnInit {
       `Subparámetro "${dto.displayName}" creado en "${titulo.displayName}".`
     );
   }
-
-  // ============================================================
-  // CREAR MAGNITUD
-  // ============================================================
 
   async crearMagnitud(): Promise<void> {
     const values = await this.alert.form({

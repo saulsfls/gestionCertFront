@@ -440,4 +440,12 @@ export class Viewcert implements OnInit {
   goBack(): void {
     this.router.navigate(['/list-cert']);
   }
+
+  editarCertificado(): void {
+    const id = this.certificado?.id;
+    if (!id){
+      this.alert.error("El certificado que seleccionaste no existe","Error al navegar")
+    }
+    this.router.navigate(['/edit-cert', id]);
+  }
 }

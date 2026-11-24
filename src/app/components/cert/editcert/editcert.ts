@@ -9,6 +9,7 @@ import {
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
+import { timeout } from 'rxjs/operators';
 import { Certificado, ResultTable, Column } from '../../../models/certificado.models';
 import { CertService } from '../../../services/database/home/cert.service';
 import { AlertService } from '../../../services/core/alert.service';
@@ -31,6 +32,14 @@ interface TableImageState {
   croppedImageBase64: string;
   cargando: boolean;
   tieneEncabezado: boolean;
+}
+
+// ✅ NUEVO: item de imagen para el flujo multi-imagen (uno por tabla)
+interface MultiImageItem {
+  id: string;
+  file: File;
+  base64: string;
+  nombre: string;
 }
 
 @Component({
@@ -100,9 +109,15 @@ export class Editcert implements OnInit {
   imageStates: TableImageState[] = [];
   ocrEnProceso = false;
 
+  // ✅ NUEVO: lista de imágenes por tabla (multi-imagen)
+  multiItemsPorTabla: MultiImageItem[][] = [];
+  cargandoArchivosMulti = false;
+  zonaActivaMulti = false;
+
   private lastTableSeq = 0;
   private guardMostrando = false;
   private salirSinConfirmar = false;
+  private tablasColapsadas: Set<number> = new Set<number>();
 
   textoExcel = '';
   excelTarget: { tableIndex: number, columnIndex: number, label: string, key: string, filasActuales: number } | null = null;
@@ -176,7 +191,6 @@ export class Editcert implements OnInit {
   unidadesSeleccionadasDe(table: ResultTable): Set<string> {
     const key = table.table_id || '';
     if (!this.unidadesPorTabla.has(key)) {
-      // Inicializar desde `table.unit` si ya tenía algo (ej. al cargar el certificado)
       const set = new Set<string>();
       if (table.unit) {
         String(table.unit).split(',').map(s => s.trim()).filter(Boolean).forEach(u => set.add(u));
@@ -261,7 +275,6 @@ export class Editcert implements OnInit {
       t.equipment_id = equipo;
     });
 
-    // Remapear el Map de unidades
     for (const { oldId, nuevoId } of mapViejo) {
       const set = this.unidadesPorTabla.get(oldId);
       if (set) {
@@ -329,6 +342,7 @@ export class Editcert implements OnInit {
 
         // Inicializar imageStates y units map
         this.imageStates = this.resultTables.map(() => this.crearEstadoImagenVacio());
+        this.multiItemsPorTabla = this.resultTables.map(() => []); // ✅ NUEVO
         this.unidadesPorTabla.clear();
         for (const table of this.resultTables) {
           if (table.unit) {
@@ -538,6 +552,7 @@ export class Editcert implements OnInit {
 
       this.resultTables = tablasNuevas;
       this.imageStates = tablasNuevas.map(() => this.crearEstadoImagenVacio());
+      this.multiItemsPorTabla = tablasNuevas.map(() => []); // ✅ NUEVO
       this.regenerarTableIds();
 
       this.unidadesPorTabla.clear();
@@ -580,6 +595,7 @@ export class Editcert implements OnInit {
     const nueva = this.crearEstructuraTablaInicial();
     this.resultTables.push(nueva);
     this.imageStates.push(this.crearEstadoImagenVacio());
+    this.multiItemsPorTabla.push([]); // ✅ NUEVO
     if (nueva.unit) {
       this.unidadesPorTabla.set(nueva.table_id, new Set([nueva.unit]));
     }
@@ -594,6 +610,7 @@ export class Editcert implements OnInit {
 
       this.resultTables.splice(indexTable, 1);
       this.imageStates.splice(indexTable, 1);
+      this.multiItemsPorTabla.splice(indexTable, 1); // ✅ NUEVO
 
       // Reindexar selecciones de columnas
       const nuevasSelecciones = new Set<string>();
@@ -1053,7 +1070,248 @@ export class Editcert implements OnInit {
     };
   }
 
-  // ========== MÉTODOS DE IMAGEN / OCR ==========
+  // ========== MULTI-IMAGEN POR TABLA (✅ NUEVO) ==========
+  itemsDeTabla(tableIndex: number): MultiImageItem[] {
+    if (!this.multiItemsPorTabla[tableIndex]) {
+      this.multiItemsPorTabla[tableIndex] = [];
+    }
+    return this.multiItemsPorTabla[tableIndex];
+  }
+
+  onPasteUniversal(event: ClipboardEvent, tableIndex: number): void {
+    if (!this.isBrowser || this.ocrEnProceso) return;
+    const files = this.extraerImagenesDeClipboard(event);
+    if (files.length === 0) {
+      this.alert.warning('El contenido pegado no contiene imágenes válidas.', 'Pegar imagen');
+      return;
+    }
+    event.preventDefault();
+    void this.agregarArchivosMulti(files, tableIndex);
+  }
+
+  onDragOverMulti(event: DragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.zonaActivaMulti = true;
+  }
+
+  onDragLeaveMulti(event: DragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.zonaActivaMulti = false;
+  }
+
+  onDropUniversal(event: DragEvent, tableIndex: number): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.zonaActivaMulti = false;
+    if (!this.isBrowser || this.ocrEnProceso) return;
+
+    const files: File[] = [];
+    const dropped = event.dataTransfer?.files;
+    if (dropped && dropped.length > 0) {
+      for (let i = 0; i < dropped.length; i++) {
+        if (dropped[i].type.startsWith('image/')) files.push(dropped[i]);
+      }
+    }
+    if (files.length === 0) {
+      this.alert.warning('Los archivos arrastrados no son imágenes válidas.', 'Arrastrar imágenes');
+      return;
+    }
+    void this.agregarArchivosMulti(files, tableIndex);
+  }
+
+  onFilesSelectedMulti(event: Event, tableIndex: number): void {
+    const input = event.target as HTMLInputElement;
+    if (!input.files || input.files.length === 0) return;
+    const files: File[] = [];
+    for (let i = 0; i < input.files.length; i++) {
+      if (input.files[i].type.startsWith('image/')) files.push(input.files[i]);
+    }
+    if (files.length === 0) {
+      this.alert.warning('Los archivos seleccionados no son imágenes válidas.', 'Seleccionar imágenes');
+      return;
+    }
+    void this.agregarArchivosMulti(files, tableIndex);
+    input.value = '';
+  }
+
+  private extraerImagenesDeClipboard(event: ClipboardEvent): File[] {
+    const items = event.clipboardData?.items;
+    if (!items) return [];
+    const files: File[] = [];
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.startsWith('image/')) {
+        const f = items[i].getAsFile();
+        if (f) {
+          files.push(
+            new File([f], `pegada_${Date.now()}_${i}.png`, { type: f.type })
+          );
+        }
+      }
+    }
+    return files;
+  }
+
+  private async agregarArchivosMulti(files: File[], tableIndex: number): Promise<void> {
+    const validos = files.filter((f) => /^image\//.test(f.type));
+    if (validos.length === 0) {
+      this.alert.error('Los archivos seleccionados no son imágenes.', 'Tipo inválido');
+      return;
+    }
+
+    this.cargandoArchivosMulti = true;
+    this.cdr.detectChanges();
+
+    try {
+      const lista = this.itemsDeTabla(tableIndex);
+      for (const f of validos) {
+        const base64 = await this.fileToBase64(f);
+        lista.push({
+          id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          file: f,
+          base64,
+          nombre: f.name || 'imagen',
+        });
+      }
+    } catch (e: any) {
+      this.alert.error(
+        'No se pudieron leer algunos archivos: ' + (e?.message ?? 'error desconocido'),
+        'Lectura de archivos'
+      );
+    } finally {
+      this.cargandoArchivosMulti = false;
+      this.cdr.detectChanges();
+    }
+  }
+
+  private fileToBase64(file: File): Promise<string> {
+    if (!this.isBrowser) return Promise.resolve('');
+    return new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result ?? ''));
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
+  }
+
+  quitarItemMulti(itemId: string, tableIndex: number): void {
+    const lista = this.itemsDeTabla(tableIndex);
+    this.multiItemsPorTabla[tableIndex] = lista.filter((i) => i.id !== itemId);
+    this.cdr.detectChanges();
+  }
+
+  moverItemMulti(itemId: string, direccion: -1 | 1, tableIndex: number): void {
+    const lista = this.itemsDeTabla(tableIndex);
+    const idx = lista.findIndex((i) => i.id === itemId);
+    if (idx < 0) return;
+    const nuevo = idx + direccion;
+    if (nuevo < 0 || nuevo >= lista.length) return;
+    const [item] = lista.splice(idx, 1);
+    lista.splice(nuevo, 0, item);
+    this.cdr.detectChanges();
+  }
+
+  limpiarItemsMulti(tableIndex: number): void {
+    const lista = this.itemsDeTabla(tableIndex);
+    if (lista.length === 0) return;
+    this.alert.confirm(
+      '¿Quieres quitar todas las imágenes cargadas de esta tabla?',
+      'Limpiar imágenes',
+      { type: 'question', confirmText: 'Sí, limpiar', cancelText: 'Cancelar' }
+    ).then(ok => {
+      if (!ok) return;
+      this.multiItemsPorTabla[tableIndex] = [];
+      this.cdr.detectChanges();
+    });
+  }
+
+  enviarMultiANode(tableIndex: number): void {
+    if (this.ocrEnProceso) {
+      this.alert.info('Ya hay un proceso en curso.', 'Espera');
+      return;
+    }
+
+    const lista = this.itemsDeTabla(tableIndex);
+    if (lista.length === 0) {
+      this.alert.warning('Selecciona al menos una imagen.', 'Sin imágenes');
+      return;
+    }
+
+    this.ocrEnProceso = true;
+    this.cdr.detectChanges();
+
+    const base64List = lista.map((i) => i.base64);
+    const order = lista.map((_, idx) => idx);
+
+    this.imageService
+      .procesarTablasMultiples(base64List, order)
+      .pipe(timeout(300000))
+      .subscribe({
+        next: (res: any) => this.procesarRespuestaMulti(tableIndex, res),
+        error: (err) => {
+          console.error('Error en servidor:', err);
+          const backendMsg: string =
+            err?.name === 'TimeoutError'
+              ? 'La extracción tardó demasiado (tiempo de espera agotado). Intenta de nuevo.'
+              : err?.error?.error ||
+                err?.message ||
+                'Error desconocido al procesar las imágenes.';
+          this.alert.error(backendMsg, 'OCR');
+        },
+      })
+      .add(() => {
+        this.ocrEnProceso = false;
+        this.cdr.detectChanges();
+      });
+  }
+
+  private procesarRespuestaMulti(tableIndex: number, res: any): void {
+    const html = res?.table;
+    if (!(res?.success && typeof html === 'string' && html.trim())) {
+      const errMsg = res?.error || 'El servidor no devolvió una tabla unificada.';
+      this.alert.error(errMsg, 'OCR');
+      return;
+    }
+
+    const tableText = html.trim();
+    let headers: string[] = [];
+    let rows: string[][] = [];
+
+    if (tableText.startsWith('<table')) {
+      const parsed = this.parseTableHtml(tableText);
+      headers = parsed.headers;
+      rows = parsed.rows;
+    } else {
+      const parsed = this.parseTableText(tableText);
+      headers = parsed.headers;
+      rows = parsed.rows;
+    }
+
+    if (headers.length === 0 || rows.length === 0) {
+      this.alert.error('No se pudo extraer una tabla válida del resultado.', 'OCR');
+      return;
+    }
+
+    this.alert.confirm(
+      'La AI puede cometer errores. Verifica los valores extraídos antes de continuar.',
+      '⚠ Revisa los datos',
+      { type: 'warning', confirmText: 'Entendido, los reviso', cancelText: 'Cerrar', dismissible: false }
+    ).then(revisar => {
+      if (!revisar) {
+        this.alert.info('Puedes revisar los datos antes de guardar.');
+        return;
+      }
+      this.aplicarDatosExtraidos(tableIndex, headers, rows, true);
+      this.alert.success(
+        `Se extrajo una tabla con ${rows.length} fila(s) y ${headers.length} columna(s).`,
+        'OCR completado'
+      );
+      this.cdr.detectChanges();
+    });
+  }
+
+  // ========== MÉTODOS DE IMAGEN / OCR (individual) ==========
   onPaste(event: ClipboardEvent, tableIndex: number): void {
     if (!this.isBrowser) return;
     const state = this.imageStates[tableIndex];
@@ -1153,54 +1411,60 @@ export class Editcert implements OnInit {
       try { this.cdr.detectChanges(); } catch { /* noop */ }
     };
 
-    this.imageService.procesarTabla(state.croppedImageBase64).subscribe({
-      next: (res: any) => {
-        try {
-          if (res?.success && res?.table) {
-            const tableText = String(res.table).trim();
-            let headers: string[] = [];
-            let rows: string[][] = [];
+    this.imageService.procesarTabla(state.croppedImageBase64)
+      .pipe(timeout(300000))
+      .subscribe({
+        next: (res: any) => {
+          try {
+            if (res?.success && res?.table) {
+              const tableText = String(res.table).trim();
+              let headers: string[] = [];
+              let rows: string[][] = [];
 
-            if (tableText.startsWith('<table')) {
-              const parsed = this.parseTableHtml(tableText);
-              headers = parsed.headers;
-              rows = parsed.rows;
-            } else {
-              const parsed = this.parseTableText(tableText);
-              headers = parsed.headers;
-              rows = parsed.rows;
-            }
+              if (tableText.startsWith('<table')) {
+                const parsed = this.parseTableHtml(tableText);
+                headers = parsed.headers;
+                rows = parsed.rows;
+              } else {
+                const parsed = this.parseTableText(tableText);
+                headers = parsed.headers;
+                rows = parsed.rows;
+              }
 
-            if (headers.length > 0 && rows.length > 0) {
-              this.aplicarDatosExtraidos(tableIndex, headers, rows, state.tieneEncabezado);
-              this.alert.confirm(
-                'La AI puede cometer errores. Verifica los valores extraídos antes de continuar.',
-                '⚠ Revisa los datos',
-                { type: 'warning', confirmText: 'Entendido, los reviso', cancelText: 'Cerrar', dismissible: false }
-              ).then(revisar => {
-                if (revisar) this.alert.success('Los datos se vaciaron correctamente.', 'OCR completado');
-                else this.alert.info('Puedes revisar los datos antes de guardar.');
-              });
+              if (headers.length > 0 && rows.length > 0) {
+                this.aplicarDatosExtraidos(tableIndex, headers, rows, state.tieneEncabezado);
+                this.alert.confirm(
+                  'La AI puede cometer errores. Verifica los valores extraídos antes de continuar.',
+                  '⚠ Revisa los datos',
+                  { type: 'warning', confirmText: 'Entendido, los reviso', cancelText: 'Cerrar', dismissible: false }
+                ).then(revisar => {
+                  if (revisar) this.alert.success('Los datos se aplicaron correctamente.', 'OCR completado');
+                  else this.alert.info('Puedes revisar los datos antes de guardar.');
+                });
+              } else {
+                this.alert.error('No se pudo extraer una tabla válida de la imagen.', 'OCR');
+              }
             } else {
-              this.alert.error('No se pudo extraer una tabla válida de la imagen.', 'OCR');
+              this.alert.error('No se pudo extraer la tabla.', 'OCR');
             }
-          } else {
-            this.alert.error('No se pudo extraer la tabla.', 'OCR');
+          } catch (e) {
+            console.error('Error procesando la respuesta:', e);
+            this.alert.error('Error al procesar la respuesta del servidor.', 'Error OCR');
+          } finally {
+            terminar();
           }
-        } catch (e) {
-          console.error('Error procesando la respuesta:', e);
-          this.alert.error('Error al procesar la respuesta del servidor.', 'Error OCR');
-        } finally {
+        },
+        error: (err: any) => {
+          console.error('Error en servidor:', err);
+          const backendMsg =
+            err?.name === 'TimeoutError'
+              ? 'La extracción tardó demasiado (tiempo de espera agotado). Intenta de nuevo.'
+              : 'Ocurrió un error al procesar la tabla en el servidor.';
+          this.alert.error(backendMsg, 'Error OCR');
           terminar();
-        }
-      },
-      error: (err: any) => {
-        console.error('Error en servidor:', err);
-        this.alert.error('Ocurrió un error al procesar la tabla en el servidor.', 'Error OCR');
-        terminar();
-      },
-      complete: () => terminar()
-    });
+        },
+        complete: () => terminar()
+      });
   }
 
   // ========== NOTACIÓN CIENTÍFICA ==========
@@ -1443,6 +1707,195 @@ export class Editcert implements OnInit {
     return !this.esNumeroValido(String(valor));
   }
 
+  // ========== ✅ FUSIÓN DE TABLAS (NUEVO) ==========
+
+  /**
+   * Abre el formulario de fusión de tablas.
+   * Reglas:
+   *  - Se necesitan al menos 2 tablas.
+   *  - Ambas tablas deben tener la MISMA cantidad de columnas.
+   *  - El encabezado se toma de la primera tabla (arriba).
+   *  - Las filas de la segunda tabla (abajo) se anexan al final.
+   *  - Si hay conflicto de tipos entre columnas (number vs string), se deja como `string`
+   *    y se muestra una alerta de advertencia.
+   */
+  async fusionarTablas(): Promise<void> {
+    if (this.resultTables.length < 2) {
+      this.alert.warning(
+        'Necesitas al menos 2 tablas para poder fusionar.',
+        'No se puede fusionar'
+      );
+      return;
+    }
+
+    const opcionesTablas = this.resultTables.map((t, i) => ({
+      label: `Tabla #${i + 1}${t.title ? ' — ' + t.title : ''} (${t.table_id || 's/id'}, ${t.rows.length} fila(s))`,
+      value: String(i),
+    }));
+
+    const values = await this.alert.form({
+      title: 'Fusionar tablas',
+      message:
+        'Selecciona la tabla <b>de arriba</b> y la tabla <b>de abajo</b>. ' +
+        'El encabezado resultante será el de la <b>tabla de arriba</b>; ' +
+        'el encabezado de la tabla de abajo se descarta. ' +
+        'Ambas tablas deben tener la misma cantidad de columnas.',
+      type: 'question',
+      confirmText: 'Fusionar',
+      cancelText: 'Cancelar',
+      dismissible: true,
+      size: 'md',
+      form: {
+        columns: 1,
+        submitText: 'Fusionar',
+        validateOnSubmit: true,
+        fields: [
+          {
+            name: 'tablaArriba',
+            label: 'Tabla de ARRIBA (su encabezado se conserva)',
+            type: 'select',
+            required: true,
+            options: opcionesTablas,
+          },
+          {
+            name: 'tablaAbajo',
+            label: 'Tabla de ABAJO (su encabezado se descarta)',
+            type: 'select',
+            required: true,
+            options: opcionesTablas,
+          },
+        ],
+      },
+    });
+
+    if (values === null) return;
+
+    const idxArriba = Number(values['tablaArriba']);
+    const idxAbajo = Number(values['tablaAbajo']);
+
+    if (!Number.isInteger(idxArriba) || !Number.isInteger(idxAbajo)) {
+      this.alert.error('Selecciona dos tablas válidas.', 'Selección inválida');
+      return;
+    }
+    if (idxArriba === idxAbajo) {
+      this.alert.warning(
+        'Debes seleccionar dos tablas distintas para fusionar.',
+        'Selección inválida'
+      );
+      return;
+    }
+
+    const tablaArriba = this.resultTables[idxArriba];
+    const tablaAbajo = this.resultTables[idxAbajo];
+
+    if (!tablaArriba || !tablaAbajo) {
+      this.alert.error('Las tablas seleccionadas no existen.', 'Error');
+      return;
+    }
+
+    if (tablaArriba.columns.length !== tablaAbajo.columns.length) {
+      this.alert.error(
+        `Las tablas tienen distinta cantidad de columnas: ` +
+        `la de arriba tiene ${tablaArriba.columns.length} y la de abajo tiene ${tablaAbajo.columns.length}. ` +
+        `No se pueden fusionar.`,
+        'Columnas incompatibles'
+      );
+      return;
+    }
+
+    const numCols = tablaArriba.columns.length;
+    let huboConflictoTipos = false;
+
+    // Determinar tipo por columna: number solo si ambas columnas son number
+    const tiposFinales: TipoDato[] = [];
+    for (let c = 0; c < numCols; c++) {
+      const tipoA = tablaArriba.columns[c]?.type ?? 'string';
+      const tipoB = tablaAbajo.columns[c]?.type ?? 'string';
+      if (tipoA === 'number' && tipoB === 'number') {
+        tiposFinales.push('number');
+      } else {
+        tiposFinales.push('string');
+        if (tipoA !== tipoB) huboConflictoTipos = true;
+      }
+    }
+
+    // Aplicar tipo final a las columnas de la tabla de arriba
+    tablaArriba.columns.forEach((col, c) => {
+      col.type = tiposFinales[c];
+    });
+
+    // Convertir valores de la tabla de abajo a string si el tipo final es string
+    const filasAbajoConvertidas: Record<string, any>[] = tablaAbajo.rows.map(filaAbajo => {
+      const nuevaFila: Record<string, any> = {};
+      tablaArriba.columns.forEach((colArriba, c) => {
+        const key = colArriba.key;
+        const valor = filaAbajo[tablaAbajo.columns[c]?.key];
+        if (tiposFinales[c] === 'number') {
+          // number: dejar tal cual (o null)
+          nuevaFila[key] = valor === undefined ? null : valor;
+        } else {
+          // string: forzar a string para que el usuario sane
+          nuevaFila[key] = valor === undefined || valor === null || valor === ''
+            ? null
+            : String(valor);
+        }
+      });
+      return nuevaFila;
+    });
+
+    // Convertir valores de la tabla de arriba si su tipo final cambió a string
+    tablaArriba.rows.forEach(fila => {
+      tablaArriba.columns.forEach((col, c) => {
+        if (tiposFinales[c] === 'string') {
+          const v = fila[col.key];
+          fila[col.key] = v === undefined || v === null || v === ''
+            ? null
+            : String(v);
+        }
+      });
+    });
+
+    // Anexar filas de la tabla de abajo a la de arriba
+    tablaArriba.rows.push(...filasAbajoConvertidas);
+
+    // Eliminar la tabla de abajo
+    this.unidadesPorTabla.delete(tablaAbajo.table_id);
+    this.resultTables.splice(idxAbajo, 1);
+    this.imageStates.splice(idxAbajo, 1);
+    this.multiItemsPorTabla.splice(idxAbajo, 1);
+
+    // Reindexar selecciones (columnas para limpiar / separar)
+    const reindex = (set: Set<string>): Set<string> => {
+      const nuevo = new Set<string>();
+      set.forEach(id => {
+        const [tIdx, cIdx] = id.split('-').map(Number);
+        if (tIdx < idxAbajo) nuevo.add(id);
+        else if (tIdx > idxAbajo) nuevo.add(`${tIdx - 1}-${cIdx}`);
+        // si tIdx === idxAbajo, se descarta
+      });
+      return nuevo;
+    };
+    this.columnasParaLimpiar = reindex(this.columnasParaLimpiar);
+    this.columnasParaSeparar = reindex(this.columnasParaSeparar);
+
+    this.regenerarTableIds();
+    this.sincronizarJsonTexto();
+    this.cdr.detectChanges();
+
+    if (huboConflictoTipos) {
+      this.alert.warning(
+        'Algunas columnas tenían tipos distintos (number vs string). ' +
+        'Se dejaron como texto para que puedas sanearlas manualmente.',
+        '⚠ Tipos mezclados'
+      );
+    } else {
+      this.alert.success(
+        `Tablas fusionadas correctamente. La tabla resultante tiene ${tablaArriba.rows.length} fila(s).`,
+        'Fusión completa'
+      );
+    }
+  }
+
   // ========== CONSTRUCCIÓN DEL JSON ==========
   obtenerJsonEstructurado(): object {
     this.regenerarTableIds();
@@ -1625,7 +2078,7 @@ export class Editcert implements OnInit {
 
         setTimeout(() => {
           this.router.navigate(['/list-cert']);
-        }, 2000);
+        }, 500);
       },
       error: (err: any) => {
         this.cargando = false;
@@ -1658,7 +2111,7 @@ export class Editcert implements OnInit {
     this.alert.info('Operación cancelada por el usuario.', 'Cancelado');
     setTimeout(() => {
       this.router.navigate(['/list-cert']);
-    }, 1200);
+    }, 500);
   }
 
   // ========== GUARD ==========
@@ -1707,6 +2160,19 @@ export class Editcert implements OnInit {
     }
   }
 
+  estaColapsada(tableIndex: number): boolean {
+    return this.tablasColapsadas.has(tableIndex);
+  }
+
+  toggleCollapseTabla(tableIndex: number): void {
+    if (this.tablasColapsadas.has(tableIndex)) {
+      this.tablasColapsadas.delete(tableIndex);
+    } else {
+      this.tablasColapsadas.add(tableIndex);
+    }
+    this.cdr.detectChanges();
+  }
+
   // ========== AYUDA ==========
   ayuda(modal: string): void {
     const clave = String(modal ?? '').trim().toLowerCase();
@@ -1723,11 +2189,15 @@ export class Editcert implements OnInit {
         <p>Cada certificado contiene una o más tablas. En modo edición puedes <b>agregar</b>, <b>eliminar</b> y <b>reordenar</b> columnas y filas.</p>
         <h4>Unidades múltiples</h4>
         <p>Puedes seleccionar <b>varias unidades</b> por tabla. Se guardan separadas por coma en <code>unit</code>: <code>"mV, V, kV"</code>.</p>
+        <h4>Fusión de tablas</h4>
+        <p>El botón <b>Fusionar tablas</b> permite unir dos tablas con la <b>misma cantidad de columnas</b>. El encabezado se toma de la primera tabla (arriba) y las filas de la segunda (abajo) se anexan. Si hay conflicto de tipos (number vs string), las columnas afectadas se dejan como texto.</p>
       `;
     } else if (clave === 'ocr') {
       detalle = `
         <h3 style="margin-top:0; color:#6f42c1;">3. Extracción desde imagen (OCR)</h3>
         <p>Pega una imagen, recorta la tabla y presiona "Extraer Tabla".</p>
+        <p>También puedes pegar <b>varias imágenes</b> de la misma tabla; se unirán verticalmente.</p>
+        <p>Cada tabla tiene su <b>propio conjunto de imágenes</b>; no se comparten entre tablas.</p>
         <div style="background:#fff3cd; border-left:4px solid #ffc107; padding:.6rem .8rem; border-radius:.35rem; margin:.9rem 0;">
           <b>⚠ Advertencia</b> La IA puede cometer errores. Verifica siempre los valores contra el certificado original.
         </div>
@@ -1753,6 +2223,52 @@ export class Editcert implements OnInit {
         maxHeight: '85vh',
         scrollable: true,
         messageMaxHeight: '60vh',
+        fontSize: '15px',
+        lineHeight: 1.6,
+      },
+    });
+  }
+
+    /**
+   * Abre una vista previa en grande de la imagen en el modal de alertas.
+   * @param base64OrUrl - Cadena base64 (data:image/...) o URL de la imagen.
+   * @param titulo - Título opcional del modal.
+   */
+  verImagenGrande(base64OrUrl: string, titulo: string = 'Vista previa de la imagen'): void {
+    if (!base64OrUrl) {
+      this.alert.warning('No hay imagen para mostrar.', 'Vista previa');
+      return;
+    }
+
+    const html = `
+      <div class="text-center">
+        <img
+          src="${base64OrUrl}"
+          alt="Vista previa"
+          style="max-width: 100%; max-height: 70vh; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,.15);"
+        />
+      </div>
+      <div class="d-flex justify-content-center gap-2 mt-3 flex-wrap">
+        <a
+          href="${base64OrUrl}"
+          download="imagen_${Date.now()}.png"
+          class="btn btn-outline-secondary btn-sm">
+          ⬇ Descargar
+        </a>
+      </div>
+    `;
+
+    this.alert.alert(html, titulo, {
+      type: 'info',
+      confirmText: 'Cerrar',
+      dismissible: true,
+      size: 'xl',
+      sizeOptions: {
+        width: '90vw',
+        maxWidth: '1200px',
+        maxHeight: '90vh',
+        scrollable: true,
+        messageMaxHeight: '75vh',
         fontSize: '15px',
         lineHeight: 1.6,
       },
