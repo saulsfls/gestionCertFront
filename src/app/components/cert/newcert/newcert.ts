@@ -28,12 +28,21 @@ export type TipoDato = 'number' | 'string';
 
 const DRAFT_KEY = 'newcert_draft_v1';
 
+/** Estados para el cropper de una sola imagen (legacy, usado en tablas individuales) */
 interface TableImageState {
   imageChangedEvent: Event | null;
   pasteImageFile: File | undefined;
   croppedImageBase64: string;
   cargando: boolean;
   tieneEncabezado: boolean;
+}
+
+/** Estados para el nuevo flujo multi-imagen (reemplaza al Pimage) */
+interface MultiImageItem {
+  id: string;
+  file: File;
+  base64: string;
+  nombre: string;
 }
 
 interface PatronOption {
@@ -48,7 +57,6 @@ interface DraftPayload {
   certificado: Certificado;
   resultTables: ResultTable[];
   direccionTab: DireccionTab;
-  /** Unidades seleccionadas por tabla, serializadas como Record<index, string[]> */
   unidadesPorTabla?: Record<number, string[]>;
   savedAt: string;
 }
@@ -90,8 +98,19 @@ export class Newcert implements OnInit {
   jsonInputText: string = '';
   copiadoExitoso: boolean = false;
   guardando: boolean = false;
+
+  /**
+   * Estados del cropper individual (legacy). Se mantiene por compatibilidad
+   * con la UI antigua que permite recortar una imagen por tabla.
+   */
   imageStates: TableImageState[] = [];
   ocrEnProceso: boolean = false;
+
+  // ========== NUEVO FLUJO MULTI-IMAGEN (integrado de Pimage) ==========
+  multiItems: MultiImageItem[] = [];
+  cargandoArchivosMulti: boolean = false;
+  zonaActivaMulti: boolean = false;
+  mostrarPanelMulti: boolean = false;
 
   /**
    * Unidades seleccionadas por tabla (checkboxes).
@@ -100,9 +119,7 @@ export class Newcert implements OnInit {
   unidadesPorTabla: Map<string, Set<string>> = new Map();
 
   private draftGuardadoTimer: ReturnType<typeof setTimeout> | null = null;
-  /** Cuando es true, NO se guarda el draft (el usuario descartó o ya se limpió el form). */
   private draftDescartado = false;
-  /** Cuando es true, aún no se ha cargado nada (evita guardar el form vacío inicial). */
   private draftListo = false;
 
   constructor(
@@ -110,18 +127,17 @@ export class Newcert implements OnInit {
     private cdr: ChangeDetectorRef
   ) {}
 
-    // INIT
-
+  // ==================================================================
+  //  INIT
+  // ==================================================================
   async ngOnInit(): Promise<void> {
     this.imageStates = [this.crearEstadoImagenVacio()];
 
-    // 1) Cargar catálogo y patrones en paralelo, y esperar a que terminen
     await Promise.all([
       this.cargarCatalogoAsync(),
       this.cargarPatronesAsync(),
     ]);
 
-    // 2) Ahora sí, resolver el draft con los patrones ya disponibles
     this.resolverDraftInicial();
   }
 
@@ -190,7 +206,6 @@ export class Newcert implements OnInit {
         },
         error: (err) => {
           console.error('Error cargando catálogo PT:', err);
-          // Intentar patrones aunque falle el catálogo PT
           this.equipmentService.getPatronesCruzados().subscribe({
             next: (patronesCruzados: PatronCruzado[]) => {
               this.patrones = this.agruparPatronesPorId(patronesCruzados);
@@ -208,8 +223,9 @@ export class Newcert implements OnInit {
     });
   }
 
-    // DRAFT
-
+  // ==================================================================
+  //  DRAFT
+  // ==================================================================
   private resolverDraftInicial(): void {
     const draft = this.leerDraftLocalStorage();
 
@@ -343,20 +359,12 @@ export class Newcert implements OnInit {
     });
 
     this.reconstruirUnitsDesdeSets();
-
-    // Patrones ya cargados (ngOnInit esperó), resolver síncrono
     this.resolverPatronDesdeCertificado();
-
     this.sincronizarJsonTexto();
     this.cdr.detectChanges();
     this.alert.success('Borrador recuperado.', 'Bienvenido de vuelta');
   }
 
-  /**
-   * Resuelve `patronSeleccionado` desde `certificado.equipment_id`.
-   * Como los patrones ya están cargados, es síncrono.
-   * Si el patrón del draft ya no existe, avisa y limpia el campo.
-   */
   private resolverPatronDesdeCertificado(): void {
     const id = (this.certificado.equipment_id || '').trim();
 
@@ -372,7 +380,6 @@ export class Newcert implements OnInit {
       return;
     }
 
-    // El patrón del draft ya no existe en la BD
     this.patronSeleccionado = null;
     this.certificado.equipment_id = '';
     this.certificado.name_equipment = '';
@@ -386,8 +393,9 @@ export class Newcert implements OnInit {
     }, 0);
   }
 
-    // CARGA DE CATÁLOGO (recarga manual, opcional)
-
+  // ==================================================================
+  //  CARGA DE CATÁLOGO
+  // ==================================================================
   cargarCatalogo(force = false): void {
     this.catalogo.cargarCatalogo(force).subscribe({
       next: () => {
@@ -419,8 +427,9 @@ export class Newcert implements OnInit {
     });
   }
 
-    // PATRONES (recarga manual, opcional)
-
+  // ==================================================================
+  //  PATRONES
+  // ==================================================================
   cargarPatrones(): void {
     this.cargandoPatrones = true;
 
@@ -447,7 +456,6 @@ export class Newcert implements OnInit {
       next: (patronesCruzados: PatronCruzado[]) => {
         this.patrones = this.agruparPatronesPorId(patronesCruzados);
         this.cargandoPatrones = false;
-        // Refuerzo: re-sincronizar el patrón seleccionado con el certificado
         this.resolverPatronDesdeCertificado();
         this.cdr.detectChanges();
       },
@@ -492,8 +500,9 @@ export class Newcert implements OnInit {
       .sort((a, b) => a.id.localeCompare(b.id, 'es'));
   }
 
-    // HELPERS DE PT / PATRÓN
-
+  // ==================================================================
+  //  HELPERS DE PT / PATRÓN
+  // ==================================================================
   descripcionPt(ptId: string): string {
     if (!ptId) return '';
     return this.ptDescripcionPorId.get(ptId) ?? ptId;
@@ -550,8 +559,9 @@ export class Newcert implements OnInit {
     this.cdr.detectChanges();
   }
 
-    // CATÁLOGO: getters para template
-
+  // ==================================================================
+  //  CATÁLOGO: getters para template
+  // ==================================================================
   get opcionesTitulo(): string[] {
     return this.catalogo.listaTitulos().map(t => t.displayName);
   }
@@ -580,8 +590,9 @@ export class Newcert implements OnInit {
     return this.catalogo.listaTitulos().some(t => t.displayName === title);
   }
 
-    // SELECCIÓN MÚLTIPLE DE UNIDADES
-
+  // ==================================================================
+  //  SELECCIÓN MÚLTIPLE DE UNIDADES
+  // ==================================================================
   unidadesSeleccionadasDe(table: ResultTable): Set<string> {
     const key = table.table_id || '';
     if (!this.unidadesPorTabla.has(key)) {
@@ -635,8 +646,9 @@ export class Newcert implements OnInit {
     }
   }
 
-    // CAMBIO DE TÍTULO / PARÁMETRO
-
+  // ==================================================================
+  //  CAMBIO DE TÍTULO / PARÁMETRO
+  // ==================================================================
   actualizarParametroSegunTitulo(table: ResultTable): void {
     const opciones = this.obtenerOpcionesParametro(table.title);
     if (opciones.length > 0 && !opciones.includes(table.parameter)) {
@@ -690,8 +702,9 @@ export class Newcert implements OnInit {
     this.sincronizarJsonTexto();
   }
 
-    // table_id
-
+  // ==================================================================
+  //  table_id
+  // ==================================================================
   private construirTableId(indexTable: number): string {
     const folio = (this.certificado.cc || '').trim();
     const sufijo = `T${indexTable + 1}`;
@@ -724,8 +737,9 @@ export class Newcert implements OnInit {
     }
   }
 
-    // ESTADO DE IMAGEN
-
+  // ==================================================================
+  //  ESTADO DE IMAGEN (legacy cropper)
+  // ==================================================================
   private crearEstadoImagenVacio(): TableImageState {
     return {
       imageChangedEvent: null, pasteImageFile: undefined, croppedImageBase64: '',
@@ -733,8 +747,9 @@ export class Newcert implements OnInit {
     };
   }
 
-    // ESTRUCTURA INICIAL
-
+  // ==================================================================
+  //  ESTRUCTURA INICIAL
+  // ==================================================================
   private crearEstructuraTablaInicial(): ResultTable {
     const titulos = this.catalogo.listaTitulos();
     const tituloInicial = titulos.length > 0 ? titulos[0].displayName : 'DC Voltage';
@@ -760,8 +775,9 @@ export class Newcert implements OnInit {
     };
   }
 
-    // JSON
-
+  // ==================================================================
+  //  JSON
+  // ==================================================================
   sincronizarJsonTexto(): void {
     this.jsonInputText = this.obtenerJsonString();
     this.agendarGuardadoDraft();
@@ -777,8 +793,9 @@ export class Newcert implements OnInit {
     this.sincronizarJsonTexto();
   }
 
-    // VALIDACIÓN DE KEY
-
+  // ==================================================================
+  //  VALIDACIÓN DE KEY
+  // ==================================================================
   private validarKey(key: string, table: ResultTable, columnaActual?: Column): { valido: boolean; mensaje?: string } {
     const keyLimpio = key.trim().toLowerCase().replace(/\s+/g, '_');
     if (!keyLimpio) return { valido: false, mensaje: 'El key no puede estar vacío.' };
@@ -791,8 +808,9 @@ export class Newcert implements OnInit {
     return { valido: true };
   }
 
-    // CARGAR DESDE JSON
-
+  // ==================================================================
+  //  CARGAR DESDE JSON
+  // ==================================================================
   actualizarFormularioDesdeJson(): void {
     try {
       const parsedJson = JSON.parse(this.jsonInputText);
@@ -876,8 +894,9 @@ export class Newcert implements OnInit {
     return { min: null, max: null };
   }
 
-    // NAVEGACIÓN TAB
-
+  // ==================================================================
+  //  NAVEGACIÓN TAB
+  // ==================================================================
   onTabKeydown(event: Event, tableIndex: number, rowIndex: number, colIndex: number): void {
     if (this.direccionTab === 'horizontal') return;
     const keyEvent = event as KeyboardEvent;
@@ -889,8 +908,9 @@ export class Newcert implements OnInit {
     if (targetInput) { targetInput.focus(); targetInput.select(); }
   }
 
-    // GESTIÓN DE TABLAS
-
+  // ==================================================================
+  //  GESTIÓN DE TABLAS
+  // ==================================================================
   agregarTabla(): void {
     const nueva = this.crearEstructuraTablaInicial();
     this.resultTables.push(nueva);
@@ -913,8 +933,9 @@ export class Newcert implements OnInit {
     }
   }
 
-    // GESTIÓN DE COLUMNAS
-
+  // ==================================================================
+  //  GESTIÓN DE COLUMNAS
+  // ==================================================================
   async agregarColumna(table: ResultTable): Promise<void> {
     const posicionOptions = [
       { label: 'Al final (después de la última)', value: '__final__' },
@@ -1020,8 +1041,9 @@ export class Newcert implements OnInit {
     this.sincronizarJsonTexto();
   }
 
-    // GESTIÓN DE FILAS
-
+  // ==================================================================
+  //  GESTIÓN DE FILAS
+  // ==================================================================
   agregarFila(table: ResultTable): void {
     const nuevaFila: Record<string, any> = {};
     table.columns.forEach(col => { nuevaFila[col.key] = null; });
@@ -1036,8 +1058,9 @@ export class Newcert implements OnInit {
     }
   }
 
-    // HELPERS NUMÉRICOS
-
+  // ==================================================================
+  //  HELPERS NUMÉRICOS
+  // ==================================================================
   esNumeroValido(s: string): boolean {
     const t = (s ?? '').trim();
     if (!t) return false;
@@ -1052,8 +1075,9 @@ export class Newcert implements OnInit {
     return !this.esNumeroValido(String(valor));
   }
 
-    // HELPERS DE FECHA
-
+  // ==================================================================
+  //  HELPERS DE FECHA
+  // ==================================================================
   private parseFechaLocal(fecha: string | Date | null | undefined): Date | null {
     if (!fecha) return null;
     if (fecha instanceof Date) return isNaN(fecha.getTime()) ? null : fecha;
@@ -1078,8 +1102,9 @@ export class Newcert implements OnInit {
     return Math.round((b.getTime() - a.getTime()) / MS);
   }
 
-    // MÉTODOS DE IMAGEN
-
+  // ==================================================================
+  //  MÉTODOS DE IMAGEN (CROPPER LEGACY POR TABLA)
+  // ==================================================================
   onPaste(event: ClipboardEvent, tableIndex: number): void {
     if (!this.isBrowser) return;
     const state = this.imageStates[tableIndex];
@@ -1151,6 +1176,9 @@ export class Newcert implements OnInit {
     );
   }
 
+  /**
+   * Extrae UNA tabla (cropper legacy) y la inyecta en la tabla `tableIndex`.
+   */
   enviarANode(tableIndex: number): void {
     const state = this.imageStates[tableIndex];
     const table = this.resultTables[tableIndex];
@@ -1229,8 +1257,251 @@ export class Newcert implements OnInit {
     });
   }
 
-    // NOTACIÓN CIENTÍFICA
+  // ==================================================================
+  //  NUEVO FLUJO MULTI-IMAGEN (integrado de Pimage)
+  // ==================================================================
 
+  togglePanelMulti(): void {
+    this.mostrarPanelMulti = !this.mostrarPanelMulti;
+    this.cdr.detectChanges();
+  }
+
+  onPasteUniversal(event: ClipboardEvent): void {
+    if (!this.isBrowser || this.ocrEnProceso) return;
+    const files = this.extraerImagenesDeClipboard(event);
+    if (files.length === 0) {
+      this.alert.warning('El contenido pegado no contiene imágenes válidas.', 'Pegar imagen');
+      return;
+    }
+    event.preventDefault();
+    void this.agregarArchivosMulti(files);
+  }
+
+  onDragOverMulti(event: DragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.zonaActivaMulti = true;
+  }
+
+  onDragLeaveMulti(event: DragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.zonaActivaMulti = false;
+  }
+
+  onDropUniversal(event: DragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.zonaActivaMulti = false;
+    if (!this.isBrowser || this.ocrEnProceso) return;
+
+    const files: File[] = [];
+    const dropped = event.dataTransfer?.files;
+    if (dropped && dropped.length > 0) {
+      for (let i = 0; i < dropped.length; i++) {
+        if (dropped[i].type.startsWith('image/')) files.push(dropped[i]);
+      }
+    }
+    if (files.length === 0) {
+      this.alert.warning('Los archivos arrastrados no son imágenes válidas.', 'Arrastrar imágenes');
+      return;
+    }
+    void this.agregarArchivosMulti(files);
+  }
+
+  /** Selector de archivos (input type=file) */
+  onFilesSelectedMulti(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    if (!input.files || input.files.length === 0) return;
+    const files: File[] = [];
+    for (let i = 0; i < input.files.length; i++) {
+      if (input.files[i].type.startsWith('image/')) files.push(input.files[i]);
+    }
+    if (files.length === 0) {
+      this.alert.warning('Los archivos seleccionados no son imágenes válidas.', 'Seleccionar imágenes');
+      return;
+    }
+    void this.agregarArchivosMulti(files);
+    input.value = ''; // permitir reseleccionar los mismos archivos
+  }
+
+  private extraerImagenesDeClipboard(event: ClipboardEvent): File[] {
+    const items = event.clipboardData?.items;
+    if (!items) return [];
+    const files: File[] = [];
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.startsWith('image/')) {
+        const f = items[i].getAsFile();
+        if (f) {
+          files.push(
+            new File([f], `pegada_${Date.now()}_${i}.png`, { type: f.type })
+          );
+        }
+      }
+    }
+    return files;
+  }
+
+  private async agregarArchivosMulti(files: File[]): Promise<void> {
+    const validos = files.filter((f) => /^image\//.test(f.type));
+    if (validos.length === 0) {
+      this.alert.error('Los archivos seleccionados no son imágenes.', 'Tipo inválido');
+      return;
+    }
+
+    this.cargandoArchivosMulti = true;
+    this.cdr.detectChanges();
+
+    try {
+      for (const f of validos) {
+        const base64 = await this.fileToBase64(f);
+        this.multiItems.push({
+          id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          file: f,
+          base64,
+          nombre: f.name || 'imagen',
+        });
+      }
+      this.mostrarPanelMulti = true;
+    } catch (e: any) {
+      this.alert.error(
+        'No se pudieron leer algunos archivos: ' + (e?.message ?? 'error desconocido'),
+        'Lectura de archivos'
+      );
+    } finally {
+      this.cargandoArchivosMulti = false;
+      this.cdr.detectChanges();
+    }
+  }
+
+  private fileToBase64(file: File): Promise<string> {
+    if (!this.isBrowser) return Promise.resolve('');
+    return new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result ?? ''));
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
+  }
+
+  quitarItemMulti(itemId: string): void {
+    this.multiItems = this.multiItems.filter((i) => i.id !== itemId);
+    this.cdr.detectChanges();
+  }
+
+  moverItemMulti(itemId: string, direccion: -1 | 1): void {
+    const idx = this.multiItems.findIndex((i) => i.id === itemId);
+    if (idx < 0) return;
+    const nuevo = idx + direccion;
+    if (nuevo < 0 || nuevo >= this.multiItems.length) return;
+    const [item] = this.multiItems.splice(idx, 1);
+    this.multiItems.splice(nuevo, 0, item);
+    this.cdr.detectChanges();
+  }
+
+  limpiarItemsMulti(): void {
+    if (this.multiItems.length === 0) return;
+    this.alert.confirm(
+      '¿Quieres quitar todas las imágenes cargadas?',
+      'Limpiar imágenes',
+      { type: 'question', confirmText: 'Sí, limpiar', cancelText: 'Cancelar' }
+    ).then(ok => {
+      if (!ok) return;
+      this.multiItems = [];
+      this.cdr.detectChanges();
+    });
+  }
+
+  /**
+   * Envía TODAS las imágenes cargadas al endpoint multi-imagen.
+   * El resultado reemplaza/crea una nueva tabla en `resultTables`.
+   */
+  enviarMultiANode(): void {
+    if (this.ocrEnProceso) {
+      this.alert.info('Ya hay un proceso en curso.', 'Espera');
+      return;
+    }
+    if (this.multiItems.length === 0) {
+      this.alert.warning('Selecciona al menos una imagen.', 'Sin imágenes');
+      return;
+    }
+
+    this.ocrEnProceso = true;
+    this.cdr.detectChanges();
+
+    const base64List = this.multiItems.map((i) => i.base64);
+    const order = this.multiItems.map((_, idx) => idx);
+
+    this.imageService
+      .procesarTablasMultiples(base64List, order)
+      .subscribe({
+        next: (res: any) => this.procesarRespuestaMulti(res),
+        error: (err) => {
+          console.error('Error en servidor:', err);
+          const backendMsg: string =
+            err?.error?.error ||
+            err?.message ||
+            'Error desconocido al procesar las imágenes.';
+          this.alert.error(backendMsg, 'OCR');
+        },
+      })
+      .add(() => {
+        this.ocrEnProceso = false;
+        this.cdr.detectChanges();
+      });
+  }
+
+  private procesarRespuestaMulti(res: any): void {
+    const html = res?.table;
+    if (!(res?.success && typeof html === 'string' && html.trim())) {
+      const errMsg = res?.error || 'El servidor no devolvió una tabla unificada.';
+      this.alert.error(errMsg, 'OCR');
+      return;
+    }
+
+    const tableText = html.trim();
+    let headers: string[] = [];
+    let rows: string[][] = [];
+
+    if (tableText.startsWith('<table')) {
+      const parsed = this.parseTableHtml(tableText);
+      headers = parsed.headers;
+      rows = parsed.rows;
+    } else {
+      const parsed = this.parseTableText(tableText);
+      headers = parsed.headers;
+      rows = parsed.rows;
+    }
+
+    if (headers.length === 0 || rows.length === 0) {
+      this.alert.error('No se pudo extraer una tabla válida del resultado.', 'OCR');
+      return;
+    }
+
+    // Crear una nueva tabla con los datos extraídos
+    const nuevaTabla: ResultTable = this.crearEstructuraTablaInicial();
+    this.resultTables.push(nuevaTabla);
+    this.imageStates.push(this.crearEstadoImagenVacio());
+    this.regenerarTableIds();
+    if (nuevaTabla.unit) {
+      this.unidadesPorTabla.set(nuevaTabla.table_id, new Set([nuevaTabla.unit]));
+    }
+
+    const indexTabla = this.resultTables.length - 1;
+    this.aplicarDatosExtraidos(indexTabla, headers, rows, true);
+
+    this.alert.success(
+      `Se extrajo una tabla con ${rows.length} fila(s) y ${headers.length} columna(s).`,
+      'OCR completado'
+    );
+    this.multiItems = [];
+    this.mostrarPanelMulti = false;
+    this.cdr.detectChanges();
+  }
+
+  // ==================================================================
+  //  NOTACIÓN CIENTÍFICA
+  // ==================================================================
   private expandirNotacionCientifica(raw: string): string {
     let s = String(raw ?? '').trim();
     if (!s) return '';
@@ -1264,8 +1535,9 @@ export class Newcert implements OnInit {
     return resultado;
   }
 
-    // PARSEADOR DE TEXTO
-
+  // ==================================================================
+  //  PARSEADOR DE TEXTO
+  // ==================================================================
   private parseTableText(text: string): { headers: string[]; rows: string[][] } {
     const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
     if (lines.length < 1) return { headers: [], rows: [] };
@@ -1292,9 +1564,12 @@ export class Newcert implements OnInit {
     return { headers, rows };
   }
 
-    // PARSEADOR DE HTML
-
+  // ==================================================================
+  //  PARSEADOR DE HTML
+  // ==================================================================
   private parseTableHtml(html: string): { headers: string[]; rows: string[][] } {
+    if (!this.isBrowser) return { headers: [], rows: [] };
+
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, 'text/html');
     const tables = doc.querySelectorAll('table');
@@ -1457,8 +1732,9 @@ export class Newcert implements OnInit {
     this.cdr.detectChanges();
   }
 
-    // CONSTRUCCIÓN DEL JSON
-
+  // ==================================================================
+  //  CONSTRUCCIÓN DEL JSON
+  // ==================================================================
   obtenerJsonEstructurado(): object {
     this.regenerarTableIds();
 
@@ -1522,8 +1798,9 @@ export class Newcert implements OnInit {
     });
   }
 
-    // VALIDACIÓN DE FORMULARIO
-
+  // ==================================================================
+  //  VALIDACIÓN DE FORMULARIO
+  // ==================================================================
   validarFormulario(): boolean {
     const errores: string[] = [];
     const c = this.certificado;
@@ -1642,8 +1919,9 @@ export class Newcert implements OnInit {
     return { titulo: 'Error al guardar', mensaje: message || detail || 'Error desconocido al conectar con la API.' };
   }
 
-    // GUARDAR
-
+  // ==================================================================
+  //  GUARDAR
+  // ==================================================================
   guardarCertificado(): void {
     if (this.guardando) return;
     if (!this.validarFormulario()) return;
@@ -1695,8 +1973,9 @@ export class Newcert implements OnInit {
     });
   }
 
-    // LIMPIAR
-
+  // ==================================================================
+  //  LIMPIAR
+  // ==================================================================
   limpiarFormulario(): void {
     this.draftDescartado = false;
     this.draftListo = true;
@@ -1708,6 +1987,8 @@ export class Newcert implements OnInit {
     this.patronSeleccionado = null;
     this.resultTables = [this.crearEstructuraTablaInicial()];
     this.imageStates = [this.crearEstadoImagenVacio()];
+    this.multiItems = [];
+    this.mostrarPanelMulti = false;
     this.ocrEnProceso = false;
     this.unidadesPorTabla.clear();
     this.regenerarTableIds();
@@ -1716,8 +1997,9 @@ export class Newcert implements OnInit {
     this.cdr.detectChanges();
   }
 
-    // AYUDA
-
+  // ==================================================================
+  //  AYUDA
+  // ==================================================================
   ayuda(modal: string): void {
     const clave = String(modal ?? '').trim().toLowerCase();
     let detalle = '';
@@ -1754,6 +2036,12 @@ export class Newcert implements OnInit {
       detalle = `
         <h3 style="margin-top:0; color:#6f42c1;">4. Extracción de tablas desde imagen (OCR)</h3>
         <p>Convierte una captura de la tabla en <b>columnas y filas editables</b>.</p>
+        <h4 style="font-size:1rem; margin:.8rem 0 .35rem;">Modo multi-imagen (recomendado)</h4>
+        <ul>
+          <li>Pega, arrastra o selecciona varias imágenes de la <b>misma tabla</b> (por ejemplo, la parte superior y la inferior).</li>
+          <li>Ordena las imágenes con las flechas ↑/↓ para que coincidan con el orden visual real.</li>
+          <li>Al enviarlas, el servidor las unificará <b>verticalmente</b> en una sola tabla.</li>
+        </ul>
       `;
     } else if (clave === 'json') {
       detalle = `
@@ -1776,5 +2064,51 @@ export class Newcert implements OnInit {
 
   private escapeHtml(s: string): string {
     return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+  }
+
+    /**
+   * Abre una vista previa en grande de la imagen en el modal de alertas.
+   * @param base64OrUrl - Cadena base64 (data:image/...) o URL de la imagen.
+   * @param titulo - Título opcional del modal.
+   */
+  verImagenGrande(base64OrUrl: string, titulo: string = 'Vista previa de la imagen'): void {
+    if (!base64OrUrl) {
+      this.alert.warning('No hay imagen para mostrar.', 'Vista previa');
+      return;
+    }
+
+    const html = `
+      <div class="text-center">
+        <img
+          src="${base64OrUrl}"
+          alt="Vista previa"
+          style="max-width: 100%; max-height: 70vh; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,.15);"
+        />
+      </div>
+      <div class="d-flex justify-content-center gap-2 mt-3 flex-wrap">
+        <a
+          href="${base64OrUrl}"
+          download="imagen_${Date.now()}.png"
+          class="btn btn-outline-secondary btn-sm">
+          ⬇ Descargar
+        </a>
+      </div>
+    `;
+
+    this.alert.alert(html, titulo, {
+      type: 'info',
+      confirmText: 'Cerrar',
+      dismissible: true,
+      size: 'xl',
+      sizeOptions: {
+        width: '90vw',
+        maxWidth: '1200px',
+        maxHeight: '90vh',
+        scrollable: true,
+        messageMaxHeight: '75vh',
+        fontSize: '15px',
+        lineHeight: 1.6,
+      },
+    });
   }
 }

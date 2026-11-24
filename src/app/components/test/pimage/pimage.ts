@@ -3,286 +3,109 @@ import {
   ChangeDetectorRef,
   inject,
   PLATFORM_ID,
-  OnInit,
-  OnDestroy,
 } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
-import {
-  ImageCropperComponent,
-  ImageCroppedEvent,
-  LoadedImage,
-} from 'ngx-image-cropper';
-import { Subscription } from 'rxjs';
-import * as XLSX from 'xlsx';
 
 import { ImageService } from '../../../services/database/external/image.service';
-import { EquipmentService } from '../../../services/database/external/equipment.service';
 import { AlertService } from '../../../services/core/alert.service';
+import * as XLSX from 'xlsx';
 
-// ========== TIPOS MULTI-IMAGEN ==========
-interface MultiImageItem {
+interface ImageItem {
   id: string;
   file: File;
   base64: string;
   nombre: string;
 }
 
-interface MultiImageState {
-  items: MultiImageItem[];
-  abierto: boolean;
-  procesando: boolean;
-  error: string | null;
-  cargandoArchivos: boolean;
-}
-
 @Component({
   selector: 'app-pimage',
   standalone: true,
-  imports: [CommonModule, ImageCropperComponent],
+  imports: [CommonModule],
   templateUrl: './pimage.html',
   styleUrl: './pimage.css',
 })
-export class Pimage implements OnInit, OnDestroy {
+export class Pimage {
   private platformId = inject(PLATFORM_ID);
   isBrowser: boolean = isPlatformBrowser(this.platformId);
-  private equipment = inject(EquipmentService);
   private alertService = inject(AlertService);
 
-  // ========== TABLA CRUZADA PATRÓN / EQUIPO ==========
-  cargandoCruzada: boolean = false;
-  private subCruzada?: Subscription;
-
-  // ========== CROPPER / IMAGEN ==========
-  imageChangedEvent: Event | null = null;
-  pasteImageFile: File | undefined = undefined;
-  croppedImageBase64: string = '';
+  items: ImageItem[] = [];
+  cargandoArchivos: boolean = false;
   cargando: boolean = false;
+  ocrEnProceso: boolean = false;
+  error: string | null = null;
+  zonaActiva: boolean = false;
 
-  // Propiedades para la tabla extraída por OCR
   tablaHeaders: string[] = [];
   tablaRows: string[][] = [];
   mostrarTabla: boolean = false;
   tablaTexto: string = '';
-
-  patrones: any;
-  equipos: any;
-
-  // ========== MULTI-IMAGEN (unión vertical) ==========
-  modoExtraccion: 'single' | 'multi' = 'single';
-  multiState: MultiImageState = this.crearMultiStateVacio();
-
-  /** Evita lanzar 2 OCR a la vez (single + multi). */
-  ocrEnProceso: boolean = false;
 
   constructor(
     private imageService: ImageService,
     private cdr: ChangeDetectorRef
   ) {}
 
-  // ============================================================
-  //  CICLO DE VIDA
-  // ============================================================
-  ngOnInit(): void {
-    this.cargaPatronesCruzados();
-  }
-
-  ngOnDestroy(): void {
-    this.subCruzada?.unsubscribe();
-  }
-
-  cargaPatronesCruzados(): void {
-    this.subCruzada = this.equipment.getPatronesCruzados().subscribe({
-      next: (res) => console.log(res),
-    });
-  }
-
-  cargarPatrones(): void {
-    this.equipment.getDatosPatron().subscribe({
-      next: (res) => {
-        this.patrones = res;
-        this.cdr.detectChanges();
-      },
-      error: (err) => {
-        console.error('Error patrones:', err);
-        this.alertService.error('No se pudieron cargar los patrones.', 'Error');
-        this.cdr.detectChanges();
-      },
-    });
-  }
-
-  cargarEquipos(): void {
-    this.equipment.getDatosEquipos().subscribe({
-      next: (res) => {
-        this.equipos = res;
-        this.cdr.detectChanges();
-      },
-      error: (err) => {
-        console.error('Error equipos:', err);
-        this.alertService.error('No se pudieron cargar los equipos.', 'Error');
-        this.cdr.detectChanges();
-      },
-    });
-  }
-
-  // ============================================================
-  //  MÉTODOS DEL CROPPER / IMAGEN
-  // ============================================================
-  onPaste(event: ClipboardEvent): void {
-    if (!this.isBrowser) return;
-    const items = event.clipboardData?.items;
-    if (!items) return;
-
-    let imagenEncontrada = false;
-    for (let i = 0; i < items.length; i++) {
-      if (items[i].type.startsWith('image/')) {
-        const file = items[i].getAsFile();
-        if (file) {
-          this.imageChangedEvent = null;
-          this.croppedImageBase64 = '';
-          this.pasteImageFile = new File(
-            [file],
-            `pasted_image_${Date.now()}.png`,
-            { type: file.type }
-          );
-          this.cdr.detectChanges();
-          imagenEncontrada = true;
-        }
-        break;
-      }
-    }
-
-    if (!imagenEncontrada) {
+  // ========== CARGA UNIVERSAL ==========
+  onPasteUniversal(event: ClipboardEvent): void {
+    if (!this.isBrowser || this.ocrEnProceso) return;
+    const files = this.extraerImagenesDeClipboard(event);
+    if (files.length === 0) {
       this.alertService.warning(
-        'El contenido pegado no es una imagen válida.',
+        'El contenido pegado no contiene imágenes válidas.',
         'Pegar imagen'
       );
-    }
-  }
-
-  fileChangeEvent(event: Event): void {
-    this.pasteImageFile = undefined;
-    this.croppedImageBase64 = '';
-    this.imageChangedEvent = event;
-  }
-
-  imageCropped(event: ImageCroppedEvent): void {
-    const base64 = event.base64 ?? null;
-    if (base64) {
-      this.croppedImageBase64 = base64;
       return;
     }
+    event.preventDefault();
+    void this.agregarArchivos(files);
+  }
 
-    const objectUrl = event.objectUrl ?? null;
-    if (objectUrl && this.isBrowser) {
-      this.blobToBase64(objectUrl).then((b64) => {
-        this.croppedImageBase64 = b64;
-        this.cdr.detectChanges();
-      });
+  onDragOver(event: DragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
+  onDropUniversal(event: DragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!this.isBrowser || this.ocrEnProceso) return;
+
+    const files: File[] = [];
+    const dropped = event.dataTransfer?.files;
+    if (dropped && dropped.length > 0) {
+      for (let i = 0; i < dropped.length; i++) {
+        if (dropped[i].type.startsWith('image/')) files.push(dropped[i]);
+      }
     }
-  }
-
-  imageLoaded(_image?: LoadedImage): void {
-    this.cdr.detectChanges();
-  }
-
-  cropperReady(): void {
-    /* El cropper está listo para interacción */
-  }
-
-  loadImageFailed(): void {
-    this.alertService.error(
-      'Error al cargar la imagen. Intenta con otra captura o archivo.',
-      'Carga de imagen'
-    );
-  }
-
-  private blobToBase64(blobUrl: string): Promise<string> {
-    if (!this.isBrowser) return Promise.resolve('');
-    return fetch(blobUrl)
-      .then((r) => r.blob())
-      .then(
-        (blob) =>
-          new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve(String(reader.result ?? ''));
-            reader.onerror = reject;
-            reader.readAsDataURL(blob);
-          })
-      );
-  }
-
-  // ============================================================
-  //  MODO DE EXTRACCIÓN
-  // ============================================================
-  setModo(modo: 'single' | 'multi'): void {
-    if (this.ocrEnProceso) {
-      this.alertService.info(
-        'Espera a que termine el proceso en curso.',
-        'Procesando'
+    if (files.length === 0) {
+      this.alertService.warning(
+        'Los archivos arrastrados no son imágenes válidas.',
+        'Arrastrar imágenes'
       );
       return;
     }
-    this.modoExtraccion = modo;
-    this.multiState.error = null;
-    this.cdr.detectChanges();
+    void this.agregarArchivos(files);
   }
 
-  // ============================================================
-  //  MULTI-IMAGEN: helpers de estado
-  // ============================================================
-  private crearMultiStateVacio(): MultiImageState {
-    return {
-      items: [],
-      abierto: false,
-      procesando: false,
-      error: null,
-      cargandoArchivos: false,
-    };
-  }
-
-  toggleMultiPanel(): void {
-    this.multiState.abierto = !this.multiState.abierto;
-    this.multiState.error = null;
-    this.cdr.detectChanges();
-  }
-
-  // ============================================================
-  //  MULTI-IMAGEN: carga de archivos
-  // ============================================================
-  onMultiFilesSelected(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    if (!input.files || input.files.length === 0) return;
-    const files = Array.from(input.files);
-    void this.agregarArchivosMultiples(files);
-    input.value = '';
-  }
-
-  onMultiPaste(event: ClipboardEvent): void {
-    if (!this.isBrowser) return;
+  private extraerImagenesDeClipboard(event: ClipboardEvent): File[] {
     const items = event.clipboardData?.items;
-    if (!items) return;
-
+    if (!items) return [];
     const files: File[] = [];
     for (let i = 0; i < items.length; i++) {
       if (items[i].type.startsWith('image/')) {
         const f = items[i].getAsFile();
         if (f) {
-          files.push(new File([f], `pegada_${Date.now()}_${i}.png`, { type: f.type }));
+          files.push(
+            new File([f], `pegada_${Date.now()}_${i}.png`, { type: f.type })
+          );
         }
       }
     }
-    if (files.length === 0) {
-      this.alertService.warning(
-        'El contenido pegado no contiene imágenes válidas.',
-        'Pegar imágenes'
-      );
-      return;
-    }
-    event.preventDefault();
-    void this.agregarArchivosMultiples(files);
+    return files;
   }
 
-  private async agregarArchivosMultiples(files: File[]): Promise<void> {
+  private async agregarArchivos(files: File[]): Promise<void> {
     const validos = files.filter((f) => /^image\//.test(f.type));
     if (validos.length === 0) {
       this.alertService.error(
@@ -292,14 +115,14 @@ export class Pimage implements OnInit, OnDestroy {
       return;
     }
 
-    this.multiState.cargandoArchivos = true;
-    this.multiState.error = null;
+    this.cargandoArchivos = true;
+    this.error = null;
     this.cdr.detectChanges();
 
     try {
       for (const f of validos) {
         const base64 = await this.fileToBase64(f);
-        this.multiState.items.push({
+        this.items.push({
           id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
           file: f,
           base64,
@@ -307,11 +130,11 @@ export class Pimage implements OnInit, OnDestroy {
         });
       }
     } catch (e: any) {
-      this.multiState.error =
+      this.error =
         'No se pudieron leer algunos archivos: ' +
         (e?.message ?? 'error desconocido');
     } finally {
-      this.multiState.cargandoArchivos = false;
+      this.cargandoArchivos = false;
       this.cdr.detectChanges();
     }
   }
@@ -326,73 +149,58 @@ export class Pimage implements OnInit, OnDestroy {
     });
   }
 
-  quitarItemMulti(itemId: string): void {
-    this.multiState.items = this.multiState.items.filter((i) => i.id !== itemId);
-    this.multiState.error = null;
+  quitarItem(itemId: string): void {
+    this.items = this.items.filter((i) => i.id !== itemId);
+    this.error = null;
     this.cdr.detectChanges();
   }
 
-  moverItemMulti(itemId: string, direccion: -1 | 1): void {
-    const items = this.multiState.items;
-    const idx = items.findIndex((i) => i.id === itemId);
+  moverItem(itemId: string, direccion: -1 | 1): void {
+    const idx = this.items.findIndex((i) => i.id === itemId);
     if (idx < 0) return;
     const nuevo = idx + direccion;
-    if (nuevo < 0 || nuevo >= items.length) return;
-    const [item] = items.splice(idx, 1);
-    items.splice(nuevo, 0, item);
-    this.multiState.error = null;
+    if (nuevo < 0 || nuevo >= this.items.length) return;
+    const [item] = this.items.splice(idx, 1);
+    this.items.splice(nuevo, 0, item);
+    this.error = null;
     this.cdr.detectChanges();
   }
 
-  limpiarMulti(): void {
-    this.multiState.items = [];
-    this.multiState.error = null;
-    this.cdr.detectChanges();
-  }
-
-  // ============================================================
-  //  ENVIAR 1 IMAGEN AL SERVIDOR
-  // ============================================================
+  // ========== ENVÍO AL SERVIDOR ==========
   enviarANode(): void {
     if (this.ocrEnProceso) {
       this.alertService.info('Ya hay un proceso en curso.', 'Espera');
       return;
     }
-
-    if (!this.pasteImageFile && !this.imageChangedEvent) {
-      this.alertService.warning(
-        'Por favor selecciona o pega una imagen primero.',
-        'Sin imagen'
-      );
-      return;
-    }
-
-    if (!this.croppedImageBase64) {
-      this.alertService.warning(
-        'Ajusta el área de selección sobre la tabla antes de extraer.',
-        'Área no definida'
-      );
+    if (this.items.length === 0) {
+      this.alertService.warning('Selecciona al menos una imagen.', 'Sin imágenes');
       return;
     }
 
     this.cargando = true;
     this.ocrEnProceso = true;
+    this.error = null;
     this.mostrarTabla = false;
     this.tablaHeaders = [];
     this.tablaRows = [];
     this.tablaTexto = '';
     this.cdr.detectChanges();
 
+    const base64List = this.items.map((i) => i.base64);
+    const order = this.items.map((_, idx) => idx);
+
     this.imageService
-      .procesarTabla(this.croppedImageBase64)
+      .procesarTablasMultiples(base64List, order)
       .subscribe({
-        next: (res) => this.procesarRespuestaSimple(res),
+        next: (res) => this.procesarRespuesta(res),
         error: (err) => {
           console.error('Error en servidor:', err);
-          this.alertService.error(
-            'Ocurrió un error al procesar la tabla en el servidor.',
-            'Servidor'
-          );
+          const backendMsg: string =
+            err?.error?.error ||
+            err?.message ||
+            'Error desconocido al procesar las imágenes.';
+          this.error = backendMsg;
+          this.alertService.error(backendMsg, 'OCR');
         },
       })
       .add(() => {
@@ -402,7 +210,7 @@ export class Pimage implements OnInit, OnDestroy {
       });
   }
 
-  private procesarRespuestaSimple(res: any): void {
+  private procesarRespuesta(res: any): void {
     const html = res?.table;
     if (res?.success && typeof html === 'string' && html.trim()) {
       this.tablaTexto = html;
@@ -415,153 +223,21 @@ export class Pimage implements OnInit, OnDestroy {
       this.mostrarTabla = this.tablaHeaders.length > 0;
       if (this.mostrarTabla) {
         this.alertService.success('Tabla extraída correctamente.', 'OCR');
+      } else {
+        const errMsg = 'No se pudo extraer una tabla válida del resultado.';
+        this.error = errMsg;
+        this.alertService.error(errMsg, 'OCR');
       }
     } else {
-      this.alertService.error(
-        'No se pudo extraer la tabla del servidor.',
-        'OCR'
-      );
+      const errMsg =
+        res?.error || 'El servidor no devolvió una tabla unificada.';
+      this.error = errMsg;
+      this.alertService.error(errMsg, 'OCR');
     }
     console.log('Respuesta del servidor:', html);
   }
 
-  // ============================================================
-  //  ENVIAR N IMÁGENES AL SERVIDOR (unión vertical)
-  // ============================================================
-  enviarMultiANode(): void {
-    if (this.ocrEnProceso || this.multiState.procesando) {
-      this.alertService.info('Ya hay un proceso en curso.', 'Espera');
-      return;
-    }
-
-    if (this.multiState.items.length < 1) {
-      this.alertService.warning('Selecciona al menos una imagen.', 'Sin imágenes');
-      return;
-    }
-
-    this.cargando = true;
-    this.ocrEnProceso = true;
-    this.multiState.procesando = true;
-    this.multiState.error = null;
-    this.mostrarTabla = false;
-    this.tablaHeaders = [];
-    this.tablaRows = [];
-    this.tablaTexto = '';
-    this.cdr.detectChanges();
-
-    const base64List = this.multiState.items.map((i) => i.base64);
-    const order = this.multiState.items.map((_, idx) => idx);
-
-    this.imageService
-      .procesarTablasMultiples(base64List, order)
-      .subscribe({
-        next: (res) => {
-          const html = res?.table;
-          if (res?.success && typeof html === 'string' && html.trim()) {
-            this.tablaTexto = html;
-            const tableText = html.trim();
-            if (tableText.startsWith('<table')) {
-              this.parseTableHtml(tableText);
-            } else {
-              this.parseTableText(tableText);
-            }
-            this.mostrarTabla = this.tablaHeaders.length > 0;
-
-            if (this.mostrarTabla) {
-              const imagenes = res?.metadata?.imagesProcessed ?? base64List.length;
-              const cols = res?.metadata?.columnsDetected ?? this.tablaHeaders.length;
-              this.alertService.success(
-                `${imagenes} imagen(es) unidas en una tabla de ${cols} columna(s).`,
-                'OCR multi-imagen'
-              );
-            } else {
-              const errMsg = 'No se pudo extraer una tabla válida del resultado unificado.';
-              this.multiState.error = errMsg;
-              this.alertService.error(errMsg, 'OCR multi-imagen');
-            }
-          } else {
-            const errMsg = res?.error || 'El servidor no devolvió una tabla unificada.';
-            this.multiState.error = errMsg;
-            this.alertService.error(errMsg, 'OCR multi-imagen');
-          }
-        },
-        error: (err) => {
-          console.error('Error en servidor (multi):', err);
-          // 422 → columnas inconsistentes; mostramos el detalle del backend
-          const backendMsg: string =
-            err?.error?.error ||
-            err?.message ||
-            'Error desconocido al unir las imágenes.';
-          this.multiState.error = backendMsg;
-          this.alertService.error(
-            backendMsg,
-            'No se pudieron unir las tablas'
-          );
-        },
-      })
-      .add(() => {
-        this.cargando = false;
-        this.ocrEnProceso = false;
-        this.multiState.procesando = false;
-        this.cdr.detectChanges();
-      });
-  }
-
-  // ============================================================
-  //  EXPORTAR A EXCEL
-  // ============================================================
-  exportToExcel(): void {
-    if (!this.isBrowser) return;
-
-    if (this.tablaHeaders.length === 0 || this.tablaRows.length === 0) {
-      this.alertService.warning(
-        'No hay datos en la tabla para exportar.',
-        'Exportar'
-      );
-      return;
-    }
-
-    try {
-      const wsData: (string | number)[][] = [
-        this.tablaHeaders,
-        ...this.tablaRows,
-      ];
-
-      const ws = XLSX.utils.aoa_to_sheet(wsData);
-
-      ws['!cols'] = this.tablaHeaders.map((h, i) => {
-        const maxLen = Math.max(
-          h.length,
-          ...this.tablaRows.map((r) => (r[i] ?? '').toString().length)
-        );
-        return { wch: Math.min(Math.max(maxLen + 2, 10), 50) };
-      });
-
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Tabla OCR');
-
-      const filename = `tabla_ocr_${new Date()
-        .toISOString()
-        .slice(0, 10)}_${Date.now()}.xlsx`;
-
-      XLSX.writeFile(wb, filename);
-
-      this.alertService.success(
-        `Archivo "${filename}" generado correctamente.`,
-        'Exportar a Excel'
-      );
-    } catch (err) {
-      console.error('Error al exportar:', err);
-      this.alertService.error(
-        'No se pudo generar el archivo Excel.',
-        'Exportar'
-      );
-    }
-  }
-
-  // ============================================================
-  //  PARSEADOR DE TEXTO CON PIPES
-  // ============================================================
+  // ========== PARSEADORES ==========
   private parseTableText(text: string): void {
     const lines = text
       .split('\n')
@@ -612,9 +288,6 @@ export class Pimage implements OnInit, OnDestroy {
     this.tablaRows = rows;
   }
 
-  // ============================================================
-  //  PARSEADOR DE HTML (detecta encabezados duplicados y rowspan)
-  // ============================================================
   private parseTableHtml(html: string): void {
     if (!this.isBrowser) return;
 
@@ -782,6 +455,55 @@ export class Pimage implements OnInit, OnDestroy {
         `Se ignoraron ${celdasVaciasDescartadas} celda(s) vacía(s) que rompían la estructura de la tabla. ` +
         `La tabla se muestra sin esos huecos.`,
         'Celdas vacías eliminadas'
+      );
+    }
+  }
+
+  exportToExcel(): void {
+    if (!this.isBrowser) return;
+
+    if (this.tablaHeaders.length === 0 || this.tablaRows.length === 0) {
+      this.alertService.warning(
+        'No hay datos en la tabla para exportar.',
+        'Exportar'
+      );
+      return;
+    }
+
+    try {
+      const wsData: (string | number)[][] = [
+        this.tablaHeaders,
+        ...this.tablaRows,
+      ];
+
+      const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+      ws['!cols'] = this.tablaHeaders.map((h, i) => {
+        const maxLen = Math.max(
+          h.length,
+          ...this.tablaRows.map((r) => (r[i] ?? '').toString().length)
+        );
+        return { wch: Math.min(Math.max(maxLen + 2, 10), 50) };
+      });
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Tabla OCR');
+
+      const filename = `tabla_ocr_${new Date()
+        .toISOString()
+        .slice(0, 10)}_${Date.now()}.xlsx`;
+
+      XLSX.writeFile(wb, filename);
+
+      this.alertService.success(
+        `Archivo "${filename}" generado correctamente.`,
+        'Exportar a Excel'
+      );
+    } catch (err) {
+      console.error('Error al exportar:', err);
+      this.alertService.error(
+        'No se pudo generar el archivo Excel.',
+        'Exportar'
       );
     }
   }
