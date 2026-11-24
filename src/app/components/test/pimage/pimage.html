@@ -1,70 +1,226 @@
 <!-- ============================================================
-     CARD 1: Cargar Tabla de Certificado (OCR)
+     CARD 1: Cargar Tabla de Certificado (OCR) — Single + Multi
      ============================================================ -->
 <div class="container py-4">
   <div class="card p-3 shadow-sm mb-4">
     <h5 class="mb-3">Cargar Tabla de Certificado</h5>
 
-    <!-- Área de Pegado -->
-    <div
-      class="paste-zone p-4 text-center border border-2 border-dashed rounded mb-3 bg-light"
-      (paste)="onPaste($event)"
-      tabindex="0"
-    >
-      <p class="mb-1 text-primary fw-bold">
-        📋 Haz clic aquí y presiona <kbd>Ctrl + V</kbd> para pegar la imagen
-      </p>
-      <small class="text-muted">O selecciona un archivo local:</small>
-      <input
-        type="file"
-        class="form-control form-control-sm mt-2"
-        (change)="fileChangeEvent($event)"
-        accept="image/*"
-      />
-    </div>
-
-    <!-- Recortador de Imagen (Protegido contra SSR) -->
-    @if (isBrowser) {
-      <div
-        class="cropper-wrapper mb-3"
-        *ngIf="imageChangedEvent || pasteImageFile"
-      >
-        <p class="small text-muted mb-1 p-2">
-          Ajusta los bordes para seleccionar únicamente la tabla:
-        </p>
-        <image-cropper
-          [imageChangedEvent]="imageChangedEvent"
-          [imageFile]="pasteImageFile"
-          [maintainAspectRatio]="false"
-          [resizeToWidth]="0"
-          [cropperStaticWidth]="0"
-          [cropperStaticHeight]="0"
-          [canvasRotation]="0"
-          format="png"
-          (imageCropped)="imageCropped($event)"
-          (imageLoaded)="imageLoaded($event)"
-          (cropperReady)="cropperReady()"
-          (loadImageFailed)="loadImageFailed()"
-        ></image-cropper>
-      </div>
-    }
-
-    <!-- Botón de Procesar -->
-    <div class="d-flex justify-content-end mb-3">
+    <!-- ==================== SELECTOR DE MODO ==================== -->
+    <div class="d-flex gap-2 mb-3">
       <button
-        class="btn btn-primary"
-        [disabled]="cargando"
-        (click)="enviarANode()"
+        type="button"
+        class="btn btn-sm"
+        [class.btn-primary]="modoExtraccion === 'single'"
+        [class.btn-outline-primary]="modoExtraccion !== 'single'"
+        (click)="setModo('single')"
+        [disabled]="ocrEnProceso"
       >
-        <span
-          *ngIf="cargando"
-          class="spinner-border spinner-border-sm me-1"
-        ></span>
-        {{ cargando ? 'Procesando...' : 'Extraer Tabla' }}
+        <i class="bi bi-crop me-1"></i> Una imagen (recorte)
+      </button>
+
+      <button
+        type="button"
+        class="btn btn-sm"
+        [class.btn-primary]="modoExtraccion === 'multi'"
+        [class.btn-outline-primary]="modoExtraccion !== 'multi'"
+        (click)="setModo('multi')"
+        [disabled]="ocrEnProceso"
+      >
+        <i class="bi bi-images me-1"></i> Varias imágenes (unir)
       </button>
     </div>
 
-    <!-- Resultado: Tabla extraída -->
+    <!-- ============================================================
+         MODO SINGLE: cropper + extraer 1 imagen
+         ============================================================ -->
+    @if (modoExtraccion === 'single') {
+      <!-- Área de Pegado -->
+      <div
+        class="paste-zone p-4 text-center border border-2 border-dashed rounded mb-3 bg-light"
+        (paste)="onPaste($event)"
+        tabindex="0"
+      >
+        <p class="mb-1 text-primary fw-bold">
+          📋 Haz clic aquí y presiona <kbd>Ctrl + V</kbd> para pegar la imagen
+        </p>
+        <small class="text-muted">O selecciona un archivo local:</small>
+        <input
+          type="file"
+          class="form-control form-control-sm mt-2"
+          (change)="fileChangeEvent($event)"
+          accept="image/*"
+        />
+      </div>
+
+      <!-- Recortador de Imagen (Protegido contra SSR) -->
+      @if (isBrowser) {
+        <div
+          class="cropper-wrapper mb-3"
+          *ngIf="imageChangedEvent || pasteImageFile"
+        >
+          <p class="small text-muted mb-1 p-2">
+            Ajusta los bordes para seleccionar únicamente la tabla:
+          </p>
+          <image-cropper
+            [imageChangedEvent]="imageChangedEvent"
+            [imageFile]="pasteImageFile"
+            [maintainAspectRatio]="false"
+            [resizeToWidth]="0"
+            [cropperStaticWidth]="0"
+            [cropperStaticHeight]="0"
+            [canvasRotation]="0"
+            format="png"
+            (imageCropped)="imageCropped($event)"
+            (imageLoaded)="imageLoaded($event)"
+            (cropperReady)="cropperReady()"
+            (loadImageFailed)="loadImageFailed()"
+          ></image-cropper>
+        </div>
+      }
+
+      <!-- Botón de Procesar (1 imagen) -->
+      <div class="d-flex justify-content-end mb-3">
+        <button
+          class="btn btn-primary"
+          [disabled]="cargando || ocrEnProceso"
+          (click)="enviarANode()"
+        >
+          <span
+            *ngIf="cargando"
+            class="spinner-border spinner-border-sm me-1"
+          ></span>
+          {{ cargando ? 'Procesando...' : 'Extraer Tabla' }}
+        </button>
+      </div>
+    }
+
+    <!-- ============================================================
+         MODO MULTI: varias imágenes → unión vertical
+         ============================================================ -->
+    @if (modoExtraccion === 'multi') {
+      <div
+        class="multi-panel p-3 border rounded bg-light mb-3"
+        (paste)="onMultiPaste($event)"
+        tabindex="0"
+      >
+        <p class="text-muted small mb-2">
+          Sube o pega <b>varias capturas de la misma tabla</b> (partes de
+          arriba/abajo). El servidor las unirá verticalmente. Todas deben tener
+          el <b>mismo número de columnas</b>.
+        </p>
+
+        <!-- Acciones de carga -->
+        <div class="d-flex gap-2 flex-wrap mb-2">
+          <label class="btn btn-sm btn-outline-secondary mb-0">
+            <i class="bi bi-upload me-1"></i> Seleccionar imágenes
+            <input
+              type="file"
+              multiple
+              accept="image/*"
+              hidden
+              (change)="onMultiFilesSelected($event)"
+            />
+          </label>
+
+          <button
+            type="button"
+            class="btn btn-sm btn-outline-secondary"
+            (click)="limpiarMulti()"
+            [disabled]="multiState.items.length === 0"
+          >
+            <i class="bi bi-trash me-1"></i> Vaciar
+          </button>
+        </div>
+
+        <div class="text-muted small mb-2" *ngIf="multiState.cargandoArchivos">
+          <span class="spinner-border spinner-border-sm me-1"></span>
+          Cargando archivos…
+        </div>
+
+        <!-- Lista de imágenes cargadas -->
+        <ul class="list-group mb-2" *ngIf="multiState.items.length > 0">
+          <li
+            class="list-group-item d-flex align-items-center gap-2"
+            *ngFor="let item of multiState.items; let idx = index"
+          >
+            <span class="badge bg-secondary">{{ idx + 1 }}</span>
+            <img
+              [src]="item.base64"
+              alt="preview"
+              style="width:48px;height:48px;object-fit:cover;border-radius:4px;border:1px solid #ddd;"
+            />
+            <span class="flex-grow-1 text-truncate">{{ item.nombre }}</span>
+
+            <button
+              type="button"
+              class="btn btn-sm btn-outline-secondary"
+              (click)="moverItemMulti(item.id, -1)"
+              [disabled]="idx === 0"
+              title="Subir"
+            >
+              <i class="bi bi-arrow-up"></i>
+            </button>
+            <button
+              type="button"
+              class="btn btn-sm btn-outline-secondary"
+              (click)="moverItemMulti(item.id, 1)"
+              [disabled]="idx === multiState.items.length - 1"
+              title="Bajar"
+            >
+              <i class="bi bi-arrow-down"></i>
+            </button>
+            <button
+              type="button"
+              class="btn btn-sm btn-outline-danger"
+              (click)="quitarItemMulti(item.id)"
+              title="Quitar"
+            >
+              <i class="bi bi-x-lg"></i>
+            </button>
+          </li>
+        </ul>
+
+        <!-- Error del backend (ej. columnas inconsistentes 422) -->
+        <div
+          class="alert alert-danger py-2 mb-2"
+          *ngIf="multiState.error"
+        >
+          {{ multiState.error }}
+        </div>
+
+        <!-- Botón extraer multi -->
+        <div class="d-flex justify-content-end gap-2">
+          <button
+            type="button"
+            class="btn btn-primary"
+            (click)="enviarMultiANode()"
+            [disabled]="
+              multiState.items.length === 0 ||
+              multiState.procesando ||
+              ocrEnProceso
+            "
+          >
+            <span
+              *ngIf="multiState.procesando"
+              class="spinner-border spinner-border-sm me-1"
+            ></span>
+            <i
+              class="bi bi-magic me-1"
+              *ngIf="!multiState.procesando"
+            ></i>
+            {{
+              multiState.procesando
+                ? 'Procesando...'
+                : 'Extraer y unir (' + multiState.items.length + ')'
+            }}
+          </button>
+        </div>
+      </div>
+    }
+
+    <!-- ============================================================
+         RESULTADO COMÚN: Tabla extraída (single o multi)
+         ============================================================ -->
     <div
       *ngIf="mostrarTabla && tablaHeaders.length > 0"
       class="mt-3 p-3 border rounded bg-white"
@@ -98,9 +254,11 @@
         </table>
       </div>
 
-      <!-- (Opcional) Mostrar el texto crudo para depuración -->
+      <!-- (Opcional) Texto crudo para depuración -->
       <details class="mt-3">
-        <summary class="text-muted small">Ver texto original extraído</summary>
+        <summary class="text-muted small">
+          Ver texto original extraído
+        </summary>
         <pre
           class="bg-light p-2 mt-2 rounded"
           style="white-space: pre-wrap; font-size: 0.8rem"
