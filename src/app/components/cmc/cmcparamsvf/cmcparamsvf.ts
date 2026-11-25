@@ -1,4 +1,4 @@
-// Componente mejorado de cmcparams
+// Componente mejorado de cmcparams — ahora con catálogo desde el servicio
 import {
   ChangeDetectorRef,
   Component,
@@ -20,6 +20,8 @@ import {
   CmcMultiPayload,
   CmcResultado,
 } from '../../../models/cmc.model';
+// ✅ NUEVO: catálogo desde el servicio (mismo que usa newcert/editcert)
+import { CatalogoService } from '../../../services/database/home/catalogo.service';
 
 interface ValorReferenciaParseado {
   numero: number;
@@ -35,8 +37,8 @@ interface FilaRangoInfo {
   valorReferenciaNum: number;
   valorReferenciaTexto: string;
   valorReferenciaUnidadTexto: string;
-  unidadCertificado: string;   // 👈 NUEVO: unidad declarada en el certificado
-  unidadColumna: string;       // 👈 NUEVO: unidad declarada en la columna de la tabla
+  unidadCertificado: string;
+  unidadColumna: string;
 }
 
 interface IntervaloUnico {
@@ -111,35 +113,8 @@ export class Cmcparamsvf implements OnInit {
 
   private _payloadsCache: CmcPayload[] = [];
 
-  private readonly opcionesParametroPorTitulo: Record<string, string[]> = {
-    'DC Voltage': ['Voltage'],
-    'AC Voltage': ['RMS Voltage', 'Peak-to-Peak Voltage (PP)'],
-    'DC Current': ['Current'],
-    'AC Current': ['RMS Current', 'Peak-to-Peak Current (PP)'],
-    'Resistance': ['Resistance'],
-    '4-Wire Resistance': ['4-Wire Resistance'],
-    'Lightning Impulse Voltage (LI)': [
-      'LI Impulse Voltage',
-      'Determination of scale factor and measurement of Ut',
-      'Measurement of front time T1',
-      'Measurement of time to half value T2',
-      'Polarity Linearity Test'
-    ],
-    'Switching Impulse Voltage (SI)': [
-      'LI Impulse Voltage',
-      'Determination of scale factor and measurement of Ut',
-      'Measurement of front time T1',
-      'Measurement of time to half value T2',
-      'Polarity Linearity Test'
-    ],
-    'Frequency': ['Frequency'],
-    'Capacitance': ['Capacitance'],
-    'Other': []
-  };
-
-  private readonly titulosConocidos = new Set(
-    Object.keys(this.opcionesParametroPorTitulo).filter(t => t !== 'Other')
-  );
+  // ❌ ELIMINADO: opcionesParametroPorTitulo (hardcodeado)
+  // ❌ ELIMINADO: titulosConocidos (derivado del hardcodeado)
 
   private readonly factoresUnidad: Record<string, number> = {
     'nv': 1e-9, 'uv': 1e-6, 'µv': 1e-6, 'mv': 1e-3,
@@ -162,11 +137,23 @@ export class Cmcparamsvf implements OnInit {
     private readonly cert: CertService,
     private readonly alert: AlertService,
     private readonly cdr: ChangeDetectorRef,
-    private readonly router: Router
+    private readonly router: Router,
+    public readonly catalogo: CatalogoService // ✅ NUEVO: catálogo desde el servicio
   ) {}
 
   ngOnInit(): void {
-    this.cargarEquipos();
+    // ✅ NUEVO: aseguramos que el catálogo esté cargado antes de listar títulos
+    this.catalogo.cargarCatalogo().subscribe({
+      next: () => this.cargarEquipos(),
+      error: (err) => {
+        console.error('Error cargando catálogo:', err);
+        this.alert.error(
+          'No se pudo cargar el catálogo de títulos/unidades.',
+          'Catálogo'
+        );
+        this.cargarEquipos();
+      }
+    });
   }
 
   // Getters de estado
@@ -179,7 +166,6 @@ export class Cmcparamsvf implements OnInit {
     return this.cmcActivo?.selecciones ?? {};
   }
 
-  // 🔧 NG0103: getter puro, sin mutación
   get cmcsParaMostrar(): CmcPayload[] {
     return this._payloadsCache;
   }
@@ -233,7 +219,6 @@ export class Cmcparamsvf implements OnInit {
     return Array.from(nums).sort((a, b) => a - b);
   }
 
-  // 🔧 NG0103: recalcula el caché explícitamente (nunca dentro de getters)
   private recalcularCachePayloads(): void {
     this._payloadsCache = this.cmcs
       .filter(c => c.payload !== null)
@@ -251,10 +236,6 @@ export class Cmcparamsvf implements OnInit {
     return `${label} (${unitStr})`;
   }
 
-  /**
-   * Devuelve la unidad declarada en el certificado, si existe.
-   * Busca en los campos habituales: unit, unidades, unidad, measurement_unit, etc.
-   */
   private obtenerUnidadCertificado(cert: any): string {
     if (!cert) return '';
     const candidatos = [
@@ -277,9 +258,6 @@ export class Cmcparamsvf implements OnInit {
     return '';
   }
 
-  /**
-   * Devuelve la unidad declarada en la columna de referencia de la tabla, si existe.
-   */
   private obtenerUnidadColumna(col: Column | undefined): string {
     if (!col) return '';
     const unit = (col as any)?.unit;
@@ -289,14 +267,6 @@ export class Cmcparamsvf implements OnInit {
     return s;
   }
 
-  /**
-   * Construye el texto de min/max referencia aplicando la precedencia:
-   *   1) unidad del certificado
-   *   2) unidad de la columna de la tabla
-   *   3) lo que ya traiga el valor raw (si no hay unidad en ninguno de los dos)
-   *
-   * Si la unidad elegida ya está presente en el raw, no la duplica.
-   */
   private formatearReferenciaConUnidad(
     fila: FilaRangoInfo,
     fallbackRaw?: string
@@ -304,12 +274,10 @@ export class Cmcparamsvf implements OnInit {
     const raw = String(fila.valorReferenciaRaw ?? '').trim();
     const unidadElegida = fila.unidadCertificado || fila.unidadColumna || '';
 
-    // Si no hay unidad elegida, devolvemos el raw tal cual (o el fallback).
     if (!unidadElegida) {
       return raw || (fallbackRaw ?? '');
     }
 
-    // ¿El raw ya incluye la unidad? (comparación laxa por prefijo/sufijo)
     const unidadNorm = unidadElegida.toLowerCase().replace(/\s+/g, '');
     const rawNorm = raw.toLowerCase().replace(/\s+/g, '');
     const yaIncluida =
@@ -321,10 +289,8 @@ export class Cmcparamsvf implements OnInit {
       return raw;
     }
 
-    // Insertamos la unidad respetando el formato "valor unidad" (con espacio).
     const match = raw.match(/-?\d+(?:[.,]\d+)?(?:[eE][+-]?\d+)?/);
     if (!match || match.index === undefined) {
-      // No hay número: devolvemos raw + unidad
       return `${raw} ${unidadElegida}`.trim();
     }
 
@@ -399,7 +365,7 @@ export class Cmcparamsvf implements OnInit {
     this.availableParameters = [];
     this.certificadosPorCc = {};
     this.certificadosEnProceso = false;
-    this._payloadsCache = [];   // 🔧 NG0103
+    this._payloadsCache = [];
     this.cerrarPanelCmc();
     this.cerrarResultadosCmc();
 
@@ -447,37 +413,75 @@ export class Cmcparamsvf implements OnInit {
       });
   }
 
+  // ============================================================
+  // ✅ CAMBIO: construirTitulos() usa el catálogo del servicio
+  // ============================================================
   private construirTitulos(): void {
-    const titulosPresentes = new Set(this.tablas.map(t => t.title));
+    const titulosCatalogo = this.catalogo.listaTitulos().map(t => t.displayName);
 
-    const conocidos = Array.from(titulosPresentes)
-      .filter(t => this.titulosConocidos.has(t))
-      .sort();
+    const titulosPresentes = Array.from(
+      new Set(this.tablas.map(t => t.title).filter(Boolean))
+    );
 
-    const hayDesconocidos = Array.from(titulosPresentes)
-      .some(t => !this.titulosConocidos.has(t));
+    // Títulos del catálogo que además existan en las tablas del equipo
+    const titulosDisponibles = titulosCatalogo.filter(t =>
+      titulosPresentes.includes(t)
+    );
 
-    this.availableTitles = hayDesconocidos ? [...conocidos, 'Other'] : conocidos;
+    // Si hay títulos en las tablas que NO están en el catálogo, agregamos "Other"
+    const hayDesconocidos = titulosPresentes.some(
+      t => !titulosCatalogo.includes(t)
+    );
+
+    this.availableTitles = hayDesconocidos
+      ? [...titulosDisponibles, 'Other']
+      : titulosDisponibles;
   }
 
+  // ============================================================
+  // ✅ CAMBIO: calcularParametros() usa subparametrosDe() del catálogo
+  // ============================================================
   private calcularParametros(titulo: string): string[] {
     if (!titulo) return [];
 
+    const titulosCatalogo = this.catalogo.listaTitulos().map(t => t.displayName);
+    const parametrosCatalogo = this.catalogo.subparametrosDe(titulo).map(
+      s => s.displayName
+    );
+
+    // Caso "Other": parámetros de tablas que NO pertenecen a ningún título del catálogo
     if (titulo === 'Other') {
       const params = new Set<string>();
       this.tablas
-        .filter(t => !this.titulosConocidos.has(t.title))
-        .forEach(t => params.add(t.parameter));
+        .filter(t => !titulosCatalogo.includes(t.title))
+        .forEach(t => {
+          if (t.parameter) params.add(t.parameter);
+        });
       return Array.from(params).sort();
     }
 
-    const esperados = this.opcionesParametroPorTitulo[titulo] ?? [];
+    // Si el título no está en el catálogo, ofrecemos los parámetros que aparezcan en las tablas
+    if (parametrosCatalogo.length === 0) {
+      const params = new Set<string>();
+      this.tablas
+        .filter(t => t.title === titulo)
+        .forEach(t => {
+          if (t.parameter) params.add(t.parameter);
+        });
+      return Array.from(params).sort();
+    }
+
+    // Filtramos los parámetros del catálogo a los que realmente existen en las tablas
     const presentes = new Set(
-      this.tablas.filter(t => t.title === titulo).map(t => t.parameter)
+      this.tablas
+        .filter(t => t.title === titulo)
+        .map(t => t.parameter)
     );
 
-    const coincidentes = esperados.filter(p => presentes.has(p));
-    const extras = Array.from(presentes).filter(p => !esperados.includes(p));
+    const coincidentes = parametrosCatalogo.filter(p => presentes.has(p));
+    const extras = Array.from(presentes).filter(
+      p => !parametrosCatalogo.includes(p)
+    );
 
     return extras.length ? [...coincidentes, 'Other'] : coincidentes;
   }
@@ -494,17 +498,24 @@ export class Cmcparamsvf implements OnInit {
     this.cerrarResultadosCmc();
   }
 
+  // ============================================================
+  // ✅ CAMBIO: aplicarFiltros() usa el catálogo del servicio
+  // ============================================================
   private aplicarFiltros(): void {
+    const titulosCatalogo = this.catalogo.listaTitulos().map(t => t.displayName);
+
     this.filteredTablas = this.tablas.filter(t => {
       if (this.selectedTitle === 'Other') {
-        if (this.titulosConocidos.has(t.title)) return false;
+        if (titulosCatalogo.includes(t.title)) return false;
       } else if (this.selectedTitle) {
         if (t.title !== this.selectedTitle) return false;
       }
 
       if (this.selectedParameter === 'Other') {
         if (this.selectedTitle !== 'Other') {
-          const esperados = this.opcionesParametroPorTitulo[this.selectedTitle] ?? [];
+          const esperados = this.catalogo
+            .subparametrosDe(this.selectedTitle)
+            .map(s => s.displayName);
           if (esperados.includes(t.parameter)) return false;
         }
       } else if (this.selectedParameter) {
@@ -606,7 +617,7 @@ export class Cmcparamsvf implements OnInit {
     this.filteredTablas = [...this.tablas];
     this.certificadosPorCc = {};
     this.certificadosEnProceso = false;
-    this._payloadsCache = [];   // 🔧 NG0103
+    this._payloadsCache = [];
     this.cerrarPanelCmc();
     this.cerrarResultadosCmc();
     this.refresh();
@@ -648,7 +659,7 @@ export class Cmcparamsvf implements OnInit {
     this.cmcs = [];
     this.cmcActivoId = 1;
     this.dropdownIntervaloAbierto = false;
-    this._payloadsCache = [];   // 🔧 NG0103
+    this._payloadsCache = [];
     this.cerrarResultadosCmc();
     this.refresh();
   }
@@ -731,7 +742,7 @@ export class Cmcparamsvf implements OnInit {
     } else {
       this.resultadosCmc = this.resultadosCmc.filter(r => r.cmcNumero !== id);
     }
-    this.recalcularCachePayloads();   // 🔧 NG0103
+    this.recalcularCachePayloads();
     this.dropdownIntervaloAbierto = false;
     this.refresh();
     this.alert.info(`CMC #${id} eliminado.`, 'Eliminado');
@@ -933,7 +944,6 @@ export class Cmcparamsvf implements OnInit {
       : '';
     const objetivoNorm = this.normalizarRango(rangoObjetivo);
 
-    // 👇 NUEVO: unidad de la columna de referencia y del certificado
     const colReferencia = tabla.columns.find(c => c.key === sel.columnaReferenciaKey);
     const unidadColumna = this.obtenerUnidadColumna(colReferencia);
     const cert = this.getCertificado(tabla);
@@ -970,8 +980,8 @@ export class Cmcparamsvf implements OnInit {
         valorReferenciaNum: parsedRef.numero,
         valorReferenciaTexto: parsedRef.texto,
         valorReferenciaUnidadTexto: parsedRef.unidadTexto,
-        unidadCertificado,   // 👈 NUEVO
-        unidadColumna        // 👈 NUEVO
+        unidadCertificado,
+        unidadColumna
       });
     }
 
@@ -982,7 +992,7 @@ export class Cmcparamsvf implements OnInit {
     tabla: ResultTable,
     sel: CmcTablaSeleccion,
     colIntervaloKey: string,
-    rangoObjetivo: string
+    _rangoObjetivo: string
   ): FilaRangoInfo[] {
     const idx = this.filteredTablas.indexOf(tabla);
     const tieneRangos = idx >= 0 ? this.tablaTieneRangos(idx) : true;
@@ -1061,7 +1071,6 @@ export class Cmcparamsvf implements OnInit {
     return '(sin valor)';
   }
 
-  // 🔧 NG0103: versiones puramente visuales (template del CMC activo)
   getRangoSeleccionado(index: number): string {
     const sel = this.seleccionCmc[index];
     if (!sel) return '';
@@ -1197,7 +1206,7 @@ export class Cmcparamsvf implements OnInit {
     return Math.round(ms / (1000 * 60 * 60 * 24));
   }
 
-  // 🔧 NG0103: versiones parametrizadas para el resumen (sin tocar cmcActivoId)
+  // Versiones parametrizadas para el resumen (sin tocar cmcActivoId)
   private getRangoSeleccionadoParaCmc(cmc: CmcConfiguracionExt, index: number): string {
     const sel = cmc.selecciones[index];
     if (!sel) return '';
@@ -1623,7 +1632,7 @@ export class Cmcparamsvf implements OnInit {
     return ['v', 'a', 'ohm', 'ω', 'hz', 'f'].includes(u);
   }
 
-  private formatearValorConTexto(rawOriginal: string, numeroNormalizado: number): string {
+  private formatearValorConTexto(rawOriginal: string, _numeroNormalizado: number): string {
     const original = String(rawOriginal ?? '').trim();
     const match = original.match(/-?\d+(?:[.,]\d+)?(?:[eE][+-]?\d+)?/);
 
@@ -1674,7 +1683,6 @@ export class Cmcparamsvf implements OnInit {
       }
     }
 
-    // 🔧 NG0103: recalcular caché UNA vez, fuera de getters
     this.recalcularCachePayloads();
     this.refresh();
 
@@ -1865,7 +1873,6 @@ export class Cmcparamsvf implements OnInit {
         }
       }
 
-      // 👇 CAMBIO: min/max referencia ahora incluyen la unidad (certificado > columna > raw)
       const minRef = filaMin
         ? this.formatearReferenciaConUnidad(filaMin, tieneRangos ? rangoObjetivo : '—')
         : (tieneRangos ? rangoObjetivo : '—');
@@ -1877,7 +1884,6 @@ export class Cmcparamsvf implements OnInit {
       let ptRaw = tabla.pt;
       let pt = (ptRaw === null || ptRaw === undefined) ? '' : String(ptRaw).trim();
 
-      // Limpiamos si viene como "NA", "N/A" o variantes (ignorando mayúsculas/minúsculas)
       if (pt.toUpperCase() === 'NA' || pt.toUpperCase() === 'N/A' || pt === 'null') {
         pt = '';
       }
@@ -1936,7 +1942,6 @@ export class Cmcparamsvf implements OnInit {
 
     const ptPayload = ptUnico;
 
-    // Ordenamos de más antiguo a más reciente (necesario para los tiempos intermedios)
     filasValidas.sort((a, b) => a.fecha.getTime() - b.fecha.getTime());
     const filaMasReciente = filasValidas[filasValidas.length - 1];
 
@@ -2035,7 +2040,6 @@ export class Cmcparamsvf implements OnInit {
 
   // Integración con el componente de resultados
 
-  // 🔧 NG0103: pura, sin mutar cmcActivoId
   public obtenerResumenValoresSeleccionados(): Record<number, ResumenTablaCmc[]> {
     const resumenes: Record<number, ResumenTablaCmc[]> = {};
 
@@ -2097,7 +2101,6 @@ export class Cmcparamsvf implements OnInit {
       return;
     }
 
-    // Calcular el resumen UNA vez (fuera del log y fuera de cualquier getter)
     const resumenTablas = this.obtenerResumenValoresSeleccionados();
 
     const navegacionOk = await this.router.navigate([this.rutaResultadosCmc], {
@@ -2174,11 +2177,11 @@ export class Cmcparamsvf implements OnInit {
             Al cambiar de equipo se descargan sus tablas de resultados y se limpian los filtros.
           </li>
           <li>
-            <b>Título (Mensurando):</b> es la magnitud general que se está midiendo.
+            <b>Título (Mensurando):</b> es la magnitud general que se está midiendo. Los títulos se obtienen del <b>catálogo del servicio</b>, no están hardcodeados.
             <br><em>Ejemplos:</em> <code>DC Voltage</code>, <code>AC Voltage</code>, <code>Resistance</code>, <code>Frequency</code>, etc.
           </li>
           <li>
-            <b>Mesurando / Parámetro:</b> es la variante específica dentro del título.
+            <b>Mesurando / Parámetro:</b> es la variante específica dentro del título. También se obtienen del catálogo del servicio.
             <br><em>Ejemplo:</em> si el título es <code>AC Voltage</code>, los parámetros pueden ser <code>RMS Voltage</code> o <code>Peak-to-Peak Voltage (PP)</code>.
           </li>
         </ol>
