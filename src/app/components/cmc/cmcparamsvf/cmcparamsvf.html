@@ -268,7 +268,8 @@
               <th>#</th>
               <th>CC</th>
               <th>Fecha cal.</th>
-              <th style="min-width:150px;">Fila (intervalo)</th>
+              <th style="min-width:150px;">Rango
+              </th>
               <th style="min-width:320px;">Columnas</th>
             </tr>
           </thead>
@@ -298,29 +299,48 @@
               </td>
 
               <td>
-                <select
-                  class="form-select form-select-sm"
-                  [ngModel]="getRangoUnicoSeleccionado(i)"
-                  (ngModelChange)="onFilaRangoChange(i, $event)"
-                  [disabled]="seleccionCmc[i]?.seleccionada !== true || !tablaTieneRangos(i)"
-                  [title]="!tablaTieneRangos(i)
-                    ? 'Tabla sin rangos: se usa la tabla completa'
-                    : 'Selecciona el intervalo (agrupado por valores únicos)'">
-                  <option *ngFor="let opt of getIntervalosUnicos(i)" [value]="opt.valor">
-                    {{ opt.valor }}
-                  </option>
-                </select>
-                <small *ngIf="!tablaTieneRangos(i)" class="text-muted d-block mt-1">
-                  <i class="bi bi-table me-1"></i>
-                  Tabla completa ({{ tabla.rows.length }} fila{{ tabla.rows.length === 1 ? '' : 's' }})
-                </small>
+                <!-- ============================================================ -->
+                <!-- CAMBIO: si la tabla NO tiene rangos (se calcula toda la      -->
+                <!-- tabla), el select muestra un único option con el rango       -->
+                <!-- resumido (mín – máx, o un solo valor si mín = máx).          -->
+                <!-- Si SÍ tiene rangos, se mantiene el comportamiento original.  -->
+                <!-- ============================================================ -->
+                <ng-container *ngIf="tablaTieneRangos(i); else tablaCompleta">
+                  <select
+                    class="form-select form-select-sm"
+                    [ngModel]="getRangoUnicoSeleccionado(i)"
+                    (ngModelChange)="onFilaRangoChange(i, $event)"
+                    [disabled]="seleccionCmc[i]?.seleccionada !== true"
+                    title="Selecciona el intervalo (agrupado por valores únicos)">
+                    <option *ngFor="let opt of getIntervalosUnicos(i)" [value]="opt.valor">
+                      {{ opt.valor }}
+                    </option>
+                  </select>
+                </ng-container>
+
+                <ng-template #tablaCompleta>
+                  <select
+                    class="form-select form-select-sm"
+                    [ngModel]="getRangoUnicoSeleccionado(i)"
+                    (ngModelChange)="onFilaRangoChange(i, $event)"
+                    [disabled]="seleccionCmc[i]?.seleccionada !== true"
+                    title="Tabla sin rangos: se usa la tabla completa (rango mínimo – máximo)">
+                    <option [value]="getRangoUnicoSeleccionado(i)">
+                      {{ getRangoResumido(i) }}
+                    </option>
+                  </select>
+                  <small class="text-muted d-block mt-1">
+                    <i class="bi bi-table me-1"></i>
+                    Tabla completa ({{ tabla.rows.length }} fila{{ tabla.rows.length === 1 ? '' : 's' }})
+                  </small>
+                </ng-template>
               </td>
 
               <!-- Columnas de selección: VISIBLE SOLO SI ESTÁ SELECCIONADA ESTRICTAMENTE -->
               <td>
                 <ng-container *ngIf="seleccionCmc[i]?.seleccionada === true; else noSeleccionada">
                   <div class="d-flex flex-column gap-2">
-                    
+
                     <!-- Valor de Referencia -->
                     <div class="input-group input-group-sm">
                       <span class="input-group-text" style="min-width: 130px; font-size: 0.75rem;">
@@ -396,7 +416,10 @@
                 <th class="d-none d-xl-table-cell">#</th>
                 <th class="d-none d-md-table-cell">CC</th>
                 <th class="d-none d-lg-table-cell">Fila</th>
-                <th>Intervalo</th>
+                <!-- ============================================================ -->
+                <!-- CAMBIO: "Intervalo" → "Rango"                                -->
+                <!-- ============================================================ -->
+                <th>Rango</th>
                 <th>
                   <i class="bi bi-arrow-down-up text-warning me-1"></i>
                   Ref. Mín
@@ -410,7 +433,7 @@
                   Días
                 </th>
                 <th>Sesgo (Error prom.)</th>
-                <th>Incertidumbre prom.</th>
+                <th>Incertidumbre maxima</th>
               </tr>
             </thead>
             <tbody>
@@ -658,15 +681,15 @@
       <span class="badge badge-incertidumbre">Incertidumbre</span>
     </div>
 
-    <!-- 
-      AQUÍ ESTÁ EL CAMBIO: 
-      Usamos un ng-container para iterar sobre todas las tablas, pero 
+    <!--
+      AQUÍ ESTÁ EL CAMBIO:
+      Usamos un ng-container para iterar sobre todas las tablas, pero
       con un *ngIf interno que solo permite pintar la tabla si:
       1. El panel CMC está cerrado (mostrar todas).
       2. O si la tabla en esa posición (i) está seleccionada.
     -->
     <ng-container *ngFor="let table of filteredTablas; let i = index">
-      
+
       <div *ngIf="!mostrarPanelCmc || seleccionCmc[i]?.seleccionada === true" class="mb-4">
 
         <!-- Certificado colapsable -->

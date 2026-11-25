@@ -907,6 +907,11 @@ export class Cmcparamsvf implements OnInit {
     const tabla = this.filteredTablas[index];
     if (!sel || !tabla) return '';
 
+    // Si la tabla NO tiene rangos → devolvemos el resumen mín–máx
+    if (!this.tablaTieneRangos(index)) {
+      return this.getRangoResumido(index);
+    }
+
     const colIntervaloKey = tabla.columns[0]?.key ?? '';
     return String(this.getValorCelda(tabla, sel.filaIndex, colIntervaloKey) ?? '').trim();
   }
@@ -1078,13 +1083,8 @@ export class Cmcparamsvf implements OnInit {
     if (!tabla) return '';
 
     if (!this.tablaTieneRangos(index)) {
-      const colIntervaloKey = tabla.columns[0]?.key ?? '';
-      const valores: string[] = [];
-      (tabla.rows ?? []).forEach((row) => {
-        const v = String(row[colIntervaloKey] ?? '').trim();
-        if (v && !valores.includes(v)) valores.push(v);
-      });
-      return valores.length ? valores.join(' / ') : 'Toda la tabla';
+      // ✅ Ahora devuelve el resumen mín–máx, no la lista completa
+      return this.getRangoResumido(index);
     }
 
     const firstColKey = tabla.columns[0]?.key ?? '';
@@ -1216,13 +1216,19 @@ export class Cmcparamsvf implements OnInit {
     const tieneRangos = this.tablaTieneRangosParaCmc(cmc, index);
 
     if (!tieneRangos) {
+      // ✅ Resumen mín–máx usando la columna de intervalo (primera columna)
       const colIntervaloKey = tabla.columns[0]?.key ?? '';
-      const valores: string[] = [];
-      (tabla.rows ?? []).forEach((row) => {
-        const v = String(row[colIntervaloKey] ?? '').trim();
-        if (v && !valores.includes(v)) valores.push(v);
+      const valores: number[] = [];
+      (tabla.rows ?? []).forEach(row => {
+        const raw = String(row[colIntervaloKey] ?? '').trim();
+        if (!raw) return;
+        const num = Number(raw.replace(',', '.'));
+        if (isFinite(num)) valores.push(num);
       });
-      return valores.length ? valores.join(' / ') : 'Toda la tabla';
+      if (!valores.length) return 'Toda la tabla';
+      const min = Math.min(...valores);
+      const max = Math.max(...valores);
+      return min === max ? `${min}` : `${min} – ${max}`;
     }
 
     const firstColKey = tabla.columns[0]?.key ?? '';
@@ -1513,6 +1519,30 @@ export class Cmcparamsvf implements OnInit {
       'background-color': color.badge,
       'color': '#fff'
     };
+  }
+
+  getRangoResumido(i: number): string {
+    const tabla = this.filteredTablas[i];
+    const sel = this.seleccionCmc[i];
+    if (!tabla || !sel) return '—';
+
+    const colIntervaloKey = tabla.columns[0]?.key ?? '';
+    if (!colIntervaloKey) return '—';
+
+    const valores: number[] = [];
+    (tabla.rows ?? []).forEach(row => {
+      const raw = String(row[colIntervaloKey] ?? '').trim();
+      if (!raw) return;
+      const num = Number(raw.replace(',', '.'));
+      if (isFinite(num)) valores.push(num);
+    });
+
+    if (!valores.length) return '—';
+
+    const min = Math.min(...valores);
+    const max = Math.max(...valores);
+
+    return min === max ? `${min}` : `${min} – ${max}`;
   }
 
   estaEnModoCmc(tableIndex: number): boolean {
