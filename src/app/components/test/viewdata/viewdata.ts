@@ -43,10 +43,11 @@ export class Viewdata implements OnInit {
     private incService: IncertidumbreService,
     private cdr: ChangeDetectorRef,
     private alert: AlertService,
-    public catalogo: CatalogoService   // público para usar en template
+    public catalogo: CatalogoService
   ) {}
 
   ngOnInit(): void {
+    this.getPatronCruzado();
     this.getDatos();
     this.getincertidumbreData();
     this.cargarCatalogo();
@@ -54,7 +55,13 @@ export class Viewdata implements OnInit {
 
 
   // CARGA
-
+  getPatronCruzado(): void{
+    this.equipmentService.getPatronesCruzados().subscribe({
+      next:(res)=>{
+        console.log("Patrones cruzados",res);
+      },
+    });
+  }
 
   getincertidumbreData(): void {
     this.incService.listar().subscribe({

@@ -16,10 +16,9 @@ import { Editcmc } from './components/cmc/editcmc/editcmc';
 import { Alertconf } from './components/test/alertconf/alertconf';
 import { Viewdata } from './components/test/viewdata/viewdata';
 import { Cmcsr } from './components/cmc/cmcsr/cmcsr';
-import { Repetibilidad } from './components/incertidumbres/base/repetibilidad/repetibilidad';
-import { Reproducibilidad } from './components/incertidumbres/base/reproducibilidad/reproducibilidad';
 import { admininc } from './components/incertidumbres/admininc/admininc';
 import { Admincatalogo } from './components/cert/admincatalogo/admincatalogo';
+//import { Repetyreprod } from './components/incertidumbres/base/repetyreprod/repetyreprod';
 
 export const routes: Routes = [
   //Rutas publicas
@@ -53,8 +52,7 @@ export const routes: Routes = [
       //Rutas de administracion de incertidumbres
       { path: 'inc-admin', component: admininc, title: 'Administrar Fuentes de incertidumbre'},
       //Rutas de experimentos de repetibilidad y reproducibilidad
-      { path: 'inc-repeatability', component: Repetibilidad, title: 'Experimento de Repetibilidad'},
-      { path: 'inc-reproducybility', component: Reproducibilidad, title: 'Experimento de Reproducibilidad'},
+      //{ path: 'inc-repetyreprod', component: Repetyreprod, title: "Repetibilidad y reproducibilidad"}
 
     ]
   },

@@ -13,6 +13,7 @@ import {
 import { IncertidumbreService } from '../../../services/database/home/incertidumbre.service';
 // Importamos los tipos para el formulario
 import { AlertFormValues, AlertFormField } from '../../../components/core/alert/alert.model';
+import { AuthService } from '../../../services/auth/auth.service';
 
 @Component({
   selector: 'app-admininc',
@@ -24,6 +25,7 @@ import { AlertFormValues, AlertFormField } from '../../../components/core/alert/
 export class admininc implements OnInit {
 
   private readonly alert = inject(AlertService);
+  private auth = inject(AuthService);
   private readonly PASSWORD = 'admin';
 
   listaInc: Uncertainty[] = [];
@@ -52,34 +54,31 @@ export class admininc implements OnInit {
   // Seguridad: contraseña de acceso
   async verificarPassword(): Promise<void> {
     const pass = await this.alert.prompt(
-      'Ingrese la contraseña para acceder a la administración de incertidumbres.',
+      'Ingrese la contraseña para acceder a la administración de certificados.',
       'Acceso restringido',
       {
         type: 'question',
         confirmText: 'Acceder',
         cancelText: 'Cancelar',
         dismissible: false,
-        prompt: {
-          placeholder: 'Contraseña…',
-          defaultValue: '',
-          inputType: 'password'
-        }
+        prompt: { placeholder: 'Contraseña…', defaultValue: '', inputType: 'password' },
       }
     );
 
     if (pass === null) {
       this.alert.info('Acceso cancelado.', 'Saliendo');
-      this.router.navigate(['/list-cert']);
+      this.router.navigate(['/listcert']);
       return;
     }
 
-    if (pass === this.PASSWORD) {
-      this.alert.success('Acceso concedido.', 'Bienvenido');
-      this.obtenerInc();
-    } else {
+    if (!pass || !this.auth.loginWithPassword(pass)) {
       this.alert.error('Contraseña incorrecta. Acceso denegado.', 'Acceso denegado');
-      this.router.navigate(['/list-cert']);
+      this.router.navigate(['/listcert']);
+      return;
     }
+
+    this.alert.success('Acceso concedido.', 'Bienvenido');
+    this.obtenerInc();
   }
 
   // Carga de datos

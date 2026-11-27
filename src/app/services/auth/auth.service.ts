@@ -26,9 +26,7 @@ export class AuthService {
   readonly isLoggedIn = computed(() => this._user() !== null);
   readonly isUnlocked = this._unlocked.asReadonly();
 
-  // ────────────────────────────────────────────────
-  // USUARIO (igual que antes)
-  // ────────────────────────────────────────────────
+    // USUARIO (igual que antes)
 
   getUser(): User | null {
     return this._user();
@@ -83,9 +81,7 @@ export class AuthService {
     this.logout();
   }
 
-  // ────────────────────────────────────────────────
-  // CONTRASEÑA LOCAL (fija en código)
-  // ────────────────────────────────────────────────
+    // CONTRASEÑA LOCAL (fija en código)
 
   /** ¿La sesión está desbloqueada? */
   isSessionUnlocked(): boolean {
@@ -110,9 +106,7 @@ export class AuthService {
     this._unlocked.set(false);
   }
 
-  // ────────────────────────────────────────────────
-  // STORAGE / HELPERS
-  // ────────────────────────────────────────────────
+    // STORAGE / HELPERS
 
   private readUserFromStorage(): User | null {
     try {

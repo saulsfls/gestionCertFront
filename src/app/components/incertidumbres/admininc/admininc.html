@@ -3,7 +3,7 @@
   <!-- Barra de título y acciones -->
   <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
     <h2 class="fw-bold text-primary mb-0">
-      <i class="bi bi-shield-lock-fill"></i> Administración de Incertidumbres
+      <i class="bi bi-shield-lock-fill me-1"></i> Administración de Incertidumbres
     </h2>
     <div class="d-flex gap-2">
       <button
@@ -13,10 +13,10 @@
         [disabled]="cargando"
         title="Registrar una nueva incertidumbre"
       >
-        <i class="bi bi-plus-circle-fill"></i> Nueva incertidumbre
+        <i class="bi bi-plus-circle-fill me-1"></i> Nueva incertidumbre
       </button>
-      <button class="btn btn-outline-secondary shadow-sm" (click)="volver()">
-        <i class="bi bi-arrow-left"></i> Volver al inicio
+      <button type="button" class="btn btn-outline-secondary shadow-sm" (click)="volver()">
+        <i class="bi bi-arrow-left me-1"></i> Volver al inicio
       </button>
     </div>
   </div>
@@ -26,7 +26,9 @@
     <div class="card-body">
       <div class="row g-3 align-items-center">
         <div class="col-md-8">
-          <label class="form-label fw-bold small text-secondary">Buscar incertidumbre</label>
+          <label class="form-label fw-bold small text-secondary">
+            <i class="bi bi-search me-1"></i>Buscar incertidumbre
+          </label>
           <input
             type="text"
             class="form-control"
@@ -35,7 +37,9 @@
           />
         </div>
         <div class="col-md-4">
-          <label class="form-label fw-bold small text-secondary">Filtrar por estado</label>
+          <label class="form-label fw-bold small text-secondary">
+            <i class="bi bi-funnel me-1"></i>Filtrar por estado
+          </label>
           <select class="form-select" [(ngModel)]="filtroEstado">
             <option value="todos">Todas las incertidumbres</option>
             <option value="activos">Solo activas</option>
@@ -47,13 +51,19 @@
       <!-- Resumen rápido -->
       <div class="row g-2 mt-3 small text-secondary">
         <div class="col-auto">
-          <span class="badge bg-secondary">Total: {{ incFiltradas.length }}</span>
+          <span class="badge bg-secondary">
+            <i class="bi bi-files me-1"></i>Total: {{ incFiltradas.length }}
+          </span>
         </div>
         <div class="col-auto">
-          <span class="badge bg-success">Activas: {{ contarActivos() }}</span>
+          <span class="badge bg-success">
+            <i class="bi bi-check-circle me-1"></i>Activas: {{ contarActivos() }}
+          </span>
         </div>
         <div class="col-auto">
-          <span class="badge bg-danger">Obsoletas: {{ contarObsoletos() }}</span>
+          <span class="badge bg-danger">
+            <i class="bi bi-archive me-1"></i>Obsoletas: {{ contarObsoletos() }}
+          </span>
         </div>
       </div>
     </div>
@@ -72,34 +82,44 @@
       <table class="table table-hover align-middle mb-0">
         <thead class="table-dark">
           <tr>
-            <th>Estado</th>
-            <th>Clave</th>
-            <th>Nombre</th>
-            <th>Tipo</th>
-            <th>Distribución</th>
-            <th class="text-center">Acciones</th>
+            <th><i class="bi bi-activity me-1"></i>Estado</th>
+            <th><i class="bi bi-key me-1"></i>Clave</th>
+            <th><i class="bi bi-bullseye me-1"></i>Nombre</th>
+            <th><i class="bi bi-tag me-1"></i>Tipo</th>
+            <th><i class="bi bi-graph-up me-1"></i>Distribución</th>
+            <th class="text-center"><i class="bi bi-gear me-1"></i>Acciones</th>
           </tr>
         </thead>
         <tbody>
           <ng-container *ngFor="let inc of incFiltradas; trackBy: trackByIncId">
 
             <!-- Fila Principal (Solo resumen) -->
-            <tr>
+            <tr style="cursor: pointer;" (click)="toggleDetalle(inc.id)">
               <td>
                 <span class="badge" [ngClass]="esObsoleto(inc) ? 'bg-danger' : 'bg-success'">
+                  <i class="bi me-1" [ngClass]="esObsoleto(inc) ? 'bi-archive' : 'bi-check-circle'"></i>
                   {{ esObsoleto(inc) ? 'Obsoleta' : 'Activa' }}
                 </span>
               </td>
-              <td><span class="badge bg-light text-dark border">{{ inc.clave }}</span></td>
+              <td>
+                <span class="badge bg-light text-dark border">
+                  <i class="bi bi-key me-1"></i>{{ inc.clave }}
+                </span>
+              </td>
               <td class="fw-bold">{{ inc.name }}</td>
               <td>{{ inc.type }}</td>
               <td>{{ inc.distribution }}</td>
               <td class="text-center">
                 <button
+                  type="button"
                   class="btn btn-sm"
                   [ngClass]="idExpandido === inc.id ? 'btn-secondary' : 'btn-outline-primary'"
-                  (click)="toggleDetalle(inc.id)"
+                  (click)="$event.stopPropagation(); toggleDetalle(inc.id)"
                 >
+                  <i
+                    class="bi me-1"
+                    [ngClass]="idExpandido === inc.id ? 'bi-chevron-up' : 'bi-chevron-down'"
+                  ></i>
                   {{ idExpandido === inc.id ? 'Ocultar opciones' : 'Mostrar opciones' }}
                 </button>
               </td>
@@ -111,7 +131,7 @@
                 <div class="card border-secondary shadow-sm">
                   <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
                     <span class="fw-bold">
-                      Panel de Administración de la Incertidumbre
+                      <i class="bi bi-sliders me-1"></i>Panel de Administración de la Incertidumbre
                     </span>
                     <span class="badge bg-black">ID: {{ inc.id }} | Clave: {{ inc.clave }}</span>
                   </div>
@@ -122,15 +142,15 @@
                       <div class="col-md-6">
                         <ul class="list-group list-group-flush">
                           <li class="list-group-item d-flex justify-content-between">
-                            <strong>Clave</strong>
+                            <strong><i class="bi bi-key me-1 text-secondary"></i>Clave</strong>
                             <span>{{ inc.clave }}</span>
                           </li>
                           <li class="list-group-item d-flex justify-content-between">
-                            <strong>Nombre</strong>
+                            <strong><i class="bi bi-bullseye me-1 text-secondary"></i>Nombre</strong>
                             <span>{{ inc.name }}</span>
                           </li>
                           <li class="list-group-item d-flex justify-content-between">
-                            <strong>ID en BD</strong>
+                            <strong><i class="bi bi-hash me-1 text-secondary"></i>ID en BD</strong>
                             <span>{{ inc.id }}</span>
                           </li>
                         </ul>
@@ -139,16 +159,17 @@
                       <div class="col-md-6">
                         <ul class="list-group list-group-flush">
                           <li class="list-group-item d-flex justify-content-between">
-                            <strong>Tipo</strong>
+                            <strong><i class="bi bi-tag me-1 text-secondary"></i>Tipo</strong>
                             <span>{{ inc.type }}</span>
                           </li>
                           <li class="list-group-item d-flex justify-content-between">
-                            <strong>Distribución</strong>
+                            <strong><i class="bi bi-graph-up me-1 text-secondary"></i>Distribución</strong>
                             <span>{{ inc.distribution }}</span>
                           </li>
                           <li class="list-group-item d-flex justify-content-between">
-                            <strong>Estado</strong>
+                            <strong><i class="bi bi-activity me-1 text-secondary"></i>Estado</strong>
                             <span class="badge" [ngClass]="esObsoleto(inc) ? 'bg-danger' : 'bg-success'">
+                              <i class="bi me-1" [ngClass]="esObsoleto(inc) ? 'bi-archive' : 'bi-check-circle'"></i>
                               {{ esObsoleto(inc) ? 'Obsoleta' : 'Activa' }}
                             </span>
                           </li>
@@ -158,48 +179,52 @@
 
                     <!-- Descripción -->
                     <div class="border-top border-bottom py-3 mb-4">
-                      <h6 class="fw-bold mb-2"><i class="bi bi-card-text"></i> Descripción</h6>
+                      <h6 class="fw-bold mb-2"><i class="bi bi-card-text me-1"></i> Descripción</h6>
                       <p class="mb-0 text-secondary small">{{ inc.description || '—' }}</p>
                     </div>
 
                     <!-- Botones de Acción -->
                     <div class="d-flex justify-content-end align-items-center gap-2 mt-3 flex-wrap">
                       <button
+                        type="button"
                         class="btn btn-outline-primary"
                         (click)="editarIncertidumbre(inc)"
                         [disabled]="cargando"
                         title="Editar los datos de esta incertidumbre"
                       >
-                        <i class="bi bi-pencil-square"></i> Editar
+                        <i class="bi bi-pencil-square me-1"></i> Editar
                       </button>
 
                       <button
+                        type="button"
                         *ngIf="!esObsoleto(inc)"
                         class="btn btn-outline-warning"
                         (click)="desactivarIncertidumbre(inc)"
                         [disabled]="cargando"
                         title="Marcar como obsoleta (baja lógica)"
                       >
-                        <i class="bi bi-archive"></i> Marcar como obsoleta
+                        <i class="bi bi-archive me-1"></i> Marcar como obsoleta
                       </button>
 
                       <button
+                        type="button"
                         *ngIf="esObsoleto(inc)"
                         class="btn btn-success"
                         (click)="reactivarIncertidumbre(inc)"
                         [disabled]="cargando"
                         title="Reactivar esta incertidumbre"
                       >
-                        <i class="bi bi-arrow-counterclockwise"></i> Reactivar
+                        <i class="bi bi-arrow-counterclockwise me-1"></i> Reactivar
                       </button>
 
                       <button
+                        type="button"
                         class="btn btn-outline-danger"
                         (click)="eliminarIncertidumbre(inc)"
                         [disabled]="cargando"
                         title="Eliminar permanentemente esta incertidumbre"
                       >
-                        <i class="bi bi-trash"></i> Eliminar
+                        <i class="bi bi-trash me-1"></i> Eliminar
                       </button>
                     </div>
                   </div>
@@ -212,7 +237,7 @@
           <!-- Sin resultados -->
           <tr *ngIf="incFiltradas.length === 0">
             <td colspan="6" class="text-center py-4 text-muted">
-              No se encontraron incertidumbres con los criterios seleccionados.
+              <i class="bi bi-search me-1"></i>No se encontraron incertidumbres con los criterios seleccionados.
             </td>
           </tr>
         </tbody>
